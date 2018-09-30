@@ -14,3 +14,14 @@ The renderer is written using Visual Studio and targets Windows desktops with mo
 Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
 
 Day 1: Setting up instance/device and filling the screen with a solid color: https://youtu.be/BR2my8OE1Sc
+Day 2: Rendering a triangle on screen: https://youtu.be/5eS3gsL_P-c
+
+# Issues
+
+During the streams we find various bugs in parts of the Vulkan stack and report them:
+
+* vkAcquireNextImageKHR crashes in validation layers if vkGetSwapchainImagesKHR hasn't been called
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/358
+
+* vkGetPhysicalDeviceSurfaceFormatsKHR doesn't fill format count correctly
+https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797666

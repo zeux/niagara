@@ -9,7 +9,9 @@ The code will be written exclusively on stream.
 
 The renderer is written using Visual Studio and targets Windows desktops with modern Vulkan drivers. You will need Visual Studio 2017 and Vulkan SDK to follow along
 
-# Streams
+# Stream
+
+The development of this project streams on YouTube on weekends; Saturday and Sunday, 10 AM PST. You can watch the stream here: https://www.youtube.com/c/zeuxcg/live
 
 Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
 

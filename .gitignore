@@ -1,3 +1,4 @@
 src/.vs/
 src/*.user
 src/x64
+src/shaders/*.spv

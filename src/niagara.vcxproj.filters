@@ -16,6 +16,9 @@
     <Filter Include="glfw">
       <UniqueIdentifier>{43d3bf33-47a0-45dc-9ae6-6d48f7b39dc4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{b283ce06-b181-447e-95a3-153f7b0de899}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h">
@@ -86,5 +89,15 @@
     <ClCompile Include="..\extern\glfw\src\vulkan.c">
       <Filter>glfw</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\triangle.frag.glsl">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\triangle.vert.glsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

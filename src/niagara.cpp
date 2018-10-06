@@ -225,7 +225,7 @@ VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfac
 	return formats[0].format;
 }
 
-VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR surfaceCaps, uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height)
+VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR surfaceCaps, uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height, VkSwapchainKHR oldSwapchain)
 {
 	VkCompositeAlphaFlagBitsKHR surfaceComposite =
 		(surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
@@ -250,6 +250,7 @@ VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceC
 	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	createInfo.compositeAlpha = surfaceComposite;
 	createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	createInfo.oldSwapchain = oldSwapchain;
 
 	VkSwapchainKHR swapchain = 0;
 	VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, 0, &swapchain));
@@ -463,6 +464,88 @@ VkImageMemoryBarrier imageBarrier(VkImage image, VkAccessFlags srcAccessMask, Vk
 	return result;
 }
 
+struct Swapchain
+{
+	VkSwapchainKHR swapchain;
+
+	std::vector<VkImage> images;
+	std::vector<VkImageView> imageViews;
+	std::vector<VkFramebuffer> framebuffers;
+
+	uint32_t width, height;
+	uint32_t imageCount;
+};
+
+void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,  uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height, VkRenderPass renderPass, VkSwapchainKHR oldSwapchain = 0)
+{
+	VkSurfaceCapabilitiesKHR surfaceCaps;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
+
+	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, width, height, oldSwapchain);
+	assert(swapchain);
+
+	uint32_t imageCount = 0;
+	VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, 0));
+
+	std::vector<VkImage> images(imageCount);
+	VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, images.data()));
+
+	std::vector<VkImageView> imageViews(imageCount);
+	for (uint32_t i = 0; i < imageCount; ++i)
+	{
+		imageViews[i] = createImageView(device, images[i], format);
+		assert(imageViews[i]);
+	}
+
+	std::vector<VkFramebuffer> framebuffers(imageCount);
+	for (uint32_t i = 0; i < imageCount; ++i)
+	{
+		framebuffers[i] = createFramebuffer(device, renderPass, imageViews[i], width, height);
+		assert(framebuffers[i]);
+	}
+
+	result.swapchain = swapchain;
+
+	result.images = images;
+	result.imageViews = imageViews;
+	result.framebuffers = framebuffers;
+
+	result.width = width;
+	result.height = height;
+	result.imageCount = imageCount;
+}
+
+void destroySwapchain(VkDevice device, const Swapchain& swapchain)
+{
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+		vkDestroyFramebuffer(device, swapchain.framebuffers[i], 0);
+
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+		vkDestroyImageView(device, swapchain.imageViews[i], 0);
+
+	vkDestroySwapchainKHR(device, swapchain.swapchain, 0);
+}
+
+void resizeSwapchainIfNecessary(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, VkFormat format, VkRenderPass renderPass)
+{
+	VkSurfaceCapabilitiesKHR surfaceCaps;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
+
+	uint32_t newWidth = surfaceCaps.currentExtent.width;
+	uint32_t newHeight = surfaceCaps.currentExtent.height;
+
+	if (result.width == newWidth && result.height == newHeight)
+		return;
+
+	Swapchain old = result;
+
+	createSwapchain(result, physicalDevice, device, surface, familyIndex, format, newWidth, newHeight, renderPass, old.swapchain);
+
+	VK_CHECK(vkDeviceWaitIdle(device));
+
+	destroySwapchain(device, old);
+}
+
 int main()
 {
 	int rc = glfwInit();
@@ -501,12 +584,6 @@ int main()
 
 	VkFormat swapchainFormat = getSwapchainFormat(physicalDevice, surface);
 
-	VkSurfaceCapabilitiesKHR surfaceCaps;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
-
-	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, swapchainFormat, windowWidth, windowHeight);
-	assert(swapchain);
-
 	VkSemaphore acquireSemaphore = createSemaphore(device);
 	assert(acquireSemaphore);
 
@@ -534,25 +611,8 @@ int main()
 	VkPipeline trianglePipeline = createGraphicsPipeline(device, pipelineCache, renderPass, triangleVS, triangleFS, triangleLayout);
 	assert(trianglePipeline);
 
-	uint32_t swapchainImageCount = 0;
-	VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, 0));
-
-	std::vector<VkImage> swapchainImages(swapchainImageCount);
-	VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data()));
-
-	std::vector<VkImageView> swapchainImageViews(swapchainImageCount);
-	for (uint32_t i = 0; i < swapchainImageCount; ++i)
-	{
-		swapchainImageViews[i] = createImageView(device, swapchainImages[i], swapchainFormat);
-		assert(swapchainImageViews[i]);
-	}
-
-	std::vector<VkFramebuffer> swapchainFramebuffers(swapchainImageCount);
-	for (uint32_t i = 0; i < swapchainImageCount; ++i)
-	{
-		swapchainFramebuffers[i] = createFramebuffer(device, renderPass, swapchainImageViews[i], windowWidth, windowHeight);
-		assert(swapchainFramebuffers[i]);
-	}
+	Swapchain swapchain;
+	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, windowWidth, windowHeight, renderPass);
 
 	VkCommandPool commandPool = createCommandPool(device, familyIndex);
 	assert(commandPool);
@@ -569,8 +629,10 @@ int main()
 	{
 		glfwPollEvents();
 
+		resizeSwapchainIfNecessary(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
+
 		uint32_t imageIndex = 0;
-		VK_CHECK(vkAcquireNextImageKHR(device, swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
+		VK_CHECK(vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
 
 		VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 
@@ -579,7 +641,7 @@ int main()
 
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		VkImageMemoryBarrier renderBeginBarrier = imageBarrier(swapchainImages[imageIndex], 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		VkImageMemoryBarrier renderBeginBarrier = imageBarrier(swapchain.images[imageIndex], 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &renderBeginBarrier);
 
 		VkClearColorValue color = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
@@ -587,16 +649,16 @@ int main()
 
 		VkRenderPassBeginInfo passBeginInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
 		passBeginInfo.renderPass = renderPass;
-		passBeginInfo.framebuffer = swapchainFramebuffers[imageIndex];
-		passBeginInfo.renderArea.extent.width = windowWidth;
-		passBeginInfo.renderArea.extent.height = windowHeight;
+		passBeginInfo.framebuffer = swapchain.framebuffers[imageIndex];
+		passBeginInfo.renderArea.extent.width = swapchain.width;
+		passBeginInfo.renderArea.extent.height = swapchain.height;
 		passBeginInfo.clearValueCount = 1;
 		passBeginInfo.pClearValues = &clearColor;
 
 		vkCmdBeginRenderPass(commandBuffer, &passBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkViewport viewport = { 0, float(windowHeight), float(windowWidth), -float(windowHeight), 0, 1 };
-		VkRect2D scissor = { {0, 0}, {uint32_t(windowWidth), uint32_t(windowHeight)} };
+		VkViewport viewport = { 0, float(swapchain.height), float(swapchain.width), -float(swapchain.height), 0, 1 };
+		VkRect2D scissor = { {0, 0}, {uint32_t(swapchain.width), uint32_t(swapchain.height)} };
 
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
@@ -606,7 +668,7 @@ int main()
 
 		vkCmdEndRenderPass(commandBuffer);
 
-		VkImageMemoryBarrier renderEndBarrier = imageBarrier(swapchainImages[imageIndex], VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		VkImageMemoryBarrier renderEndBarrier = imageBarrier(swapchain.images[imageIndex], VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &renderEndBarrier);
 
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -628,7 +690,7 @@ int main()
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pWaitSemaphores = &releaseSemaphore;
 		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapchain;
+		presentInfo.pSwapchains = &swapchain.swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 
 		VK_CHECK(vkQueuePresentKHR(queue, &presentInfo));
@@ -643,11 +705,7 @@ int main()
 
 	vkDestroyCommandPool(device, commandPool, 0);
 
-	for (uint32_t i = 0; i < swapchainImageCount; ++i)
-		vkDestroyFramebuffer(device, swapchainFramebuffers[i], 0);
-
-	for (uint32_t i = 0; i < swapchainImageCount; ++i)
-		vkDestroyImageView(device, swapchainImageViews[i], 0);
+	destroySwapchain(device, swapchain);
 
 	vkDestroyPipeline(device, trianglePipeline, 0);
 	vkDestroyPipelineLayout(device, triangleLayout, 0);
@@ -660,7 +718,6 @@ int main()
 	vkDestroySemaphore(device, releaseSemaphore, 0);
 	vkDestroySemaphore(device, acquireSemaphore, 0);
 
-	vkDestroySwapchainKHR(device, swapchain, 0);
 	vkDestroySurfaceKHR(instance, surface, 0);
 
 	glfwDestroyWindow(window);

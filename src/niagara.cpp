@@ -43,7 +43,9 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 #endif
+#ifdef _DEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+#endif
 	};
 
 	createInfo.ppEnabledExtensionNames = extensions;
@@ -554,7 +556,9 @@ int main()
 	VkInstance instance = createInstance();
 	assert(instance);
 
+#ifdef _DEBUG
 	VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
+#endif
 
 	VkPhysicalDevice physicalDevices[16];
 	uint32_t physicalDeviceCount = sizeof(physicalDevices) / sizeof(physicalDevices[0]);
@@ -724,8 +728,10 @@ int main()
 
 	vkDestroyDevice(device, 0);
 
+#ifdef _DEBUG
 	PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
 	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
+#endif
 
 	vkDestroyInstance(instance, 0);
 }

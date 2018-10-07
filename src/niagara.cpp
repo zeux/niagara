@@ -177,8 +177,12 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	const char* extensions[] =
 	{
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 	};
+
+	VkPhysicalDeviceFeatures features = {};
+	features.vertexPipelineStoresAndAtomics = true; // TODO: we aren't using this yet? is this a bug in glslang or in validation layers or do I just not understand the spec?
 
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
@@ -186,6 +190,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	createInfo.ppEnabledExtensionNames = extensions;
 	createInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
+
+	createInfo.pEnabledFeatures = &features;
 
 	VkDevice device = 0;
 	VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));
@@ -376,10 +382,29 @@ VkShaderModule loadShader(VkDevice device, const char* path)
 
 VkPipelineLayout createPipelineLayout(VkDevice device)
 {
+	VkDescriptorSetLayoutBinding setBindings[1] = {};
+	setBindings[0].binding = 0;
+	setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	setBindings[0].descriptorCount = 1;
+	setBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+	setCreateInfo.bindingCount = ARRAYSIZE(setBindings);
+	setCreateInfo.pBindings = setBindings;
+
+	VkDescriptorSetLayout setLayout = 0;
+	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
+
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+	createInfo.setLayoutCount = 1;
+	createInfo.pSetLayouts = &setLayout;
 
 	VkPipelineLayout layout = 0;
 	VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
+
+	// TODO: is this safe?
+	vkDestroyDescriptorSetLayout(device, setLayout, 0);
 
 	return layout;
 }
@@ -403,25 +428,6 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 	VkPipelineVertexInputStateCreateInfo vertexInput = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
 	createInfo.pVertexInputState = &vertexInput;
-
-	// TODO: temporary, legacy FFP IA
-	VkVertexInputBindingDescription stream = { 0, 32, VK_VERTEX_INPUT_RATE_VERTEX };
-	VkVertexInputAttributeDescription attrs[3] = {};
-
-	attrs[0].location = 0;
-	attrs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attrs[0].offset = 0;
-	attrs[1].location = 1;
-	attrs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	attrs[1].offset = 12;
-	attrs[2].location = 2;
-	attrs[2].format = VK_FORMAT_R32G32_SFLOAT;
-	attrs[2].offset = 24;
-	
-	vertexInput.vertexBindingDescriptionCount = 1;
-	vertexInput.pVertexBindingDescriptions = &stream;
-	vertexInput.vertexAttributeDescriptionCount = 3;
-	vertexInput.pVertexAttributeDescriptions = attrs;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -839,10 +845,22 @@ int main(int argc, const char** argv)
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline);
 
-		VkDeviceSize dummyOffset = 0;
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vb.buffer, &dummyOffset);
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer = vb.buffer;
+		bufferInfo.offset = 0;
+		bufferInfo.range = vb.size;
+
+		VkWriteDescriptorSet descriptors[1] = {};
+		descriptors[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptors[0].dstBinding = 0;
+		descriptors[0].descriptorCount = 1;
+		descriptors[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		descriptors[0].pBufferInfo = &bufferInfo;
+
+		vkCmdPushDescriptorSetKHR(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, triangleLayout, 0, ARRAYSIZE(descriptors), descriptors);
+
 		vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(commandBuffer, mesh.indices.size(), 1, 0, 0, 0);
+		vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffer);
 

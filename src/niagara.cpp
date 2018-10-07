@@ -65,6 +65,10 @@ VkBool32 debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTyp
 	if (strstr(pMessage, "Shader requires vertexPipelineStoresAndAtomics but is not enabled on the device"))
 		return VK_FALSE;
 
+	// Validation layers don't correctly detect enablement of Int8 extensions: https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/372
+	if (strstr(pMessage, "Capability Int8 is not allowed by Vulkan 1.1 specification"))
+		return VK_FALSE;
+
 	const char* type =
 		(flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 		? "ERROR"
@@ -183,9 +187,17 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	{
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
+		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
+		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
 	};
 
-	VkPhysicalDeviceFeatures features = {};
+	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+
+	VkPhysicalDevice16BitStorageFeatures features16 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES };
+	features16.storageBuffer16BitAccess = true;
+
+	VkPhysicalDevice8BitStorageFeaturesKHR features8 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES_KHR };
+	features8.storageBuffer8BitAccess = true;
 
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
@@ -194,7 +206,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	createInfo.ppEnabledExtensionNames = extensions;
 	createInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
 
-	createInfo.pEnabledFeatures = &features;
+	createInfo.pNext = &features;
+	features.pNext = &features16;
+	features16.pNext = &features8;
 
 	VkDevice device = 0;
 	VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));
@@ -582,7 +596,7 @@ void resizeSwapchainIfNecessary(Swapchain& result, VkPhysicalDevice physicalDevi
 struct Vertex
 {
 	float vx, vy, vz;
-	float nx, ny, nz;
+	uint8_t nx, ny, nz, nw;
 	float tu, tv;
 };
 
@@ -610,12 +624,16 @@ bool loadMesh(Mesh& result, const char* path)
 		int vti = file.f[i * 3 + 1];
 		int vni = file.f[i * 3 + 2];
 
+		float nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
+		float ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
+		float nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
+
 		v.vx = file.v[vi * 3 + 0];
 		v.vy = file.v[vi * 3 + 1];
 		v.vz = file.v[vi * 3 + 2];
-		v.nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
-		v.ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
-		v.nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
+		v.nx = uint8_t(nx * 127.f + 127.f); // TODO: fix rounding
+		v.ny = uint8_t(ny * 127.f + 127.f); // TODO: fix rounding
+		v.nz = uint8_t(nz * 127.f + 127.f); // TODO: fix rounding
 		v.tu = vti < 0 ? 0.f : file.vt[vti * 3 + 0];
 		v.tv = vti < 0 ? 0.f : file.vt[vti * 3 + 1];
 	}

@@ -22,7 +22,7 @@
 
 VkInstance createInstance()
 {
-	// SHORTCUT: In real Vulkan applications you should probably check if 1.1 is available via vkEnumerateInstanceVersion
+	// TODO: we should probably check if 1.1 is available via vkEnumerateInstanceVersion
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = VK_API_VERSION_1_1;
 
@@ -145,6 +145,8 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 
 		if (!supportsPresentation(physicalDevices[i], familyIndex))
 			continue;
+
+		// TODO: We need to check if physical device supports Vulkan 1.1 here
 
 		if (!discrete && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
@@ -578,6 +580,7 @@ void resizeSwapchainIfNecessary(Swapchain& result, VkPhysicalDevice physicalDevi
 	VkSurfaceCapabilitiesKHR surfaceCaps;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
 
+	// TODO: If one of these is 0, createSwapchain fails
 	uint32_t newWidth = surfaceCaps.currentExtent.width;
 	uint32_t newHeight = surfaceCaps.currentExtent.height;
 

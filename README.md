@@ -17,6 +17,8 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 
 1. Setting up instance/device and filling the screen with a solid color: https://youtu.be/BR2my8OE1Sc
 2. Rendering a triangle on screen: https://youtu.be/5eS3gsL_P-c
+3. Cleaning up validation errors and implementing swapchain resize: https://youtu.be/_VU-G5rglnA
+4. Rendering a mesh using shader storage buffers and int8: https://youtu.be/nKCzD5iK71M
 
 # Issues
 
@@ -27,3 +29,9 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/358
 
 * vkGetPhysicalDeviceSurfaceFormatsKHR doesn't fill format count correctly \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797666
+
+* Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
+
+* Validation layers don't detect the fact that OpCapability Int8 is enabled via extensions \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/372

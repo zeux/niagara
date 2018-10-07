@@ -1,12 +1,14 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
-#include <vulkan/vulkan.h>
-
 #include <vector>
 #include <algorithm>
+
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
+#include <volk.h>
+#include <objparser.h>
+#include <meshoptimizer.h>
 
 #define VK_CHECK(call) \
 	do { \
@@ -86,8 +88,6 @@ VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance)
 	VkDebugReportCallbackCreateInfoEXT createInfo = { VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT };
 	createInfo.flags = VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT;
 	createInfo.pfnCallback = debugReportCallback;
-
-	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
 
 	VkDebugReportCallbackEXT callback = 0;
 	VK_CHECK(vkCreateDebugReportCallbackEXT(instance, &createInfo, 0, &callback));
@@ -404,6 +404,25 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	VkPipelineVertexInputStateCreateInfo vertexInput = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
 	createInfo.pVertexInputState = &vertexInput;
 
+	// TODO: temporary, legacy FFP IA
+	VkVertexInputBindingDescription stream = { 0, 32, VK_VERTEX_INPUT_RATE_VERTEX };
+	VkVertexInputAttributeDescription attrs[3] = {};
+
+	attrs[0].location = 0;
+	attrs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrs[0].offset = 0;
+	attrs[1].location = 1;
+	attrs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrs[1].offset = 12;
+	attrs[2].location = 2;
+	attrs[2].format = VK_FORMAT_R32G32_SFLOAT;
+	attrs[2].offset = 24;
+	
+	vertexInput.vertexBindingDescriptionCount = 1;
+	vertexInput.pVertexBindingDescriptions = &stream;
+	vertexInput.vertexAttributeDescriptionCount = 3;
+	vertexInput.pVertexAttributeDescriptions = attrs;
+
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	createInfo.pInputAssemblyState = &inputAssembly;
@@ -478,10 +497,13 @@ struct Swapchain
 	uint32_t imageCount;
 };
 
-void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,  uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height, VkRenderPass renderPass, VkSwapchainKHR oldSwapchain = 0)
+void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,  uint32_t familyIndex, VkFormat format, VkRenderPass renderPass, VkSwapchainKHR oldSwapchain = 0)
 {
 	VkSurfaceCapabilitiesKHR surfaceCaps;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
+
+	uint32_t width = surfaceCaps.currentExtent.width;
+	uint32_t height = surfaceCaps.currentExtent.height;
 
 	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, width, height, oldSwapchain);
 	assert(swapchain);
@@ -541,20 +563,154 @@ void resizeSwapchainIfNecessary(Swapchain& result, VkPhysicalDevice physicalDevi
 
 	Swapchain old = result;
 
-	createSwapchain(result, physicalDevice, device, surface, familyIndex, format, newWidth, newHeight, renderPass, old.swapchain);
+	createSwapchain(result, physicalDevice, device, surface, familyIndex, format, renderPass, old.swapchain);
 
 	VK_CHECK(vkDeviceWaitIdle(device));
 
 	destroySwapchain(device, old);
 }
 
-int main()
+struct Vertex
 {
+	float vx, vy, vz;
+	float nx, ny, nz;
+	float tu, tv;
+};
+
+struct Mesh
+{
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+};
+
+bool loadMesh(Mesh& result, const char* path)
+{
+	ObjFile file;
+	if (!objParseFile(file, path))
+		return false;
+
+	size_t index_count = file.f_size / 3;
+
+	std::vector<Vertex> vertices(index_count);
+
+	for (size_t i = 0; i < index_count; ++i)
+	{
+		Vertex& v = vertices[i];
+
+		int vi = file.f[i * 3 + 0];
+		int vti = file.f[i * 3 + 1];
+		int vni = file.f[i * 3 + 2];
+
+		v.vx = file.v[vi * 3 + 0];
+		v.vy = file.v[vi * 3 + 1];
+		v.vz = file.v[vi * 3 + 2];
+		v.nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
+		v.ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
+		v.nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
+		v.tu = vti < 0 ? 0.f : file.vt[vti * 3 + 0];
+		v.tv = vti < 0 ? 0.f : file.vt[vti * 3 + 1];
+	}
+
+	if (0)
+	{
+		result.vertices = vertices;
+		result.indices.resize(index_count);
+
+		for (size_t i = 0; i < index_count; ++i)
+			result.indices[i] = uint32_t(i);
+	}
+	else
+	{
+		std::vector<uint32_t> remap(index_count);
+		size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, vertices.data(), index_count, sizeof(Vertex));
+
+		result.vertices.resize(vertex_count);
+		result.indices.resize(index_count);
+
+		meshopt_remapVertexBuffer(result.vertices.data(), vertices.data(), index_count, sizeof(Vertex), remap.data());
+		meshopt_remapIndexBuffer(result.indices.data(), 0, index_count, remap.data());
+	}
+
+	// TODO: optimize the mesh for more efficient GPU rendering
+	return true;
+}
+
+struct Buffer
+{
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	void* data;
+	size_t size;
+};
+
+uint32_t selectMemoryType(const VkPhysicalDeviceMemoryProperties& memoryProperties, uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
+{
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
+		if ((memoryTypeBits & (1 << i)) != 0 && (memoryProperties.memoryTypes[i].propertyFlags & flags) == flags)
+			return i;
+
+	assert(!"No compatible memory type found");
+	return ~0u;
+}
+
+void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryProperties& memoryProperties, size_t size, VkBufferUsageFlags usage)
+{
+	VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	createInfo.size = size;
+	createInfo.usage = usage;
+
+	VkBuffer buffer = 0;
+	VK_CHECK(vkCreateBuffer(device, &createInfo, 0, &buffer));
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
+
+	uint32_t memoryTypeIndex = selectMemoryType(memoryProperties, memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	assert(memoryTypeIndex != ~0u);
+
+	VkMemoryAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+	allocateInfo.allocationSize = memoryRequirements.size;
+	allocateInfo.memoryTypeIndex = memoryTypeIndex;
+
+	VkDeviceMemory memory = 0;
+	VK_CHECK(vkAllocateMemory(device, &allocateInfo, 0, &memory));
+
+	VK_CHECK(vkBindBufferMemory(device, buffer, memory, 0));
+
+	void* data = 0;
+	VK_CHECK(vkMapMemory(device, memory, 0, size, 0, &data));
+
+	result.buffer = buffer;
+	result.memory = memory;
+	result.data = data;
+	result.size = size;
+}
+
+void destroyBuffer(const Buffer& buffer, VkDevice device)
+{
+	vkFreeMemory(device, buffer.memory, 0);
+	vkDestroyBuffer(device, buffer.buffer, 0);
+}
+
+int main(int argc, const char** argv)
+{
+	if (argc < 2)
+	{
+		printf("Usage: %s [mesh]\n", argv[0]);
+		return 1;
+	}
+
 	int rc = glfwInit();
 	assert(rc);
 
+	VK_CHECK(volkInitialize());
+
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
 	VkInstance instance = createInstance();
 	assert(instance);
+
+	volkLoadInstance(instance);
 
 #ifdef _DEBUG
 	VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
@@ -582,9 +738,6 @@ int main()
 	VkBool32 presentSupported = 0;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, familyIndex, surface, &presentSupported));
 	assert(presentSupported);
-
-	int windowWidth = 0, windowHeight = 0;
-	glfwGetWindowSize(window, &windowWidth, &windowHeight);
 
 	VkFormat swapchainFormat = getSwapchainFormat(physicalDevice, surface);
 
@@ -616,7 +769,7 @@ int main()
 	assert(trianglePipeline);
 
 	Swapchain swapchain;
-	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, windowWidth, windowHeight, renderPass);
+	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
 	VkCommandPool commandPool = createCommandPool(device, familyIndex);
 	assert(commandPool);
@@ -628,6 +781,23 @@ int main()
 
 	VkCommandBuffer commandBuffer = 0;
 	VK_CHECK(vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer));
+
+	VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+	Mesh mesh;
+	bool rcm = loadMesh(mesh, argv[1]);
+
+	Buffer vb = {};
+	createBuffer(vb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	Buffer ib = {};
+	createBuffer(ib, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+
+	assert(vb.size >= mesh.vertices.size() * sizeof(Vertex));
+	memcpy(vb.data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+
+	assert(ib.size >= mesh.indices.size() * sizeof(uint32_t));
+	memcpy(ib.data, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 
 	while (!glfwWindowShouldClose(window))
 	{
@@ -668,7 +838,11 @@ int main()
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline);
-		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+		VkDeviceSize dummyOffset = 0;
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vb.buffer, &dummyOffset);
+		vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(commandBuffer, mesh.indices.size(), 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffer);
 
@@ -700,12 +874,12 @@ int main()
 		VK_CHECK(vkQueuePresentKHR(queue, &presentInfo));
 
 		VK_CHECK(vkDeviceWaitIdle(device));
-
-		// TOOD: remove when we switch to the desktop computer
-		glfwWaitEvents();
 	}
 
 	VK_CHECK(vkDeviceWaitIdle(device));
+
+	destroyBuffer(vb, device);
+	destroyBuffer(ib, device);
 
 	vkDestroyCommandPool(device, commandPool, 0);
 
@@ -729,7 +903,6 @@ int main()
 	vkDestroyDevice(device, 0);
 
 #ifdef _DEBUG
-	PFN_vkDestroyDebugReportCallbackEXT vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
 	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
 #endif
 

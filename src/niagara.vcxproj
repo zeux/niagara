@@ -91,7 +91,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -118,7 +118,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +147,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -178,7 +178,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -204,7 +204,9 @@
     <ClInclude Include="..\extern\glfw\src\wgl_context.h" />
     <ClInclude Include="..\extern\glfw\src\win32_joystick.h" />
     <ClInclude Include="..\extern\glfw\src\win32_platform.h" />
-    <ClInclude Include="pch.h" />
+    <ClInclude Include="..\extern\meshoptimizer\demo\objparser.h" />
+    <ClInclude Include="..\extern\meshoptimizer\src\meshoptimizer.h" />
+    <ClInclude Include="..\extern\volk\volk.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c" />
@@ -222,6 +224,19 @@
     <ClCompile Include="..\extern\glfw\src\win32_time.c" />
     <ClCompile Include="..\extern\glfw\src\win32_window.c" />
     <ClCompile Include="..\extern\glfw\src\window.c" />
+    <ClCompile Include="..\extern\meshoptimizer\demo\objparser.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\indexcodec.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\indexgenerator.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\overdrawanalyzer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\overdrawoptimizer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\simplifier.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\stripifier.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\vcacheanalyzer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\vcacheoptimizer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\vertexcodec.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\vfetchanalyzer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\vfetchoptimizer.cpp" />
+    <ClCompile Include="..\extern\volk\volk.c" />
     <ClCompile Include="niagara.cpp" />
   </ItemGroup>
   <ItemGroup>

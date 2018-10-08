@@ -65,7 +65,7 @@ VkBool32 debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTyp
 	if (strstr(pMessage, "Shader requires vertexPipelineStoresAndAtomics but is not enabled on the device"))
 		return VK_FALSE;
 
-	// Validation layers don't correctly detect enablement of Int8 extensions: https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/372
+	// TODO: Our shader shouldn't be using GL_KHX_shader_explicit_arithmetic_types & Int8 capability as Vulkan doesn't support it yet
 	if (strstr(pMessage, "Capability Int8 is not allowed by Vulkan 1.1 specification"))
 		return VK_FALSE;
 

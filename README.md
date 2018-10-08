@@ -32,6 +32,3 @@ https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/7976
 
 * Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
-
-* Validation layers don't detect the fact that OpCapability Int8 is enabled via extensions \
-https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/372

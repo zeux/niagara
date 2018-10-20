@@ -65,10 +65,6 @@ VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugRepo
 	if (strstr(pMessage, "Shader requires vertexPipelineStoresAndAtomics but is not enabled on the device"))
 		return VK_FALSE;
 
-	// TODO: Our shader shouldn't be using GL_KHX_shader_explicit_arithmetic_types & Int8 capability as Vulkan doesn't support it yet
-	if (strstr(pMessage, "Capability Int8 is not allowed by Vulkan 1.1 specification"))
-		return VK_FALSE;
-
 	const char* type =
 		(flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 		? "ERROR"
@@ -146,7 +142,8 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (!supportsPresentation(physicalDevices[i], familyIndex))
 			continue;
 
-		// TODO: We need to check if physical device supports Vulkan 1.1 here
+		if (props.apiVersion < VK_API_VERSION_1_1)
+			continue;
 
 		if (!discrete && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
@@ -200,6 +197,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	VkPhysicalDevice8BitStorageFeaturesKHR features8 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES_KHR };
 	features8.storageBuffer8BitAccess = true;
+	features8.uniformAndStorageBuffer8BitAccess = true; // TODO: this seems like a glslang bug, we need to investigate & file this
 
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;

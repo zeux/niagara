@@ -19,6 +19,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 2. Rendering a triangle on screen: https://youtu.be/5eS3gsL_P-c
 3. Cleaning up validation errors and implementing swapchain resize: https://youtu.be/_VU-G5rglnA
 4. Rendering a mesh using shader storage buffers and int8: https://youtu.be/nKCzD5iK71M
+5. Rendering a mesh using NVidia RTX mesh shading pipeline: https://youtu.be/gbeOKMjmQ-g
 
 # Issues
 
@@ -38,3 +39,9 @@ https://github.com/KhronosGroup/glslang/issues/1525
 
 * vkCreateSwapchainKHR crashes in Intel drivers when display is plugged into a dedicated GPU \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797756
+
+* Reading uint8_t from storage buffers adds (unnecessarily) UniformAndStorageBuffer8BitAccess capability \
+https://github.com/KhronosGroup/glslang/issues/1539
+
+* Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413

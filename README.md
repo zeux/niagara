@@ -23,15 +23,15 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 
 # Issues
 
-During the streams we find various bugs in parts of the Vulkan stack and report them:
+During the streams we find various bugs in parts of the Vulkan stack and report them; bugs marked with ✔️ have been fixed.
 
-* vkAcquireNextImageKHR crashes in validation layers if vkGetSwapchainImagesKHR hasn't been called \
+* ✔️ vkAcquireNextImageKHR crashes in validation layers if vkGetSwapchainImagesKHR hasn't been called \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/358
 
 * vkGetPhysicalDeviceSurfaceFormatsKHR doesn't fill format count correctly \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797666
 
-* Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
+* ✔️ Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
 
 * Implicit int8->float cast adds Int8 capability to the shader without asking for GL_KHX_shader_explicit_arithmetic_types \

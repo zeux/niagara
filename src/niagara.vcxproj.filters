@@ -128,15 +128,18 @@
     <ClCompile Include="niagara.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\triangle.vert.glsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
-    <CustomBuild Include="shaders\triangle.frag.glsl">
+    <CustomBuild Include="shaders\meshlet.mesh.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\meshlet.mesh.glsl">
+    <None Include="shaders\mesh.frag.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\mesh.vert.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="shaders\meshfvf.vert.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

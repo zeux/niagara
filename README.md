@@ -20,6 +20,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 3. Cleaning up validation errors and implementing swapchain resize: https://youtu.be/_VU-G5rglnA
 4. Rendering a mesh using shader storage buffers and int8: https://youtu.be/nKCzD5iK71M
 5. Rendering a mesh using NVidia RTX mesh shading pipeline: https://youtu.be/gbeOKMjmQ-g
+6. Optimizing GPU time by using device-local memory and parallelizing mesh shader: https://youtu.be/ayKoqK3kQ9c
 
 # Issues
 
@@ -45,3 +46,6 @@ https://github.com/KhronosGroup/glslang/issues/1539
 
 * Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
+
+* Using perprimitiveNV in fragment shader produces a validation error requiring SPV_NV_mesh_shader \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/414

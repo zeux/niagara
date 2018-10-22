@@ -49,3 +49,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
 
 * Using perprimitiveNV in fragment shader produces a validation error requiring SPV_NV_mesh_shader \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/414
+
+* GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \
+https://github.com/KhronosGroup/GLSL/issues/31

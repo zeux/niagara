@@ -47,8 +47,8 @@ https://github.com/KhronosGroup/glslang/issues/1539
 * Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
 
-* Using perprimitiveNV in fragment shader produces a validation error requiring SPV_NV_mesh_shader \
-https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/414
+* Fragment shader with perprimitiveNV doesn't have OpExtension SPV_NV_mesh_shader \
+https://github.com/KhronosGroup/glslang/issues/1541
 
 * GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \
 https://github.com/KhronosGroup/GLSL/issues/31

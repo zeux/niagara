@@ -50,5 +50,5 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
 * Fragment shader with perprimitiveNV doesn't have OpExtension SPV_NV_mesh_shader \
 https://github.com/KhronosGroup/glslang/issues/1541
 
-* GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \
+* ✔️ GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \
 https://github.com/KhronosGroup/GLSL/issues/31

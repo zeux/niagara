@@ -41,13 +41,13 @@ https://github.com/KhronosGroup/glslang/issues/1525
 * vkCreateSwapchainKHR crashes in Intel drivers when display is plugged into a dedicated GPU \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797756
 
-* Reading uint8_t from storage buffers adds (unnecessarily) UniformAndStorageBuffer8BitAccess capability \
+* ✔️ Reading uint8_t from storage buffers adds (unnecessarily) UniformAndStorageBuffer8BitAccess capability \
 https://github.com/KhronosGroup/glslang/issues/1539
 
 * Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
 
-* Fragment shader with perprimitiveNV doesn't have OpExtension SPV_NV_mesh_shader \
+* ✔️ Fragment shader with perprimitiveNV doesn't have OpExtension SPV_NV_mesh_shader \
 https://github.com/KhronosGroup/glslang/issues/1541
 
 * ✔️ GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \

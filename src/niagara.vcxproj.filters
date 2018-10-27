@@ -39,6 +39,8 @@
     <ClInclude Include="..\extern\meshoptimizer\demo\objparser.h">
       <Filter>meshoptimizer</Filter>
     </ClInclude>
+    <ClInclude Include="shaders.h" />
+    <ClInclude Include="common.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c">
@@ -126,6 +128,7 @@
       <Filter>meshoptimizer</Filter>
     </ClCompile>
     <ClCompile Include="niagara.cpp" />
+    <ClCompile Include="shaders.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

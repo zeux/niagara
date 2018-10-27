@@ -9,7 +9,6 @@ struct Shader
 };
 
 bool loadShader(Shader& shader, VkDevice device, const char* path);
-void destroyShader(Shader& shader, VkDevice device);
 
 VkPipelineLayout createPipelineLayout(VkDevice device, const Shader& vs, const Shader& fs);
 VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, const Shader& vs, const Shader& fs);

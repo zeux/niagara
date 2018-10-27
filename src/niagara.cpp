@@ -816,13 +816,6 @@ int main(int argc, const char** argv)
 
 	bool rcs = false;
 
-	Shader meshletMS = {};
-	if (rtxSupported)
-	{
-		rcs = loadShader(meshletMS, device, "shaders/meshlet.mesh.spv");
-		assert(rcs);
-	}
-
 	Shader meshVS = {};
 	rcs = loadShader(meshVS, device, "shaders/mesh.vert.spv");
 	assert(rcs);
@@ -830,6 +823,13 @@ int main(int argc, const char** argv)
 	Shader meshFS = {};
 	rcs = loadShader(meshFS, device, "shaders/mesh.frag.spv");
 	assert(rcs);
+
+	Shader meshletMS = {};
+	if (rtxSupported)
+	{
+		rcs = loadShader(meshletMS, device, "shaders/meshlet.mesh.spv");
+		assert(rcs);
+	}
 
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
@@ -959,7 +959,7 @@ int main(int argc, const char** argv)
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		if (rtxEnabled)
+		if (rtxSupported && rtxEnabled)
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineRTX);
 
@@ -1024,7 +1024,7 @@ int main(int argc, const char** argv)
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
 		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; RTX %s", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxEnabled ? "ON" : "OFF");
+		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; RTX %s", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxSupported && rtxEnabled ? "ON" : "OFF");
 		glfwSetWindowTitle(window, title);
 	}
 
@@ -1055,11 +1055,11 @@ int main(int argc, const char** argv)
 		vkDestroyDescriptorUpdateTemplate(device, meshUpdateTemplateRTX, 0);
 	}
 
-	destroyShader(meshFS, device);
-	destroyShader(meshVS, device);
+	vkDestroyShaderModule(device, meshVS.module, 0);
+	vkDestroyShaderModule(device, meshFS.module, 0);
 
 	if (rtxSupported)
-		destroyShader(meshletMS, device);
+		vkDestroyShaderModule(device, meshletMS.module, 0);
 
 	vkDestroyRenderPass(device, renderPass, 0);
 

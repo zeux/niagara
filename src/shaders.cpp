@@ -148,11 +148,6 @@ bool loadShader(Shader& shader, VkDevice device, const char* path)
 	return true;
 }
 
-void destroyShader(Shader& shader, VkDevice device)
-{
-	vkDestroyShaderModule(device, shader.module, 0);
-}
-
 VkDescriptorSetLayout createSetLayout(VkDevice device, const Shader& vs, const Shader& fs)
 {
 	std::vector<VkDescriptorSetLayoutBinding> setBindings;

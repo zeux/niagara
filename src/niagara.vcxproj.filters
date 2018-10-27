@@ -131,16 +131,11 @@
     <CustomBuild Include="shaders\meshlet.mesh.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="shaders\mesh.frag.glsl">
+    <CustomBuild Include="shaders\mesh.frag.glsl">
       <Filter>shaders</Filter>
-    </None>
-    <None Include="shaders\mesh.vert.glsl">
+    </CustomBuild>
+    <CustomBuild Include="shaders\mesh.vert.glsl">
       <Filter>shaders</Filter>
-    </None>
-    <None Include="shaders\meshfvf.vert.glsl">
-      <Filter>shaders</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>

@@ -10,7 +10,6 @@
 #include <objparser.h>
 #include <meshoptimizer.h>
 
-#define FVF 0
 #define RTX 1
 
 #define VK_CHECK(call) \
@@ -434,11 +433,8 @@ VkPipelineLayout createPipelineLayout(VkDevice device)
 
 	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
-
-#if !FVF
 	setCreateInfo.bindingCount = ARRAYSIZE(setBindings);
 	setCreateInfo.pBindings = setBindings;
-#endif
 
 	VkDescriptorSetLayout setLayout = 0;
 	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
@@ -485,26 +481,6 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	createInfo.pStages = stages;
 
 	VkPipelineVertexInputStateCreateInfo vertexInput = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
-#if FVF
-	VkVertexInputBindingDescription fvfBindings[1] = {};
-	fvfBindings[0].stride = sizeof(Vertex);
-
-	VkVertexInputAttributeDescription fvfAttributes[3] = {};
-	fvfAttributes[0].location = 0;
-	fvfAttributes[0].format = VK_FORMAT_R16G16B16A16_SFLOAT;
-	fvfAttributes[0].offset = offsetof(Vertex, vx);
-	fvfAttributes[1].location = 1;
-	fvfAttributes[1].format = VK_FORMAT_R8G8B8A8_UINT;
-	fvfAttributes[1].offset = offsetof(Vertex, nx);
-	fvfAttributes[2].location = 2;
-	fvfAttributes[2].format = VK_FORMAT_R16G16_SFLOAT;
-	fvfAttributes[2].offset = offsetof(Vertex, tu);
-
-	vertexInput.vertexBindingDescriptionCount = ARRAYSIZE(fvfBindings);
-	vertexInput.pVertexBindingDescriptions = fvfBindings;
-	vertexInput.vertexAttributeDescriptionCount = ARRAYSIZE(fvfAttributes);
-	vertexInput.pVertexAttributeDescriptions = fvfAttributes;
-#endif
 	createInfo.pVertexInputState = &vertexInput;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
@@ -955,10 +931,7 @@ int main(int argc, const char** argv)
 	VkRenderPass renderPass = createRenderPass(device, swapchainFormat);
 	assert(renderPass);
 
-#if FVF
-	VkShaderModule meshVS = loadShader(device, "shaders/meshfvf.vert.spv");
-	assert(meshVS);
-#elif RTX
+#if RTX
 	VkShaderModule meshVS = loadShader(device, "shaders/meshlet.mesh.spv");
 	assert(meshVS);
 #else
@@ -1009,13 +982,8 @@ int main(int argc, const char** argv)
 	Buffer scratch = {};
 	createBuffer(scratch, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-#if FVF
-	Buffer vb = {};
-	createBuffer(vb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-#else
 	Buffer vb = {};
 	createBuffer(vb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-#endif
 
 	Buffer ib = {};
 	createBuffer(ib, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1080,12 +1048,7 @@ int main(int argc, const char** argv)
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline);
 
-#if FVF
-		VkDeviceSize vbOffset = 0;
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vb.buffer, &vbOffset);
-		vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
-#elif RTX
+#if RTX
 		VkDescriptorBufferInfo vbInfo = {};
 		vbInfo.buffer = vb.buffer;
 		vbInfo.offset = 0;

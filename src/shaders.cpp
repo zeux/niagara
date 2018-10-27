@@ -10,9 +10,9 @@
 // https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.pdf
 struct Id
 {
-	enum Kind { Unknown, Variable };
+	enum Kind { Unknown = 0, Variable };
 
-	Kind kind = Unknown;
+	Kind kind;
 	uint32_t type;
 	uint32_t storageClass;
 	uint32_t binding;

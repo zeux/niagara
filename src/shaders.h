@@ -5,6 +5,7 @@ struct Shader
 	VkShaderModule module;
 	VkShaderStageFlagBits stage;
 
+	// TODO: Replace with array of 32 descriptor types
 	uint32_t storageBufferMask;
 };
 

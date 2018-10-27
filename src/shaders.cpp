@@ -5,10 +5,117 @@
 
 #include <vector>
 
-VkShaderModule loadShader(VkDevice device, const char* path)
+#include <vulkan/spirv.h>
+
+// https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.pdf
+struct Id
+{
+	enum Kind { Unknown, Variable };
+
+	Kind kind = Unknown;
+	uint32_t type;
+	uint32_t storageClass;
+	uint32_t binding;
+	uint32_t set;
+};
+
+static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
+{
+	switch (executionModel)
+	{
+	case SpvExecutionModelVertex:
+		return VK_SHADER_STAGE_VERTEX_BIT;
+	case SpvExecutionModelFragment:
+		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	case SpvExecutionModelTaskNV:
+		return VK_SHADER_STAGE_TASK_BIT_NV;
+	case SpvExecutionModelMeshNV:
+		return VK_SHADER_STAGE_MESH_BIT_NV;
+
+	default:
+		assert(!"Unsupported execution model");
+		return VkShaderStageFlagBits(0);
+	}
+}
+
+static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
+{
+	assert(code[0] == SpvMagicNumber);
+
+	uint32_t idBound = code[3];
+
+	std::vector<Id> ids(idBound);
+
+	const uint32_t* insn = code + 5;
+
+	while (insn != code + codeSize)
+	{
+		uint16_t opcode = uint16_t(insn[0]);
+		uint16_t wordCount = uint16_t(insn[0] >> 16);
+
+		switch (opcode)
+		{
+		case SpvOpEntryPoint:
+		{
+			assert(wordCount >= 2);
+			shader.stage = getShaderStage(SpvExecutionModel(insn[1]));
+		} break;
+		case SpvOpDecorate:
+		{
+			assert(wordCount >= 3);
+
+			uint32_t id = insn[1];
+			assert(id < idBound);
+
+			switch (insn[2])
+			{
+			case SpvDecorationDescriptorSet:
+				assert(wordCount == 4);
+				ids[id].set = insn[3];
+				break;
+			case SpvDecorationBinding:
+				assert(wordCount == 4);
+				ids[id].binding = insn[3];
+				break;
+			}
+		} break;
+		case SpvOpVariable:
+		{
+			assert(wordCount >= 4);
+
+			uint32_t id = insn[2];
+			assert(id < idBound);
+
+			assert(ids[id].kind == Id::Unknown);
+			ids[id].kind = Id::Variable;
+			ids[id].type = insn[1];
+			ids[id].storageClass = insn[3];
+		} break;
+		}
+
+		assert(insn + wordCount <= code + codeSize);
+		insn += wordCount;
+	}
+
+	for (auto& id : ids)
+	{
+		if (id.kind == Id::Variable && id.storageClass == SpvStorageClassUniform)
+		{
+			// assume that id.type refers to a pointer to a storage buffer
+			assert(id.set == 0);
+			assert(id.binding < 32);
+			assert((shader.storageBufferMask & (1 << id.binding)) == 0);
+
+			shader.storageBufferMask |= 1 << id.binding;
+		}
+	}
+}
+
+bool loadShader(Shader& shader, VkDevice device, const char* path)
 {
 	FILE* file = fopen(path, "rb");
-	assert(file);
+	if (!file)
+		return false;
 
 	fseek(file, 0, SEEK_END);
 	long length = ftell(file);
@@ -23,41 +130,51 @@ VkShaderModule loadShader(VkDevice device, const char* path)
 	fclose(file);
 
 	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-	createInfo.codeSize = length;
+	createInfo.codeSize = length; // note: this needs to be a number of bytes!
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer);
 
 	VkShaderModule shaderModule = 0;
 	VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
 
+	assert(length % 4 == 0);
+	parseShader(shader, reinterpret_cast<const uint32_t*>(buffer), length / 4);
+
 	delete[] buffer;
 
-	return shaderModule;
+	shader.module = shaderModule;
+
+	// shader.stage = ? ? ;
+
+	return true;
 }
 
-VkDescriptorSetLayout createSetLayout(VkDevice device, bool rtxEnabled)
+void destroyShader(Shader& shader, VkDevice device)
+{
+	vkDestroyShaderModule(device, shader.module, 0);
+}
+
+VkDescriptorSetLayout createSetLayout(VkDevice device, const Shader& vs, const Shader& fs)
 {
 	std::vector<VkDescriptorSetLayoutBinding> setBindings;
 
-	if (rtxEnabled)
-	{
-		setBindings.resize(2);
-		setBindings[0].binding = 0;
-		setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		setBindings[0].descriptorCount = 1;
-		setBindings[0].stageFlags = VK_SHADER_STAGE_MESH_BIT_NV;
-		setBindings[1].binding = 1;
-		setBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		setBindings[1].descriptorCount = 1;
-		setBindings[1].stageFlags = VK_SHADER_STAGE_MESH_BIT_NV;
-	}
-	else
-	{
-		setBindings.resize(1);
-		setBindings[0].binding = 0;
-		setBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		setBindings[0].descriptorCount = 1;
-		setBindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	}
+	uint32_t storageBufferMask = vs.storageBufferMask | fs.storageBufferMask;
+
+	for (uint32_t i = 0; i < 32; ++i)
+		if (storageBufferMask & (1 << i))
+		{
+			VkDescriptorSetLayoutBinding binding = {};
+			binding.binding = i;
+			binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			binding.descriptorCount = 1;
+
+			binding.stageFlags = 0;
+			if (vs.storageBufferMask & (1 << i))
+				binding.stageFlags |= vs.stage;
+			if (fs.storageBufferMask & (1 << i))
+				binding.stageFlags |= fs.stage;
+
+			setBindings.push_back(binding);
+		}
 
 	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
@@ -70,9 +187,9 @@ VkDescriptorSetLayout createSetLayout(VkDevice device, bool rtxEnabled)
 	return setLayout;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
+VkPipelineLayout createPipelineLayout(VkDevice device, const Shader& vs, const Shader& fs)
 {
-	VkDescriptorSetLayout setLayout = createSetLayout(device, rtxEnabled);
+	VkDescriptorSetLayout setLayout = createSetLayout(device, vs, fs);
 
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	createInfo.setLayoutCount = 1;
@@ -87,38 +204,25 @@ VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
 	return layout;
 }
 
-VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, bool rtxEnabled)
+VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, const Shader& vs, const Shader& fs)
 {
-	VkDescriptorSetLayout setLayout = createSetLayout(device, rtxEnabled);
-
 	std::vector<VkDescriptorUpdateTemplateEntry> entries;
 
-	if (rtxEnabled)
-	{
-		entries.resize(2);
-		entries[0].dstBinding = 0;
-		entries[0].dstArrayElement = 0;
-		entries[0].descriptorCount = 1;
-		entries[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		entries[0].offset = sizeof(DescriptorInfo) * 0;
-		entries[0].stride = sizeof(DescriptorInfo);
-		entries[1].dstBinding = 1;
-		entries[1].dstArrayElement = 0;
-		entries[1].descriptorCount = 1;
-		entries[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		entries[1].offset = sizeof(DescriptorInfo) * 1;
-		entries[1].stride = sizeof(DescriptorInfo);
-	}
-	else
-	{
-		entries.resize(1);
-		entries[0].dstBinding = 0;
-		entries[0].dstArrayElement = 0;
-		entries[0].descriptorCount = 1;
-		entries[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		entries[0].offset = sizeof(DescriptorInfo) * 0;
-		entries[0].stride = sizeof(DescriptorInfo);
-	}
+	uint32_t storageBufferMask = vs.storageBufferMask | fs.storageBufferMask;
+
+	for (uint32_t i = 0; i < 32; ++i)
+		if (storageBufferMask & (1 << i))
+		{
+			VkDescriptorUpdateTemplateEntry entry = {};
+			entry.dstBinding = i;
+			entry.dstArrayElement = 0;
+			entry.descriptorCount = 1;
+			entry.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			entry.offset = sizeof(DescriptorInfo) * i;
+			entry.stride = sizeof(DescriptorInfo);
+
+			entries.push_back(entry);
+		}
 
 	VkDescriptorUpdateTemplateCreateInfo createInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO };
 
@@ -126,31 +230,30 @@ VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindP
 	createInfo.pDescriptorUpdateEntries = entries.data();
 
 	createInfo.templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR;
-	createInfo.descriptorSetLayout = setLayout;
 	createInfo.pipelineBindPoint = bindPoint;
 	createInfo.pipelineLayout = layout;
 
 	VkDescriptorUpdateTemplate updateTemplate = 0;
 	VK_CHECK(vkCreateDescriptorUpdateTemplate(device, &createInfo, 0, &updateTemplate));
 
-	// TODO: is this safe?
-	vkDestroyDescriptorSetLayout(device, setLayout, 0);
-
 	return updateTemplate;
 }
 
-VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs, VkPipelineLayout layout, bool rtxEnabled)
+VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, const Shader& vs, const Shader& fs, VkPipelineLayout layout)
 {
+	assert(vs.stage == VK_SHADER_STAGE_VERTEX_BIT || vs.stage == VK_SHADER_STAGE_MESH_BIT_NV);
+	assert(fs.stage == VK_SHADER_STAGE_FRAGMENT_BIT);
+
 	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 
 	VkPipelineShaderStageCreateInfo stages[2] = {};
 	stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	stages[0].stage = rtxEnabled ? VK_SHADER_STAGE_MESH_BIT_NV : VK_SHADER_STAGE_VERTEX_BIT;
-	stages[0].module = vs;
+	stages[0].stage = vs.stage;
+	stages[0].module = vs.module;
 	stages[0].pName = "main";
 	stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	stages[1].module = fs;
+	stages[1].stage = fs.stage;
+	stages[1].module = fs.module;
 	stages[1].pName = "main";
 
 	createInfo.stageCount = sizeof(stages) / sizeof(stages[0]);

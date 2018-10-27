@@ -2,6 +2,7 @@
 
 VkShaderModule loadShader(VkDevice device, const char* path);
 VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled);
+VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, bool rtxEnabled);
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs, VkPipelineLayout layout, bool rtxEnabled);
 
 struct DescriptorInfo

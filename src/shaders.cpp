@@ -34,7 +34,7 @@ VkShaderModule loadShader(VkDevice device, const char* path)
 	return shaderModule;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
+VkDescriptorSetLayout createSetLayout(VkDevice device, bool rtxEnabled)
 {
 	std::vector<VkDescriptorSetLayoutBinding> setBindings;
 
@@ -67,6 +67,13 @@ VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
 	VkDescriptorSetLayout setLayout = 0;
 	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
 
+	return setLayout;
+}
+
+VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
+{
+	VkDescriptorSetLayout setLayout = createSetLayout(device, rtxEnabled);
+
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	createInfo.setLayoutCount = 1;
 	createInfo.pSetLayouts = &setLayout;
@@ -78,6 +85,58 @@ VkPipelineLayout createPipelineLayout(VkDevice device, bool rtxEnabled)
 	vkDestroyDescriptorSetLayout(device, setLayout, 0);
 
 	return layout;
+}
+
+VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, bool rtxEnabled)
+{
+	VkDescriptorSetLayout setLayout = createSetLayout(device, rtxEnabled);
+
+	std::vector<VkDescriptorUpdateTemplateEntry> entries;
+
+	if (rtxEnabled)
+	{
+		entries.resize(2);
+		entries[0].dstBinding = 0;
+		entries[0].dstArrayElement = 0;
+		entries[0].descriptorCount = 1;
+		entries[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		entries[0].offset = sizeof(DescriptorInfo) * 0;
+		entries[0].stride = sizeof(DescriptorInfo);
+		entries[1].dstBinding = 1;
+		entries[1].dstArrayElement = 0;
+		entries[1].descriptorCount = 1;
+		entries[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		entries[1].offset = sizeof(DescriptorInfo) * 1;
+		entries[1].stride = sizeof(DescriptorInfo);
+	}
+	else
+	{
+		entries.resize(1);
+		entries[0].dstBinding = 0;
+		entries[0].dstArrayElement = 0;
+		entries[0].descriptorCount = 1;
+		entries[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		entries[0].offset = sizeof(DescriptorInfo) * 0;
+		entries[0].stride = sizeof(DescriptorInfo);
+	}
+
+	VkDescriptorUpdateTemplateCreateInfo createInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO };
+
+	createInfo.descriptorUpdateEntryCount = uint32_t(entries.size());
+	createInfo.pDescriptorUpdateEntries = entries.data();
+
+	createInfo.templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR;
+	createInfo.descriptorSetLayout = setLayout;
+	createInfo.pipelineBindPoint = bindPoint;
+	createInfo.pipelineLayout = layout;
+
+	VkDescriptorUpdateTemplate updateTemplate = 0;
+	VK_CHECK(vkCreateDescriptorUpdateTemplate(device, &createInfo, 0, &updateTemplate));
+
+	// TODO: is this safe?
+	vkDestroyDescriptorSetLayout(device, setLayout, 0);
+
+	return updateTemplate;
 }
 
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs, VkPipelineLayout layout, bool rtxEnabled)

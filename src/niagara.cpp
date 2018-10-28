@@ -507,8 +507,9 @@ VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount)
 	return queryPool;
 }
 
-struct Meshlet
+struct alignas(16) Meshlet
 {
+	float cone[4];
 	uint32_t vertices[64];
 	uint8_t indices[126*3]; // up to 126 triangles
 	uint8_t triangleCount;
@@ -629,6 +630,102 @@ void buildMeshlets(Mesh& mesh)
 
 	if (meshlet.triangleCount)
 		mesh.meshlets.push_back(meshlet);
+}
+
+float halfToFloat(uint16_t v)
+{
+	uint16_t sign = v >> 15;
+	uint16_t exp = (v >> 10) & 31;
+	uint16_t mant = v & 1023;
+
+	assert(exp != 31);
+
+	if (exp == 0)
+	{
+		assert(mant == 0);
+		return 0.f;
+	}
+	else
+	{
+		return (sign ? -1.f : 1.f) * ldexpf(float(mant + 1024) / 1024.f, exp - 15);
+	}
+}
+
+void buildMeshletCones(Mesh& mesh)
+{
+	for (Meshlet& meshlet : mesh.meshlets)
+	{
+		float normals[126][3] = {};
+
+		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
+		{
+			unsigned int a = meshlet.indices[i * 3 + 0];
+			unsigned int b = meshlet.indices[i * 3 + 1];
+			unsigned int c = meshlet.indices[i * 3 + 2];
+
+			const Vertex& va = mesh.vertices[meshlet.vertices[a]];
+			const Vertex& vb = mesh.vertices[meshlet.vertices[b]];
+			const Vertex& vc = mesh.vertices[meshlet.vertices[c]];
+
+			float p0[3] = { halfToFloat(va.vx), halfToFloat(va.vy), halfToFloat(va.vz) };
+			float p1[3] = { halfToFloat(vb.vx), halfToFloat(vb.vy), halfToFloat(vb.vz) };
+			float p2[3] = { halfToFloat(vc.vx), halfToFloat(vc.vy), halfToFloat(vc.vz) };
+
+			float p10[3] = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
+			float p20[3] = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+
+			float normalx = p10[1] * p20[2] - p10[2] * p20[1];
+			float normaly = p10[2] * p20[0] - p10[0] * p20[2];
+			float normalz = p10[0] * p20[1] - p10[1] * p20[0];
+
+			float area = sqrtf(normalx * normalx + normaly * normaly + normalz * normalz);
+			float invarea = area == 0.f ? 0.f : 1 / area;
+
+			normals[i][0] = normalx * invarea;
+			normals[i][1] = normaly * invarea;
+			normals[i][2] = normalz * invarea;
+		}
+
+		float avgnormal[3] = {};
+
+		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
+		{
+			avgnormal[0] += normals[i][0];
+			avgnormal[1] += normals[i][1];
+			avgnormal[2] += normals[i][2];
+		}
+
+		float avglength = sqrtf(avgnormal[0] * avgnormal[0] + avgnormal[1] * avgnormal[1] + avgnormal[2] * avgnormal[2]);
+
+		if (avglength == 0.f)
+		{
+			avgnormal[0] = 1.f;
+			avgnormal[1] = 0.f;
+			avgnormal[2] = 0.f;
+		}
+		else
+		{
+			avgnormal[0] /= avglength;
+			avgnormal[1] /= avglength;
+			avgnormal[2] /= avglength;
+		}
+
+		float mindp = 1.f;
+
+		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
+		{
+			float dp = normals[i][0] * avgnormal[0] + normals[i][1] * avgnormal[1] + normals[i][2] * avgnormal[2];
+
+			mindp = std::min(mindp, dp);
+		}
+
+		float conew = mindp <= 0.f ? 1 : sqrtf(1 - mindp * mindp);
+
+		meshlet.cone[0] = avgnormal[0];
+		meshlet.cone[1] = avgnormal[1];
+		meshlet.cone[2] = avgnormal[2];
+		meshlet.cone[3] = conew;
+	}
 }
 
 struct Buffer
@@ -888,6 +985,14 @@ int main(int argc, const char** argv)
 	if (rtxSupported)
 	{
 		buildMeshlets(mesh);
+		buildMeshletCones(mesh);
+
+		size_t culled = 0;
+		for (Meshlet& meshlet : mesh.meshlets)
+			if (meshlet.cone[2] > meshlet.cone[3])
+				culled++;
+
+		printf("Culled meshlets: %d/%d\n", int(culled), int(mesh.meshlets.size()));
 	}
 
 	Buffer scratch = {};
@@ -959,6 +1064,8 @@ int main(int argc, const char** argv)
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+		uint32_t drawCount = 1;
+
 		if (rtxSupported && rtxEnabled)
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineRTX);
@@ -966,7 +1073,8 @@ int main(int argc, const char** argv)
 			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplateRTX, meshLayoutRTX, 0, descriptors);
 
-			vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()), 0);
+			for (uint32_t i = 0; i < drawCount; ++i)
+				vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()), 0);
 		}
 		else
 		{
@@ -976,7 +1084,9 @@ int main(int argc, const char** argv)
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplate, meshLayout, 0, descriptors);
 
 			vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
+
+			for (uint32_t i = 0; i < drawCount; ++i)
+				vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
 		}
 
 		vkCmdEndRenderPass(commandBuffer);

@@ -6,6 +6,8 @@
 
 #extension GL_GOOGLE_include_directive: require
 
+#extension GL_KHR_shader_subgroup_ballot: require
+
 #include "mesh.h"
 
 #define CULL 1
@@ -36,21 +38,18 @@ void main()
 	uint mi = mgi * 32 + ti;
 
 #if CULL
-	meshletCount = 0;
+	bool accept = !coneCull(meshlets[mi].cone, vec3(0, 0, 1));
+	uvec4 ballot = subgroupBallot(accept);
 
-	memoryBarrierShared();
+	uint index = subgroupBallotExclusiveBitCount(ballot);
 
-	if (!coneCull(meshlets[mi].cone, vec3(0, 0, 1)))
-	{
-		uint index = atomicAdd(meshletCount, 1);
-
+	if (accept)
 		meshletIndices[index] = mi;
-	}
 
-	memoryBarrierShared();
+	uint count = subgroupBallotBitCount(ballot);
 
 	if (ti == 0)
-		gl_TaskCountNV = meshletCount;
+		gl_TaskCountNV = count;
 #else
 	meshletIndices[ti] = mi;
 

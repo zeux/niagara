@@ -7,6 +7,8 @@ struct Shader
 
 	// TODO: Replace with array of 32 descriptor types
 	uint32_t storageBufferMask;
+
+	bool usesPushConstants;
 };
 
 bool loadShader(Shader& shader, VkDevice device, const char* path);

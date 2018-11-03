@@ -989,7 +989,7 @@ int main(int argc, const char** argv)
 
 			for (auto& draw : draws)
 			{
-				vkCmdPushConstants(commandBuffer, meshLayoutRTX, VK_SHADER_STAGE_ALL, 0, sizeof(draw), &draw);
+				vkCmdPushConstants(commandBuffer, meshLayoutRTX, VK_SHADER_STAGE_MESH_BIT_NV, 0, sizeof(draw), &draw);
 				vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()) / 32, 0);
 			}
 		}
@@ -1004,7 +1004,7 @@ int main(int argc, const char** argv)
 
 			for (auto& draw : draws)
 			{
-				vkCmdPushConstants(commandBuffer, meshLayout, VK_SHADER_STAGE_ALL, 0, sizeof(draw), &draw);
+				vkCmdPushConstants(commandBuffer, meshLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(draw), &draw);
 				vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
 			}
 		}

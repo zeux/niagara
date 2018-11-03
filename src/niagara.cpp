@@ -12,6 +12,8 @@
 #include <objparser.h>
 #include <meshoptimizer.h>
 
+#define VSYNC 1
+
 bool rtxEnabled = false;
 
 VkInstance createInstance()
@@ -283,7 +285,7 @@ VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceC
 	createInfo.pQueueFamilyIndices = &familyIndex;
 	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	createInfo.compositeAlpha = surfaceComposite;
-	createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // TODO: use immediate if available
+	createInfo.presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR;
 	createInfo.oldSwapchain = oldSwapchain;
 
 	VkSwapchainKHR swapchain = 0;
@@ -511,8 +513,8 @@ VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount)
 struct alignas(16) Meshlet
 {
 	float cone[4];
-	uint32_t vertices[64];
-	uint8_t indices[126*3]; // up to 126 triangles
+	uint32_t vertices[64]; // 4b integers
+	uint8_t indices[124*3]; // up to 124 triangles
 	uint8_t triangleCount;
 	uint8_t vertexCount;
 };
@@ -581,7 +583,7 @@ bool loadMesh(Mesh& result, const char* path)
 void buildMeshlets(Mesh& mesh)
 {
 	size_t max_vertices = 64;
-	size_t max_triangles = 126;
+	size_t max_triangles = 124;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(mesh.indices.size(), max_vertices, max_triangles));
 	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), mesh.indices.data(), mesh.indices.size(), mesh.vertices.size(), max_vertices, max_triangles));
@@ -948,7 +950,7 @@ int main(int argc, const char** argv)
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		uint32_t drawCount = 1;
+		uint32_t drawCount = 100;
 
 		if (rtxSupported && rtxEnabled)
 		{
@@ -1014,11 +1016,13 @@ int main(int argc, const char** argv)
 
 		double frameCpuEnd = glfwGetTime() * 1000;
 
+		double trianglesPerSec = double(drawCount) * double(mesh.indices.size() / 3) / double((frameGpuEnd - frameGpuBegin) * 1e-3);
+
 		frameCpuAvg = frameCpuAvg * 0.95 + (frameCpuEnd - frameCpuBegin) * 0.05;
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
 		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; RTX %s", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxSupported && rtxEnabled ? "ON" : "OFF");
+		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; mesh shading %s; %.1fB tri/sec", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxSupported && rtxEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9);
 		glfwSetWindowTitle(window, title);
 	}
 

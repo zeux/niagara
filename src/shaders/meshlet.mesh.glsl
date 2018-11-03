@@ -11,7 +11,7 @@
 #define DEBUG 0
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
-layout(triangles, max_vertices = 64, max_primitives = 126) out;
+layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(binding = 0) readonly buffer Vertices
 {
@@ -72,11 +72,11 @@ void main()
 	#endif
 	}
 
-	for (uint i = ti; i < indexCount; i += 32)
+	uint indexGroupCount = (indexCount + 3) / 4;
+
+	for (uint i = ti; i < indexGroupCount; i += 32)
 	{
-		// TODO: We tried to use writePackedPrimitiveIndices4x8NV, it wasn't giving us better perf
-		// We are currently writing one byte from each thread of a warp, which seems like it's bad for perf (bank conflicts etc.) but GPU doesn't seem to care much?
-		gl_PrimitiveIndicesNV[i] = uint(meshlets[mi].indices[i]);
+		writePackedPrimitiveIndices4x8NV(i * 4, meshlets[mi].indicesPacked[i]);
 	}
 
 	if (ti == 0)

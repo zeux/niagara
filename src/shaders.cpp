@@ -115,42 +115,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 	}
 }
 
-bool loadShader(Shader& shader, VkDevice device, const char* path)
-{
-	FILE* file = fopen(path, "rb");
-	if (!file)
-		return false;
-
-	fseek(file, 0, SEEK_END);
-	long length = ftell(file);
-	assert(length >= 0);
-	fseek(file, 0, SEEK_SET);
-
-	char* buffer = new char[length];
-	assert(buffer);
-
-	size_t rc = fread(buffer, 1, length, file);
-	assert(rc == size_t(length));
-	fclose(file);
-
-	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-	createInfo.codeSize = length; // note: this needs to be a number of bytes!
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer);
-
-	VkShaderModule shaderModule = 0;
-	VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
-
-	assert(length % 4 == 0);
-	parseShader(shader, reinterpret_cast<const uint32_t*>(buffer), length / 4);
-
-	delete[] buffer;
-
-	shader.module = shaderModule;
-
-	return true;
-}
-
-VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
+static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 {
 	std::vector<VkDescriptorSetLayoutBinding> setBindings;
 
@@ -185,7 +150,7 @@ VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 	return setLayout;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, size_t pushConstantSize)
+static VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, VkShaderStageFlags pushConstantStages, size_t pushConstantSize)
 {
 	VkDescriptorSetLayout setLayout = createSetLayout(device, shaders);
 
@@ -197,10 +162,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, size_t p
 
 	if (pushConstantSize)
 	{
-		for (const Shader* shader : shaders)
-			if (shader->usesPushConstants)
-				pushConstantRange.stageFlags |= shader->stage;
-
+		pushConstantRange.stageFlags = pushConstantStages;
 		pushConstantRange.size = uint32_t(pushConstantSize);
 
 		createInfo.pushConstantRangeCount = 1;
@@ -216,7 +178,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, size_t p
 	return layout;
 }
 
-VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, Shaders shaders)
+static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, Shaders shaders)
 {
 	std::vector<VkDescriptorUpdateTemplateEntry> entries;
 
@@ -251,6 +213,41 @@ VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindP
 	VK_CHECK(vkCreateDescriptorUpdateTemplate(device, &createInfo, 0, &updateTemplate));
 
 	return updateTemplate;
+}
+
+bool loadShader(Shader& shader, VkDevice device, const char* path)
+{
+	FILE* file = fopen(path, "rb");
+	if (!file)
+		return false;
+
+	fseek(file, 0, SEEK_END);
+	long length = ftell(file);
+	assert(length >= 0);
+	fseek(file, 0, SEEK_SET);
+
+	char* buffer = new char[length];
+	assert(buffer);
+
+	size_t rc = fread(buffer, 1, length, file);
+	assert(rc == size_t(length));
+	fclose(file);
+
+	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+	createInfo.codeSize = length; // note: this needs to be a number of bytes!
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer);
+
+	VkShaderModule shaderModule = 0;
+	VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
+
+	assert(length % 4 == 0);
+	parseShader(shader, reinterpret_cast<const uint32_t*>(buffer), length / 4);
+
+	delete[] buffer;
+
+	shader.module = shaderModule;
+
+	return true;
 }
 
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, Shaders shaders, VkPipelineLayout layout)
@@ -318,4 +315,30 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	VK_CHECK(vkCreateGraphicsPipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
 
 	return pipeline;
+}
+
+Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize)
+{
+	VkShaderStageFlags pushConstantStages = 0;
+	for (const Shader* shader : shaders)
+		if (shader->usesPushConstants)
+			pushConstantStages |= shader->stage;
+
+	Program program = {};
+
+	program.layout = createPipelineLayout(device, shaders, pushConstantStages, pushConstantSize);
+	assert(program.layout);
+
+	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout,shaders);
+	assert(program.updateTemplate);
+
+	program.pushConstantStages = pushConstantStages;
+
+	return program;
+}
+
+void destroyProgram(VkDevice device, const Program& program)
+{
+	vkDestroyDescriptorUpdateTemplate(device, program.updateTemplate, 0);
+	vkDestroyPipelineLayout(device, program.layout, 0);
 }

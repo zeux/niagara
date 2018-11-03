@@ -834,30 +834,19 @@ int main(int argc, const char** argv)
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	VkPipelineLayout meshLayout = createPipelineLayout(device, { &meshVS, &meshFS }, sizeof(MeshDraw));
-	assert(meshLayout);
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(MeshDraw));
 
-	VkDescriptorUpdateTemplate meshUpdateTemplate = createUpdateTemplate(device, VK_PIPELINE_BIND_POINT_GRAPHICS, meshLayout, { &meshVS, &meshFS });
-	assert(meshUpdateTemplate);
-
-	VkPipelineLayout meshLayoutRTX = 0;
-	VkDescriptorUpdateTemplate meshUpdateTemplateRTX = 0;
+	Program meshProgramRTX = {};
 	if (rtxSupported)
-	{
-		meshLayoutRTX = createPipelineLayout(device, { &meshletTS, &meshletMS, &meshFS }, sizeof(MeshDraw));
-		assert(meshLayoutRTX);
+		meshProgramRTX = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(MeshDraw));
 
-		meshUpdateTemplateRTX = createUpdateTemplate(device, VK_PIPELINE_BIND_POINT_GRAPHICS, meshLayoutRTX, { &meshletTS, &meshletMS, &meshFS });
-		assert(meshUpdateTemplateRTX);
-	}
-
-	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshVS, &meshFS }, meshLayout);
+	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshVS, &meshFS }, meshProgram.layout);
 	assert(meshPipeline);
 
 	VkPipeline meshPipelineRTX = 0;
 	if (rtxSupported)
 	{
-		meshPipelineRTX = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshletTS, &meshletMS, &meshFS }, meshLayoutRTX);
+		meshPipelineRTX = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshletTS, &meshletMS, &meshFS }, meshProgramRTX.layout);
 		assert(meshPipelineRTX);
 	}
 
@@ -985,11 +974,11 @@ int main(int argc, const char** argv)
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineRTX);
 
 			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer, mdb.buffer };
-			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplateRTX, meshLayoutRTX, 0, descriptors);
+			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramRTX.updateTemplate, meshProgramRTX.layout, 0, descriptors);
 
 			for (auto& draw : draws)
 			{
-				vkCmdPushConstants(commandBuffer, meshLayoutRTX, VK_SHADER_STAGE_MESH_BIT_NV, 0, sizeof(draw), &draw);
+				vkCmdPushConstants(commandBuffer, meshProgramRTX.layout, meshProgramRTX.pushConstantStages, 0, sizeof(draw), &draw);
 				vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()) / 32, 0);
 			}
 		}
@@ -998,13 +987,13 @@ int main(int argc, const char** argv)
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline);
 
 			DescriptorInfo descriptors[] = { vb.buffer };
-			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplate, meshLayout, 0, descriptors);
+			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
 
 			vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 			for (auto& draw : draws)
 			{
-				vkCmdPushConstants(commandBuffer, meshLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(draw), &draw);
+				vkCmdPushConstants(commandBuffer, meshProgram.layout, meshProgram.pushConstantStages, 0, sizeof(draw), &draw);
 				vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
 			}
 		}
@@ -1080,14 +1069,12 @@ int main(int argc, const char** argv)
 	destroySwapchain(device, swapchain);
 
 	vkDestroyPipeline(device, meshPipeline, 0);
-	vkDestroyPipelineLayout(device, meshLayout, 0);
-	vkDestroyDescriptorUpdateTemplate(device, meshUpdateTemplate, 0);
+	destroyProgram(device, meshProgram);
 
 	if (rtxSupported)
 	{
 		vkDestroyPipeline(device, meshPipelineRTX, 0);
-		vkDestroyPipelineLayout(device, meshLayoutRTX, 0);
-		vkDestroyDescriptorUpdateTemplate(device, meshUpdateTemplateRTX, 0);
+		destroyProgram(device, meshProgramRTX);
 	}
 
 	vkDestroyShaderModule(device, meshVS.module, 0);

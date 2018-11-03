@@ -23,6 +23,11 @@ layout(binding = 1) readonly buffer Meshlets
 	Meshlet meshlets[];
 };
 
+layout(binding = 2) readonly buffer MeshletData
+{
+	uint meshletData[];
+};
+
 in taskNV block
 {
 	uint meshletIndices[32];
@@ -50,6 +55,10 @@ void main()
 	uint triangleCount = uint(meshlets[mi].triangleCount);
 	uint indexCount = triangleCount * 3;
 
+	uint dataOffset = meshlets[mi].dataOffset;
+	uint vertexOffset = dataOffset;
+	uint indexOffset = dataOffset + vertexCount;
+
 #if DEBUG
 	uint mhash = hash(mi);
 	vec3 mcolor = vec3(float(mhash & 255), float((mhash >> 8) & 255), float((mhash >> 16) & 255)) / 255.0;
@@ -58,7 +67,7 @@ void main()
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
 	for (uint i = ti; i < vertexCount; i += 32)
 	{
-		uint vi = meshlets[mi].vertices[i];
+		uint vi = meshletData[vertexOffset + i];
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
@@ -76,7 +85,7 @@ void main()
 
 	for (uint i = ti; i < indexGroupCount; i += 32)
 	{
-		writePackedPrimitiveIndices4x8NV(i * 4, meshlets[mi].indicesPacked[i]);
+		writePackedPrimitiveIndices4x8NV(i * 4, meshletData[indexOffset + i]);
 	}
 
 	if (ti == 0)

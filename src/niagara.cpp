@@ -513,10 +513,9 @@ VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount)
 struct alignas(16) Meshlet
 {
 	float cone[4];
-	uint32_t vertices[64]; // 4b integers
-	uint8_t indices[124*3]; // up to 124 triangles
-	uint8_t triangleCount;
+	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t vertexCount;
+	uint8_t triangleCount;
 };
 
 struct Vertex
@@ -531,6 +530,7 @@ struct Mesh
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 	std::vector<Meshlet> meshlets;
+	std::vector<uint32_t> meshletdata;
 };
 
 bool loadMesh(Mesh& result, const char* path)
@@ -582,8 +582,8 @@ bool loadMesh(Mesh& result, const char* path)
 
 void buildMeshlets(Mesh& mesh)
 {
-	size_t max_vertices = 64;
-	size_t max_triangles = 124;
+	const size_t max_vertices = 64;
+	const size_t max_triangles = 124;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(mesh.indices.size(), max_vertices, max_triangles));
 	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), mesh.indices.data(), mesh.indices.size(), mesh.vertices.size(), max_vertices, max_triangles));
@@ -592,15 +592,25 @@ void buildMeshlets(Mesh& mesh)
 	while (meshlets.size() % 32)
 		meshlets.push_back(meshopt_Meshlet());
 
-	for (auto& meshlet: meshlets)
+	for (auto& meshlet : meshlets)
 	{
-		Meshlet m = {};
-		memcpy(m.vertices, meshlet.vertices, sizeof(m.vertices));
-		memcpy(m.indices, meshlet.indices, sizeof(m.indices));
-		m.triangleCount = meshlet.triangle_count;
-		m.vertexCount = meshlet.vertex_count;
+		size_t dataOffset = mesh.meshletdata.size();
+
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+			mesh.meshletdata.push_back(meshlet.vertices[i]);
+
+		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
+		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
+
+		for (unsigned int i = 0; i < indexGroupCount; ++i)
+			mesh.meshletdata.push_back(indexGroups[i]);
 
 		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &mesh.vertices[0].vx, mesh.vertices.size(), sizeof(Vertex));
+
+		Meshlet m = {};
+		m.dataOffset = uint32_t(dataOffset);
+		m.triangleCount = meshlet.triangle_count;
+		m.vertexCount = meshlet.vertex_count;
 
 		m.cone[0] = bounds.cone_axis[0];
 		m.cone[1] = bounds.cone_axis[1];
@@ -891,9 +901,11 @@ int main(int argc, const char** argv)
 	createBuffer(ib, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer mb = {};
+	Buffer mdb = {};
 	if (rtxSupported)
 	{
 		createBuffer(mb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(mdb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
@@ -902,6 +914,7 @@ int main(int argc, const char** argv)
 	if (rtxSupported)
 	{
 		uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, mesh.meshlets.data(), mesh.meshlets.size() * sizeof(Meshlet));
+		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, mesh.meshletdata.data(), mesh.meshletdata.size() * sizeof(uint32_t));
 	}
 
 	double frameCpuAvg = 0;
@@ -956,7 +969,7 @@ int main(int argc, const char** argv)
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineRTX);
 
-			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer };
+			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer, mdb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplateRTX, meshLayoutRTX, 0, descriptors);
 
 			for (uint32_t i = 0; i < drawCount; ++i)
@@ -1016,10 +1029,10 @@ int main(int argc, const char** argv)
 
 		double frameCpuEnd = glfwGetTime() * 1000;
 
-		double trianglesPerSec = double(drawCount) * double(mesh.indices.size() / 3) / double((frameGpuEnd - frameGpuBegin) * 1e-3);
-
 		frameCpuAvg = frameCpuAvg * 0.95 + (frameCpuEnd - frameCpuBegin) * 0.05;
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
+
+		double trianglesPerSec = double(drawCount) * double(mesh.indices.size() / 3) / double(frameGpuAvg * 1e-3);
 
 		char title[256];
 		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; mesh shading %s; %.1fB tri/sec", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxSupported && rtxEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9);
@@ -1029,7 +1042,10 @@ int main(int argc, const char** argv)
 	VK_CHECK(vkDeviceWaitIdle(device));
 
 	if (rtxSupported)
+	{
 		destroyBuffer(mb, device);
+		destroyBuffer(mdb, device);
+	}
 
 	destroyBuffer(ib, device);
 	destroyBuffer(vb, device);

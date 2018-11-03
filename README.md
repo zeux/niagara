@@ -23,6 +23,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 6. Optimizing GPU time by using device-local memory and parallelizing mesh shader: https://youtu.be/ayKoqK3kQ9c
 7. Using descriptor update templates and parsing SPIRV to extract reflection data: https://youtu.be/3Py4GlWAicY
 8. Cluster cone culling using task shaders and subgroup ops: https://youtu.be/KckRq7Rm3Mw
+9. Tuning mesh shading pipeline for performance: https://youtu.be/snZkA4D_qjU
 
 # Issues
 

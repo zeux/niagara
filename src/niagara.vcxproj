@@ -232,6 +232,7 @@
     <ClCompile Include="..\extern\glfw\src\win32_window.c" />
     <ClCompile Include="..\extern\glfw\src\window.c" />
     <ClCompile Include="..\extern\meshoptimizer\demo\objparser.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\clusterizer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\indexcodec.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\indexgenerator.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\overdrawanalyzer.cpp" />

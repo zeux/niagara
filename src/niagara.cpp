@@ -580,136 +580,32 @@ bool loadMesh(Mesh& result, const char* path)
 
 void buildMeshlets(Mesh& mesh)
 {
-	Meshlet meshlet = {};
+	size_t max_vertices = 64;
+	size_t max_triangles = 126;
 
-	std::vector<uint8_t> meshletVertices(mesh.vertices.size(), 0xff);
-
-	for (size_t i = 0; i < mesh.indices.size(); i += 3)
-	{
-		unsigned int a = mesh.indices[i + 0];
-		unsigned int b = mesh.indices[i + 1];
-		unsigned int c = mesh.indices[i + 2];
-
-		uint8_t& av = meshletVertices[a];
-		uint8_t& bv = meshletVertices[b];
-		uint8_t& cv = meshletVertices[c];
-
-		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.triangleCount >= 126)
-		{
-			mesh.meshlets.push_back(meshlet);
-
-			for (size_t j = 0; j < meshlet.vertexCount; ++j)
-				meshletVertices[meshlet.vertices[j]] = 0xff;
-
-			meshlet = {};
-		}
-
-		if (av == 0xff)
-		{
-			av = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = a;
-		}
-
-		if (bv == 0xff)
-		{
-			bv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = b;
-		}
-
-		if (cv == 0xff)
-		{
-			cv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = c;
-		}
-
-		meshlet.indices[meshlet.triangleCount * 3 + 0] = av;
-		meshlet.indices[meshlet.triangleCount * 3 + 1] = bv;
-		meshlet.indices[meshlet.triangleCount * 3 + 2] = cv;
-		meshlet.triangleCount++;
-	}
-
-	if (meshlet.triangleCount)
-		mesh.meshlets.push_back(meshlet);
+	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(mesh.indices.size(), max_vertices, max_triangles));
+	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), mesh.indices.data(), mesh.indices.size(), mesh.vertices.size(), max_vertices, max_triangles));
 
 	// TODO: we don't *really* need this but this makes sure we can assume that we need all 32 meshlets in task shader
-	while (mesh.meshlets.size() % 32)
-		mesh.meshlets.push_back(Meshlet());
-}
+	while (meshlets.size() % 32)
+		meshlets.push_back(meshopt_Meshlet());
 
-void buildMeshletCones(Mesh& mesh)
-{
-	for (Meshlet& meshlet : mesh.meshlets)
+	for (auto& meshlet: meshlets)
 	{
-		float normals[126][3] = {};
+		Meshlet m = {};
+		memcpy(m.vertices, meshlet.vertices, sizeof(m.vertices));
+		memcpy(m.indices, meshlet.indices, sizeof(m.indices));
+		m.triangleCount = meshlet.triangle_count;
+		m.vertexCount = meshlet.vertex_count;
 
-		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
-		{
-			unsigned int a = meshlet.indices[i * 3 + 0];
-			unsigned int b = meshlet.indices[i * 3 + 1];
-			unsigned int c = meshlet.indices[i * 3 + 2];
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &mesh.vertices[0].vx, mesh.vertices.size(), sizeof(Vertex));
 
-			const Vertex& va = mesh.vertices[meshlet.vertices[a]];
-			const Vertex& vb = mesh.vertices[meshlet.vertices[b]];
-			const Vertex& vc = mesh.vertices[meshlet.vertices[c]];
+		m.cone[0] = bounds.cone_axis[0];
+		m.cone[1] = bounds.cone_axis[1];
+		m.cone[2] = bounds.cone_axis[2];
+		m.cone[3] = bounds.cone_cutoff;
 
-			float p0[3] = { (va.vx), (va.vy), (va.vz) };
-			float p1[3] = { (vb.vx), (vb.vy), (vb.vz) };
-			float p2[3] = { (vc.vx), (vc.vy), (vc.vz) };
-
-			float p10[3] = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
-			float p20[3] = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
-
-			float normalx = p10[1] * p20[2] - p10[2] * p20[1];
-			float normaly = p10[2] * p20[0] - p10[0] * p20[2];
-			float normalz = p10[0] * p20[1] - p10[1] * p20[0];
-
-			float area = sqrtf(normalx * normalx + normaly * normaly + normalz * normalz);
-			float invarea = area == 0.f ? 0.f : 1 / area;
-
-			normals[i][0] = normalx * invarea;
-			normals[i][1] = normaly * invarea;
-			normals[i][2] = normalz * invarea;
-		}
-
-		float avgnormal[3] = {};
-
-		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
-		{
-			avgnormal[0] += normals[i][0];
-			avgnormal[1] += normals[i][1];
-			avgnormal[2] += normals[i][2];
-		}
-
-		float avglength = sqrtf(avgnormal[0] * avgnormal[0] + avgnormal[1] * avgnormal[1] + avgnormal[2] * avgnormal[2]);
-
-		if (avglength == 0.f)
-		{
-			avgnormal[0] = 1.f;
-			avgnormal[1] = 0.f;
-			avgnormal[2] = 0.f;
-		}
-		else
-		{
-			avgnormal[0] /= avglength;
-			avgnormal[1] /= avglength;
-			avgnormal[2] /= avglength;
-		}
-
-		float mindp = 1.f;
-
-		for (unsigned int i = 0; i < meshlet.triangleCount; ++i)
-		{
-			float dp = normals[i][0] * avgnormal[0] + normals[i][1] * avgnormal[1] + normals[i][2] * avgnormal[2];
-
-			mindp = std::min(mindp, dp);
-		}
-
-		float conew = mindp <= 0.f ? 1 : sqrtf(1 - mindp * mindp);
-
-		meshlet.cone[0] = avgnormal[0];
-		meshlet.cone[1] = avgnormal[1];
-		meshlet.cone[2] = avgnormal[2];
-		meshlet.cone[3] = conew;
+		mesh.meshlets.push_back(m);
 	}
 }
 
@@ -974,7 +870,6 @@ int main(int argc, const char** argv)
 	if (rtxSupported)
 	{
 		buildMeshlets(mesh);
-		buildMeshletCones(mesh);
 
 		size_t culled = 0;
 		for (Meshlet& meshlet : mesh.meshlets)

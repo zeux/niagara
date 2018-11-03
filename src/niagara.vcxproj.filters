@@ -132,6 +132,9 @@
     </ClCompile>
     <ClCompile Include="niagara.cpp" />
     <ClCompile Include="shaders.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\clusterizer.cpp">
+      <Filter>meshoptimizer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

@@ -518,6 +518,12 @@ struct alignas(16) Meshlet
 	uint8_t triangleCount;
 };
 
+struct alignas(16) MeshDraw
+{
+	float offset[2];
+	float scale[2];
+};
+
 struct Vertex
 {
 	float vx, vy, vz;
@@ -828,7 +834,7 @@ int main(int argc, const char** argv)
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	VkPipelineLayout meshLayout = createPipelineLayout(device, { &meshVS, &meshFS });
+	VkPipelineLayout meshLayout = createPipelineLayout(device, { &meshVS, &meshFS }, sizeof(MeshDraw));
 	assert(meshLayout);
 
 	VkDescriptorUpdateTemplate meshUpdateTemplate = createUpdateTemplate(device, VK_PIPELINE_BIND_POINT_GRAPHICS, meshLayout, { &meshVS, &meshFS });
@@ -838,7 +844,7 @@ int main(int argc, const char** argv)
 	VkDescriptorUpdateTemplate meshUpdateTemplateRTX = 0;
 	if (rtxSupported)
 	{
-		meshLayoutRTX = createPipelineLayout(device, { &meshletTS, &meshletMS, &meshFS });
+		meshLayoutRTX = createPipelineLayout(device, { &meshletTS, &meshletMS, &meshFS }, sizeof(MeshDraw));
 		assert(meshLayoutRTX);
 
 		meshUpdateTemplateRTX = createUpdateTemplate(device, VK_PIPELINE_BIND_POINT_GRAPHICS, meshLayoutRTX, { &meshletTS, &meshletMS, &meshFS });
@@ -964,6 +970,15 @@ int main(int argc, const char** argv)
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		uint32_t drawCount = 100;
+		std::vector<MeshDraw> draws(drawCount);
+
+		for (uint32_t i = 0; i < drawCount; ++i)
+		{
+			draws[i].offset[0] = float(i % 10) / 10.f + 0.5f / 10.f;
+			draws[i].offset[1] = float(i / 10) / 10.f + 0.5f / 10.f;
+			draws[i].scale[0] = 1 / 10.f;
+			draws[i].scale[1] = 1 / 10.f;
+		}
 
 		if (rtxSupported && rtxEnabled)
 		{
@@ -972,8 +987,11 @@ int main(int argc, const char** argv)
 			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer, mdb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshUpdateTemplateRTX, meshLayoutRTX, 0, descriptors);
 
-			for (uint32_t i = 0; i < drawCount; ++i)
+			for (auto& draw : draws)
+			{
+				vkCmdPushConstants(commandBuffer, meshLayoutRTX, VK_SHADER_STAGE_ALL, 0, sizeof(draw), &draw);
 				vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()) / 32, 0);
+			}
 		}
 		else
 		{
@@ -984,8 +1002,11 @@ int main(int argc, const char** argv)
 
 			vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-			for (uint32_t i = 0; i < drawCount; ++i)
+			for (auto& draw : draws)
+			{
+				vkCmdPushConstants(commandBuffer, meshLayout, VK_SHADER_STAGE_ALL, 0, sizeof(draw), &draw);
 				vkCmdDrawIndexed(commandBuffer, uint32_t(mesh.indices.size()), 1, 0, 0, 0);
+			}
 		}
 
 		vkCmdEndRenderPass(commandBuffer);

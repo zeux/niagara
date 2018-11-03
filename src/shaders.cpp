@@ -183,13 +183,24 @@ VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 	return setLayout;
 }
 
-VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders)
+VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, size_t pushConstantSize)
 {
 	VkDescriptorSetLayout setLayout = createSetLayout(device, shaders);
 
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	createInfo.setLayoutCount = 1;
 	createInfo.pSetLayouts = &setLayout;
+
+	VkPushConstantRange pushConstantRange = {};
+
+	if (pushConstantSize)
+	{
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL;
+		pushConstantRange.size = uint32_t(pushConstantSize);
+
+		createInfo.pushConstantRangeCount = 1;
+		createInfo.pPushConstantRanges = &pushConstantRange;
+	}
 
 	VkPipelineLayout layout = 0;
 	VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));

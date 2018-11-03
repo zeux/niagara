@@ -14,7 +14,7 @@
 
 #define VSYNC 1
 
-bool rtxEnabled = false;
+bool meshShadingEnabled = false;
 
 VkInstance createInstance()
 {
@@ -173,7 +173,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool rtxSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -190,7 +190,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
 	};
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
@@ -202,7 +202,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features8.storageBuffer8BitAccess = true;
 	features8.uniformAndStorageBuffer8BitAccess = true; // TODO: this seems like a glslang bug, we need to investigate & file this
 
-	// This will only be used if rtxSupported=true (see below)
+	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
 	featuresMesh.taskShader = true;
 	featuresMesh.meshShader = true;
@@ -218,7 +218,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features.pNext = &features16;
 	features16.pNext = &features8;
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 		features8.pNext = &featuresMesh;
 
 	VkDevice device = 0;
@@ -722,7 +722,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	{
 		if (key == GLFW_KEY_R)
 		{
-			rtxEnabled = !rtxEnabled;
+			meshShadingEnabled = !meshShadingEnabled;
 		}
 	}
 }
@@ -764,15 +764,15 @@ int main(int argc, const char** argv)
 	std::vector<VkExtensionProperties> extensions(extensionCount);
 	VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice, 0, &extensionCount, extensions.data()));
 
-	bool rtxSupported = false;
+	bool meshShadingSupported = false;
 	for (auto& ext : extensions)
 		if (strcmp(ext.extensionName, "VK_NV_mesh_shader") == 0)
 		{
-			rtxSupported = true;
+			meshShadingSupported = true;
 			break;
 		}
 
-	rtxEnabled = rtxSupported;
+	meshShadingEnabled = meshShadingSupported;
 
 	VkPhysicalDeviceProperties props = {};
 	vkGetPhysicalDeviceProperties(physicalDevice, &props);
@@ -781,7 +781,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, rtxSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported);
 	assert(device);
 
 	GLFWwindow* window = glfwCreateWindow(1024, 768, "niagara", 0, 0);
@@ -822,7 +822,7 @@ int main(int argc, const char** argv)
 
 	Shader meshletMS = {};
 	Shader meshletTS = {};
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		rcs = loadShader(meshletMS, device, "shaders/meshlet.mesh.spv");
 		assert(rcs);
@@ -836,18 +836,18 @@ int main(int argc, const char** argv)
 
 	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(MeshDraw));
 
-	Program meshProgramRTX = {};
-	if (rtxSupported)
-		meshProgramRTX = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(MeshDraw));
+	Program meshProgramMS = {};
+	if (meshShadingSupported)
+		meshProgramMS = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(MeshDraw));
 
 	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshVS, &meshFS }, meshProgram.layout);
 	assert(meshPipeline);
 
-	VkPipeline meshPipelineRTX = 0;
-	if (rtxSupported)
+	VkPipeline meshPipelineMS = 0;
+	if (meshShadingSupported)
 	{
-		meshPipelineRTX = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshletTS, &meshletMS, &meshFS }, meshProgramRTX.layout);
-		assert(meshPipelineRTX);
+		meshPipelineMS = createGraphicsPipeline(device, pipelineCache, renderPass, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout);
+		assert(meshPipelineMS);
 	}
 
 	Swapchain swapchain;
@@ -874,7 +874,7 @@ int main(int argc, const char** argv)
 	bool rcm = loadMesh(mesh, argv[1]);
 	assert(rcm);
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		buildMeshlets(mesh);
 
@@ -897,7 +897,7 @@ int main(int argc, const char** argv)
 
 	Buffer mb = {};
 	Buffer mdb = {};
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		createBuffer(mb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		createBuffer(mdb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -906,7 +906,7 @@ int main(int argc, const char** argv)
 	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
 	uploadBuffer(device, commandPool, commandBuffer, queue, ib, scratch, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, mesh.meshlets.data(), mesh.meshlets.size() * sizeof(Meshlet));
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, mesh.meshletdata.data(), mesh.meshletdata.size() * sizeof(uint32_t));
@@ -969,16 +969,16 @@ int main(int argc, const char** argv)
 			draws[i].scale[1] = 1 / 10.f;
 		}
 
-		if (rtxSupported && rtxEnabled)
+		if (meshShadingSupported && meshShadingEnabled)
 		{
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineRTX);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineMS);
 
 			DescriptorInfo descriptors[] = { vb.buffer, mb.buffer, mdb.buffer };
-			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramRTX.updateTemplate, meshProgramRTX.layout, 0, descriptors);
+			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramMS.updateTemplate, meshProgramMS.layout, 0, descriptors);
 
 			for (auto& draw : draws)
 			{
-				vkCmdPushConstants(commandBuffer, meshProgramRTX.layout, meshProgramRTX.pushConstantStages, 0, sizeof(draw), &draw);
+				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(draw), &draw);
 				vkCmdDrawMeshTasksNV(commandBuffer, uint32_t(mesh.meshlets.size()) / 32, 0);
 			}
 		}
@@ -1045,13 +1045,13 @@ int main(int argc, const char** argv)
 		double trianglesPerSec = double(drawCount) * double(mesh.indices.size() / 3) / double(frameGpuAvg * 1e-3);
 
 		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; mesh shading %s; %.1fB tri/sec", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), rtxSupported && rtxEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9);
+		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; mesh shading %s; %.1fB tri/sec", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9);
 		glfwSetWindowTitle(window, title);
 	}
 
 	VK_CHECK(vkDeviceWaitIdle(device));
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		destroyBuffer(mb, device);
 		destroyBuffer(mdb, device);
@@ -1071,16 +1071,16 @@ int main(int argc, const char** argv)
 	vkDestroyPipeline(device, meshPipeline, 0);
 	destroyProgram(device, meshProgram);
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
-		vkDestroyPipeline(device, meshPipelineRTX, 0);
-		destroyProgram(device, meshProgramRTX);
+		vkDestroyPipeline(device, meshPipelineMS, 0);
+		destroyProgram(device, meshProgramMS);
 	}
 
 	vkDestroyShaderModule(device, meshVS.module, 0);
 	vkDestroyShaderModule(device, meshFS.module, 0);
 
-	if (rtxSupported)
+	if (meshShadingSupported)
 	{
 		vkDestroyShaderModule(device, meshletTS.module, 0);
 		vkDestroyShaderModule(device, meshletMS.module, 0);

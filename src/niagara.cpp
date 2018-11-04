@@ -508,7 +508,11 @@ VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount)
 
 struct alignas(16) Meshlet
 {
-	float cone[4];
+	glm::vec3 center;
+	float radius;
+	int8_t cone_axis[3];
+	int8_t cone_cutoff;
+
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t vertexCount;
 	uint8_t triangleCount;
@@ -616,10 +620,12 @@ void buildMeshlets(Mesh& mesh)
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
 
-		m.cone[0] = bounds.cone_axis[0];
-		m.cone[1] = bounds.cone_axis[1];
-		m.cone[2] = bounds.cone_axis[2];
-		m.cone[3] = bounds.cone_cutoff;
+		m.center = glm::vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
+		m.radius = bounds.radius;
+		m.cone_axis[0] = bounds.cone_axis_s8[0];
+		m.cone_axis[1] = bounds.cone_axis_s8[1];
+		m.cone_axis[2] = bounds.cone_axis_s8[2];
+		m.cone_cutoff = bounds.cone_cutoff_s8;
 
 		mesh.meshlets.push_back(m);
 	}
@@ -937,13 +943,6 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		buildMeshlets(mesh);
-
-		size_t culled = 0;
-		for (Meshlet& meshlet : mesh.meshlets)
-			if (meshlet.cone[2] > meshlet.cone[3])
-				culled++;
-
-		printf("Culled meshlets: %d/%d\n", int(culled), int(mesh.meshlets.size()));
 	}
 
 	Buffer scratch = {};

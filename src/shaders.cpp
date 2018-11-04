@@ -291,6 +291,9 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	createInfo.pMultisampleState = &multisampleState;
 
 	VkPipelineDepthStencilStateCreateInfo depthStencilState = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+	depthStencilState.depthTestEnable = true;
+	depthStencilState.depthWriteEnable = true;
+	depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER;
 	createInfo.pDepthStencilState = &depthStencilState;
 
 	VkPipelineColorBlendAttachmentState colorAttachmentState = {};

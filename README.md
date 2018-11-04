@@ -24,6 +24,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 7. Using descriptor update templates and parsing SPIRV to extract reflection data: https://youtu.be/3Py4GlWAicY
 8. Cluster cone culling using task shaders and subgroup ops: https://youtu.be/KckRq7Rm3Mw
 9. Tuning mesh shading pipeline for performance: https://youtu.be/snZkA4D_qjU
+10. Depth buffer, perspective projection, 3D transforms and multi draw indirect: https://youtu.be/y4WOsAaXLh0
 
 # Issues
 
@@ -58,3 +59,9 @@ https://github.com/KhronosGroup/GLSL/issues/31
 
 * Push descriptors generate false positive DescriptorSetNotBound errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/341
+
+* vkCmdDrawIndexedIndirect doesn't issue an error when the buffer wasn't created with VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/450
+
+* vkCmdDrawMeshTasksIndirectNV doesn't trigger an error when multiDrawIndirect feature is disabled \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/451

@@ -6,6 +6,8 @@
 
 #extension GL_GOOGLE_include_directive: require
 
+#extension GL_ARB_shader_draw_parameters: require
+
 #include "mesh.h"
 
 #define DEBUG 0
@@ -15,12 +17,12 @@ layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(push_constant) uniform block
 {
-	MeshDraw meshDraw;
+	Globals globals;
 };
 
-layout(binding = 0) readonly buffer Vertices
+layout(binding = 0) readonly buffer Draws
 {
-	Vertex vertices[];
+	MeshDraw draws[];
 };
 
 layout(binding = 1) readonly buffer Meshlets
@@ -31,6 +33,11 @@ layout(binding = 1) readonly buffer Meshlets
 layout(binding = 2) readonly buffer MeshletData
 {
 	uint meshletData[];
+};
+
+layout(binding = 3) readonly buffer Vertices
+{
+	Vertex vertices[];
 };
 
 in taskNV block
@@ -56,6 +63,8 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 	uint mi = meshletIndices[gl_WorkGroupID.x];
 
+	MeshDraw meshDraw = draws[gl_DrawIDARB];
+
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);
 	uint indexCount = triangleCount * 3;
@@ -78,7 +87,7 @@ void main()
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
-		gl_MeshVerticesNV[i].gl_Position = meshDraw.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+		gl_MeshVerticesNV[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
 		color[i] = vec4(normal * 0.5 + vec3(0.5), 1.0);
 
 	#if DEBUG

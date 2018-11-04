@@ -8,15 +8,17 @@
 
 #extension GL_KHR_shader_subgroup_ballot: require
 
+#extension GL_ARB_shader_draw_parameters: require
+
 #include "mesh.h"
 
 #define CULL 1
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout(push_constant) uniform block
+layout(binding = 0) readonly buffer Draws
 {
-	MeshDraw meshDraw;
+	MeshDraw draws[];
 };
 
 layout(binding = 1) readonly buffer Meshlets
@@ -41,6 +43,8 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 	uint mgi = gl_WorkGroupID.x;
 	uint mi = mgi * 32 + ti;
+
+	MeshDraw meshDraw = draws[gl_DrawIDARB];
 
 #if CULL
 	vec3 center = rotateQuat(meshlets[mi].center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;

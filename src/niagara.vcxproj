@@ -91,7 +91,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glm;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -119,7 +119,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glm;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -149,7 +149,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glm;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -181,7 +181,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../extern/meshoptimizer/src;../extern/meshoptimizer/demo;../extern/volk;../extern/glm;../extern/glfw/include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

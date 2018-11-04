@@ -12,6 +12,12 @@
 #include <objparser.h>
 #include <meshoptimizer.h>
 
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/ext/quaternion_float.hpp>
+#include <glm/ext/quaternion_transform.hpp>
+
 #define VSYNC 1
 
 bool meshShadingEnabled = false;
@@ -510,8 +516,10 @@ struct alignas(16) Meshlet
 
 struct alignas(16) MeshDraw
 {
-	float offset[2];
-	float scale[2];
+	glm::mat4 projection;
+	glm::vec3 position;
+	float scale;
+	glm::quat orientation;
 };
 
 struct Vertex
@@ -768,6 +776,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	}
 }
 
+glm::mat4 perspectiveProjection(float fovY, float aspectWbyH, float zNear)
+{
+	float f = 1.0f / tanf(fovY / 2.0f);
+	return glm::mat4(
+		f / aspectWbyH, 0.0f, 0.0f, 0.0f,
+		0.0f, f, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, zNear, 0.0f);
+}
+
 int main(int argc, const char** argv)
 {
 	if (argc < 2)
@@ -961,6 +979,24 @@ int main(int argc, const char** argv)
 	double frameCpuAvg = 0;
 	double frameGpuAvg = 0;
 
+	uint32_t drawCount = 3000;
+	std::vector<MeshDraw> draws(drawCount);
+
+	srand(42);
+
+	for (uint32_t i = 0; i < drawCount; ++i)
+	{
+		draws[i].position[0] = (float(rand()) / RAND_MAX) * 40 - 20;
+		draws[i].position[1] = (float(rand()) / RAND_MAX) * 40 - 20;
+		draws[i].position[2] = (float(rand()) / RAND_MAX) * 40 - 20;
+		draws[i].scale = (float(rand()) / RAND_MAX) + 1;
+
+		glm::vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
+		float angle = glm::radians((float(rand()) / RAND_MAX) * 90.f);
+
+		draws[i].orientation = glm::rotate(glm::quat(1, 0, 0, 0), angle, axis);
+	}
+
 	while (!glfwWindowShouldClose(window))
 	{
 		double frameCpuBegin = glfwGetTime() * 1000;
@@ -1022,16 +1058,10 @@ int main(int argc, const char** argv)
 		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		uint32_t drawCount = 100;
-		std::vector<MeshDraw> draws(drawCount);
+		glm::mat4x4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), 0.01f);
 
 		for (uint32_t i = 0; i < drawCount; ++i)
-		{
-			draws[i].offset[0] = float(i % 10) / 10.f + 0.5f / 10.f;
-			draws[i].offset[1] = float(i / 10) / 10.f + 0.5f / 10.f;
-			draws[i].scale[0] = 1 / 10.f;
-			draws[i].scale[1] = 1 / 10.f;
-		}
+			draws[i].projection = projection;
 
 		if (meshShadingSupported && meshShadingEnabled)
 		{

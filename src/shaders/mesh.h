@@ -16,6 +16,13 @@ struct Meshlet
 
 struct MeshDraw
 {
-	vec2 offset;
-	vec2 scale;
+	mat4 projection;
+	vec3 position;
+	float scale;
+	vec4 orientation;
 };
+
+vec3 rotateQuat(vec3 v, vec4 q)
+{
+	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}

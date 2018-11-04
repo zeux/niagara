@@ -25,7 +25,7 @@ void main()
 	vec3 normal = vec3(int(vertices[gl_VertexIndex].nx), int(vertices[gl_VertexIndex].ny), int(vertices[gl_VertexIndex].nz)) / 127.0 - 1.0;
 	vec2 texcoord = vec2(vertices[gl_VertexIndex].tu, vertices[gl_VertexIndex].tv);
 
-	gl_Position = vec4((position * vec3(meshDraw.scale, 1) + vec3(meshDraw.offset, 0)) * vec3(2, 2, -0.5) + vec3(-1, -1, 0.5), 1.0);
+	gl_Position = meshDraw.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
 
 	color = vec4(normal * 0.5 + vec3(0.5), 1.0);
 }

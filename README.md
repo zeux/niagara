@@ -57,7 +57,7 @@ https://github.com/KhronosGroup/glslang/issues/1541
 * ✔️ GL_NV_mesh_shader spec typo for per-primitive fragment shader inputs \
 https://github.com/KhronosGroup/GLSL/issues/31
 
-* Push descriptors generate false positive DescriptorSetNotBound errors \
+* ✔️ Push descriptors generate false positive DescriptorSetNotBound errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/341
 
 * vkCmdDrawIndexedIndirect doesn't issue an error when the buffer wasn't created with VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT \

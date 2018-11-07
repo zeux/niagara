@@ -71,6 +71,10 @@ VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugRepo
 	if (strstr(pMessage, "uses set #0 but that set is not bound."))
 		return VK_FALSE;
 
+	// glslang adds UniformAndStorageBuffer8BitAccess capability to shaders that don't need it: https://github.com/KhronosGroup/glslang/issues/1539
+	if (strstr(pMessage, "VkPhysicalDevice8BitStorageFeaturesKHR::uniformAndStorageBuffer8BitAccess"))
+		return VK_FALSE;
+
 	const char* type =
 		(flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 		? "ERROR"
@@ -207,7 +211,6 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	VkPhysicalDevice8BitStorageFeaturesKHR features8 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES_KHR };
 	features8.storageBuffer8BitAccess = true;
-	features8.uniformAndStorageBuffer8BitAccess = true; // TODO: this seems like a glslang bug, we need to investigate & file this
 
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };

@@ -139,6 +139,10 @@ struct alignas(16) MeshDraw
 	float scale;
 	glm::quat orientation;
 
+	uint32_t vertexOffset;
+	uint32_t meshletOffset;
+	uint32_t meshletCount;
+
 	union
 	{
 		uint32_t commandData[7];
@@ -160,13 +164,28 @@ struct Vertex
 
 struct Mesh
 {
+	uint32_t meshletOffset;
+	uint32_t meshletCount;
+
+	uint32_t vertexOffset;
+	uint32_t vertexCount;
+
+	uint32_t indexOffset;
+	uint32_t indexCount;
+};
+
+struct Geometry
+{
+	// TODO: remove these vectors - they are just scratch copies that waste space
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 	std::vector<Meshlet> meshlets;
 	std::vector<uint32_t> meshletdata;
+
+	std::vector<Mesh> meshes;
 };
 
-bool loadMesh(Mesh& result, const char* path)
+bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 {
 	ObjFile file;
 	if (!objParseFile(file, path))
@@ -174,11 +193,11 @@ bool loadMesh(Mesh& result, const char* path)
 
 	size_t index_count = file.f_size / 3;
 
-	std::vector<Vertex> vertices(index_count);
+	std::vector<Vertex> triangle_vertices(index_count);
 
 	for (size_t i = 0; i < index_count; ++i)
 	{
-		Vertex& v = vertices[i];
+		Vertex& v = triangle_vertices[i];
 
 		int vi = file.f[i * 3 + 0];
 		int vti = file.f[i * 3 + 1];
@@ -199,61 +218,80 @@ bool loadMesh(Mesh& result, const char* path)
 	}
 
 	std::vector<uint32_t> remap(index_count);
-	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, vertices.data(), index_count, sizeof(Vertex));
+	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, triangle_vertices.data(), index_count, sizeof(Vertex));
 
-	result.vertices.resize(vertex_count);
-	result.indices.resize(index_count);
+	std::vector<Vertex> vertices(vertex_count);
+	std::vector<uint32_t> indices(index_count);
 
-	meshopt_remapVertexBuffer(result.vertices.data(), vertices.data(), index_count, sizeof(Vertex), remap.data());
-	meshopt_remapIndexBuffer(result.indices.data(), 0, index_count, remap.data());
+	meshopt_remapVertexBuffer(vertices.data(), triangle_vertices.data(), index_count, sizeof(Vertex), remap.data());
+	meshopt_remapIndexBuffer(indices.data(), 0, index_count, remap.data());
 
-	meshopt_optimizeVertexCache(result.indices.data(), result.indices.data(), index_count, vertex_count);
-	meshopt_optimizeVertexFetch(result.vertices.data(), result.indices.data(), index_count, result.vertices.data(), vertex_count, sizeof(Vertex));
+	meshopt_optimizeVertexCache(indices.data(), indices.data(), index_count, vertex_count);
+	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), index_count, vertices.data(), vertex_count, sizeof(Vertex));
+
+	uint32_t vertexOffset = uint32_t(result.vertices.size());
+	uint32_t indexOffset = uint32_t(result.indices.size());
+
+	result.vertices.insert(result.vertices.end(), vertices.begin(), vertices.end());
+	result.indices.insert(result.indices.end(), indices.begin(), indices.end());
+
+	uint32_t meshletOffset = uint32_t(result.meshlets.size());
+	uint32_t meshletCount = 0;
+
+	if (buildMeshlets)
+	{
+		const size_t max_vertices = 64;
+		const size_t max_triangles = 124;
+
+		std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));
+		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
+
+		for (auto& meshlet : meshlets)
+		{
+			size_t dataOffset = result.meshletdata.size();
+
+			for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+				result.meshletdata.push_back(meshlet.vertices[i]);
+
+			const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
+			unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
+
+			for (unsigned int i = 0; i < indexGroupCount; ++i)
+				result.meshletdata.push_back(indexGroups[i]);
+
+			meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
+
+			Meshlet m = {};
+			m.dataOffset = uint32_t(dataOffset);
+			m.triangleCount = meshlet.triangle_count;
+			m.vertexCount = meshlet.vertex_count;
+
+			m.center = glm::vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
+			m.radius = bounds.radius;
+			m.cone_axis[0] = bounds.cone_axis_s8[0];
+			m.cone_axis[1] = bounds.cone_axis_s8[1];
+			m.cone_axis[2] = bounds.cone_axis_s8[2];
+			m.cone_cutoff = bounds.cone_cutoff_s8;
+
+			result.meshlets.push_back(m);
+		}
+
+		meshletCount = uint32_t(meshlets.size());
+	}
+
+	Mesh mesh = {};
+	mesh.meshletOffset = meshletOffset;
+	mesh.meshletCount = meshletCount;
+
+	mesh.vertexOffset = vertexOffset;
+	mesh.vertexCount = uint32_t(vertices.size());
+
+	mesh.indexOffset = indexOffset;
+	mesh.indexCount = uint32_t(indices.size());
+
+	result.meshes.push_back(mesh);
 
 	return true;
-}
-
-void buildMeshlets(Mesh& mesh)
-{
-	const size_t max_vertices = 64;
-	const size_t max_triangles = 124;
-
-	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(mesh.indices.size(), max_vertices, max_triangles));
-	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), mesh.indices.data(), mesh.indices.size(), mesh.vertices.size(), max_vertices, max_triangles));
-
-	// TODO: we don't *really* need this but this makes sure we can assume that we need all 32 meshlets in task shader
-	while (meshlets.size() % 32)
-		meshlets.push_back(meshopt_Meshlet());
-
-	for (auto& meshlet : meshlets)
-	{
-		size_t dataOffset = mesh.meshletdata.size();
-
-		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
-			mesh.meshletdata.push_back(meshlet.vertices[i]);
-
-		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
-		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
-
-		for (unsigned int i = 0; i < indexGroupCount; ++i)
-			mesh.meshletdata.push_back(indexGroups[i]);
-
-		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &mesh.vertices[0].vx, mesh.vertices.size(), sizeof(Vertex));
-
-		Meshlet m = {};
-		m.dataOffset = uint32_t(dataOffset);
-		m.triangleCount = meshlet.triangle_count;
-		m.vertexCount = meshlet.vertex_count;
-
-		m.center = glm::vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
-		m.radius = bounds.radius;
-		m.cone_axis[0] = bounds.cone_axis_s8[0];
-		m.cone_axis[1] = bounds.cone_axis_s8[1];
-		m.cone_axis[2] = bounds.cone_axis_s8[2];
-		m.cone_cutoff = bounds.cone_cutoff_s8;
-
-		mesh.meshlets.push_back(m);
-	}
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -281,7 +319,7 @@ int main(int argc, const char** argv)
 {
 	if (argc < 2)
 	{
-		printf("Usage: %s [mesh]\n", argv[0]);
+		printf("Usage: %s [mesh list]\n", argv[0]);
 		return 1;
 	}
 
@@ -421,13 +459,12 @@ int main(int argc, const char** argv)
 	VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
 
-	Mesh mesh;
-	bool rcm = loadMesh(mesh, argv[1]);
-	assert(rcm);
+	Geometry geometry;
 
-	if (meshShadingSupported)
+	for (int i = 1; i < argc; ++i)
 	{
-		buildMeshlets(mesh);
+		if (!loadMesh(geometry, argv[i], meshShadingSupported))
+			printf("Error: mesh %s failed to load\n", argv[i]);
 	}
 
 	Buffer scratch = {};
@@ -447,13 +484,13 @@ int main(int argc, const char** argv)
 		createBuffer(mdb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
-	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
-	uploadBuffer(device, commandPool, commandBuffer, queue, ib, scratch, mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
+	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, geometry.vertices.data(), geometry.vertices.size() * sizeof(Vertex));
+	uploadBuffer(device, commandPool, commandBuffer, queue, ib, scratch, geometry.indices.data(), geometry.indices.size() * sizeof(uint32_t));
 
 	if (meshShadingSupported)
 	{
-		uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, mesh.meshlets.data(), mesh.meshlets.size() * sizeof(Meshlet));
-		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, mesh.meshletdata.data(), mesh.meshletdata.size() * sizeof(uint32_t));
+		uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
+		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
 	uint32_t drawCount = 3000;
@@ -461,8 +498,12 @@ int main(int argc, const char** argv)
 
 	srand(42);
 
+	uint32_t triangleCount = 0;
+
 	for (uint32_t i = 0; i < drawCount; ++i)
 	{
+		const Mesh& mesh = geometry.meshes[rand() % geometry.meshes.size()];
+
 		draws[i].position[0] = (float(rand()) / RAND_MAX) * 40 - 20;
 		draws[i].position[1] = (float(rand()) / RAND_MAX) * 40 - 20;
 		draws[i].position[2] = (float(rand()) / RAND_MAX) * 40 - 20;
@@ -473,10 +514,18 @@ int main(int argc, const char** argv)
 
 		draws[i].orientation = glm::rotate(glm::quat(1, 0, 0, 0), angle, axis);
 
+		draws[i].vertexOffset = mesh.vertexOffset;
+		draws[i].meshletOffset = mesh.meshletOffset;
+		draws[i].meshletCount = mesh.meshletCount;
+
 		memset(draws[i].commandData, 0, sizeof(draws[i].commandData));
-		draws[i].commandIndirect.indexCount = uint32_t(mesh.indices.size());
+		draws[i].commandIndirect.indexCount = mesh.indexCount;
+		draws[i].commandIndirect.firstIndex = mesh.indexOffset;
 		draws[i].commandIndirect.instanceCount = 1;
-		draws[i].commandIndirectMS.taskCount = uint32_t(mesh.meshlets.size() / 32);
+		draws[i].commandIndirect.vertexOffset = mesh.vertexOffset;
+		draws[i].commandIndirectMS.taskCount = uint32_t((mesh.meshletCount + 31) / 32);
+
+		triangleCount += mesh.indexCount / 3;
 	}
 
 	Buffer db = {};
@@ -639,11 +688,11 @@ int main(int argc, const char** argv)
 		frameCpuAvg = frameCpuAvg * 0.95 + (frameCpuEnd - frameCpuBegin) * 0.05;
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
-		double trianglesPerSec = double(drawCount) * double(mesh.indices.size() / 3) / double(frameGpuAvg * 1e-3);
-		double kittensPerSec = double(drawCount) / double(frameGpuAvg * 1e-3);
+		double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
+		double drawsPerSec = double(drawCount) / double(frameGpuAvg * 1e-3);
 
 		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; meshlets %d; mesh shading %s; %.1fB tri/sec, %.1fM kittens/sec", frameCpuAvg, frameGpuAvg, int(mesh.indices.size() / 3), int(mesh.meshlets.size()), meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9, kittensPerSec * 1e-6);
+		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms; triangles %d; mesh shading %s; %.1fB tri/sec, %.1fM draws/sec", frameCpuAvg, frameGpuAvg, triangleCount, meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
 		glfwSetWindowTitle(window, title);
 	}
 

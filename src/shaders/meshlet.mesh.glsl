@@ -81,7 +81,7 @@ void main()
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
 	for (uint i = ti; i < vertexCount; i += 32)
 	{
-		uint vi = meshletData[vertexOffset + i];
+		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;

@@ -25,6 +25,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 8. Cluster cone culling using task shaders and subgroup ops: https://youtu.be/KckRq7Rm3Mw
 9. Tuning mesh shading pipeline for performance: https://youtu.be/snZkA4D_qjU
 10. Depth buffer, perspective projection, 3D transforms and multi draw indirect: https://youtu.be/y4WOsAaXLh0
+11. Multiple meshes and GPU frustum culling: https://youtu.be/NGGzk4Fi2iU
 
 # Issues
 

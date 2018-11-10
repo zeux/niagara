@@ -27,6 +27,8 @@ static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
 		return VK_SHADER_STAGE_VERTEX_BIT;
 	case SpvExecutionModelFragment:
 		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	case SpvExecutionModelGLCompute:
+		return VK_SHADER_STAGE_COMPUTE_BIT;
 	case SpvExecutionModelTaskNV:
 		return VK_SHADER_STAGE_TASK_BIT_NV;
 	case SpvExecutionModelMeshNV:
@@ -316,6 +318,26 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateGraphicsPipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
+
+	return pipeline;
+}
+
+VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache, const Shader& shader, VkPipelineLayout layout)
+{
+	assert(shader.stage == VK_SHADER_STAGE_COMPUTE_BIT);
+
+	VkComputePipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+
+	VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+	stage.stage = shader.stage;
+	stage.module = shader.module;
+	stage.pName = "main";
+
+	createInfo.stage = stage;
+	createInfo.layout = layout;
+
+	VkPipeline pipeline = 0;
+	VK_CHECK(vkCreateComputePipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
 
 	return pipeline;
 }

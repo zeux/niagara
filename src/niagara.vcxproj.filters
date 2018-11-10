@@ -44,6 +44,9 @@
     <ClInclude Include="shaders\mesh.h">
       <Filter>shaders</Filter>
     </ClInclude>
+    <ClInclude Include="swapchain.h" />
+    <ClInclude Include="device.h" />
+    <ClInclude Include="resources.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c">
@@ -135,6 +138,9 @@
     <ClCompile Include="..\extern\meshoptimizer\src\clusterizer.cpp">
       <Filter>meshoptimizer</Filter>
     </ClCompile>
+    <ClCompile Include="swapchain.cpp" />
+    <ClCompile Include="device.cpp" />
+    <ClCompile Include="resources.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

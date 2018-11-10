@@ -212,8 +212,11 @@
     <ClInclude Include="..\extern\meshoptimizer\src\meshoptimizer.h" />
     <ClInclude Include="..\extern\volk\volk.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="device.h" />
+    <ClInclude Include="resources.h" />
     <ClInclude Include="shaders.h" />
     <ClInclude Include="shaders\mesh.h" />
+    <ClInclude Include="swapchain.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c" />
@@ -245,8 +248,11 @@
     <ClCompile Include="..\extern\meshoptimizer\src\vfetchanalyzer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\vfetchoptimizer.cpp" />
     <ClCompile Include="..\extern\volk\volk.c" />
+    <ClCompile Include="device.cpp" />
     <ClCompile Include="niagara.cpp" />
+    <ClCompile Include="resources.cpp" />
     <ClCompile Include="shaders.cpp" />
+    <ClCompile Include="swapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

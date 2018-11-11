@@ -609,6 +609,7 @@ int main(int argc, const char** argv)
 			glm::mat4 projectionT = glm::transpose(projection);
 
 			glm::vec4 frustum[6];
+			// TODO: the planes need to be normalized for culling to be conservative
 			frustum[0] = projectionT[3] + projectionT[0]; // x + w < 0
 			frustum[1] = projectionT[3] - projectionT[0]; // x - w > 0
 			frustum[2] = projectionT[3] + projectionT[1]; // y + w < 0

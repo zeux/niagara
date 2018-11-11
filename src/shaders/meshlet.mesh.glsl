@@ -20,22 +20,27 @@ layout(push_constant) uniform block
 	Globals globals;
 };
 
-layout(binding = 0) readonly buffer Draws
+layout(binding = 0) readonly buffer DrawCommands
+{
+	MeshDrawCommand drawCommands[];
+};
+
+layout(binding = 1) readonly buffer Draws
 {
 	MeshDraw draws[];
 };
 
-layout(binding = 1) readonly buffer Meshlets
+layout(binding = 2) readonly buffer Meshlets
 {
 	Meshlet meshlets[];
 };
 
-layout(binding = 2) readonly buffer MeshletData
+layout(binding = 3) readonly buffer MeshletData
 {
 	uint meshletData[];
 };
 
-layout(binding = 3) readonly buffer Vertices
+layout(binding = 4) readonly buffer Vertices
 {
 	Vertex vertices[];
 };
@@ -63,7 +68,7 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 	uint mi = meshletIndices[gl_WorkGroupID.x];
 
-	MeshDraw meshDraw = draws[gl_DrawIDARB];
+	MeshDraw meshDraw = draws[drawCommands[gl_DrawIDARB].drawId];
 
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);

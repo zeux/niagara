@@ -19,6 +19,7 @@
 
 bool meshShadingEnabled = true;
 bool cullingEnabled = true;
+bool lodEnabled = true;
 
 VkSemaphore createSemaphore(VkDevice device)
 {
@@ -154,6 +155,14 @@ struct Vertex
 	uint16_t tu, tv;
 };
 
+struct MeshLod
+{
+	uint32_t indexOffset;
+	uint32_t indexCount;
+	uint32_t meshletOffset;
+	uint32_t meshletCount;
+};
+
 struct alignas(16) Mesh
 {
 	vec3 center;
@@ -161,10 +170,9 @@ struct alignas(16) Mesh
 
 	uint32_t vertexOffset;
 	uint32_t vertexCount;
-	uint32_t indexOffset;
-	uint32_t indexCount;
-	uint32_t meshletOffset;
-	uint32_t meshletCount;
+
+	uint32_t lodCount;
+	MeshLod lods[8];
 };
 
 struct Geometry
@@ -176,6 +184,60 @@ struct Geometry
 	std::vector<uint32_t> meshletdata;
 	std::vector<Mesh> meshes;
 };
+
+struct DrawCullData
+{
+	vec4 frustum[6];
+
+	uint32_t drawCount;
+
+	int cullingEnabled;
+	int lodEnabled;
+};
+
+size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
+{
+	const size_t max_vertices = 64;
+	const size_t max_triangles = 124;
+
+	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));
+	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
+
+	for (auto& meshlet : meshlets)
+	{
+		size_t dataOffset = result.meshletdata.size();
+
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+			result.meshletdata.push_back(meshlet.vertices[i]);
+
+		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
+		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
+
+		for (unsigned int i = 0; i < indexGroupCount; ++i)
+			result.meshletdata.push_back(indexGroups[i]);
+
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
+
+		Meshlet m = {};
+		m.dataOffset = uint32_t(dataOffset);
+		m.triangleCount = meshlet.triangle_count;
+		m.vertexCount = meshlet.vertex_count;
+
+		m.center = vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
+		m.radius = bounds.radius;
+		m.cone_axis[0] = bounds.cone_axis_s8[0];
+		m.cone_axis[1] = bounds.cone_axis_s8[1];
+		m.cone_axis[2] = bounds.cone_axis_s8[2];
+		m.cone_cutoff = bounds.cone_cutoff_s8;
+
+		result.meshlets.push_back(m);
+	}
+
+	while (result.meshlets.size() % 32)
+		result.meshlets.push_back(Meshlet());
+
+	return meshlets.size();
+}
 
 bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 {
@@ -221,58 +283,12 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	meshopt_optimizeVertexCache(indices.data(), indices.data(), index_count, vertex_count);
 	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), index_count, vertices.data(), vertex_count, sizeof(Vertex));
 
-	uint32_t vertexOffset = uint32_t(result.vertices.size());
-	uint32_t indexOffset = uint32_t(result.indices.size());
+	Mesh mesh = {};
+
+	mesh.vertexOffset = uint32_t(result.vertices.size());
+	mesh.vertexCount = uint32_t(vertices.size());
 
 	result.vertices.insert(result.vertices.end(), vertices.begin(), vertices.end());
-	result.indices.insert(result.indices.end(), indices.begin(), indices.end());
-
-	uint32_t meshletOffset = uint32_t(result.meshlets.size());
-	uint32_t meshletCount = 0;
-
-	if (buildMeshlets)
-	{
-		const size_t max_vertices = 64;
-		const size_t max_triangles = 124;
-
-		std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));
-		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
-
-		for (auto& meshlet : meshlets)
-		{
-			size_t dataOffset = result.meshletdata.size();
-
-			for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
-				result.meshletdata.push_back(meshlet.vertices[i]);
-
-			const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
-			unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
-
-			for (unsigned int i = 0; i < indexGroupCount; ++i)
-				result.meshletdata.push_back(indexGroups[i]);
-
-			meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
-
-			Meshlet m = {};
-			m.dataOffset = uint32_t(dataOffset);
-			m.triangleCount = meshlet.triangle_count;
-			m.vertexCount = meshlet.vertex_count;
-
-			m.center = vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
-			m.radius = bounds.radius;
-			m.cone_axis[0] = bounds.cone_axis_s8[0];
-			m.cone_axis[1] = bounds.cone_axis_s8[1];
-			m.cone_axis[2] = bounds.cone_axis_s8[2];
-			m.cone_cutoff = bounds.cone_cutoff_s8;
-
-			result.meshlets.push_back(m);
-		}
-
-		while (result.meshlets.size() % 32)
-			result.meshlets.push_back(Meshlet());
-
-		meshletCount = uint32_t(meshlets.size());
-	}
 
 	vec3 center = vec3(0);
 
@@ -286,18 +302,37 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	for (auto& v : vertices)
 		radius = std::max(radius, distance(center, vec3(v.vx, v.vy, v.vz)));
 
-	Mesh mesh = {};
 	mesh.center = center;
 	mesh.radius = radius;
 
-	mesh.vertexOffset = vertexOffset;
-	mesh.vertexCount = uint32_t(vertices.size());
+	std::vector<uint32_t> lodIndices = indices;
 
-	mesh.indexOffset = indexOffset;
-	mesh.indexCount = uint32_t(indices.size());
+	while (mesh.lodCount < ARRAYSIZE(mesh.lods))
+	{
+		MeshLod& lod = mesh.lods[mesh.lodCount++];
 
-	mesh.meshletOffset = meshletOffset;
-	mesh.meshletCount = meshletCount;
+		lod.indexOffset = uint32_t(result.indices.size());
+		lod.indexCount = uint32_t(lodIndices.size());
+
+		result.indices.insert(result.indices.end(), lodIndices.begin(), lodIndices.end());
+
+		lod.meshletOffset = uint32_t(result.meshlets.size());
+		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices)) : 0;
+
+		if (mesh.lodCount < ARRAYSIZE(mesh.lods))
+		{
+			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.75);
+			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-4f);
+			assert(nextIndices <= lodIndices.size());
+
+			// we've reached the error bound
+			if (nextIndices == lodIndices.size())
+				break;
+
+			lodIndices.resize(nextIndices);
+			meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertex_count);
+		}
+	}
 
 	result.meshes.push_back(mesh);
 
@@ -315,6 +350,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		if (key == GLFW_KEY_C)
 		{
 			cullingEnabled = !cullingEnabled;
+		}
+		if (key == GLFW_KEY_L)
+		{
+			lodEnabled = !lodEnabled;
 		}
 	}
 }
@@ -446,7 +485,7 @@ int main(int argc, const char** argv)
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, 6 * sizeof(vec4));
+	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, sizeof(DrawCullData));
 
 	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout);
 
@@ -525,25 +564,24 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
-	uint32_t drawCount = 50'000;
-
-	// TODO: remove the need for this padding
-	drawCount = (drawCount + 31) & ~31;
-
+	uint32_t drawCount = 1'000'000;
 	std::vector<MeshDraw> draws(drawCount);
 
 	srand(42);
 
 	uint32_t triangleCount = 0;
 
+	float sceneRadius = 300;
+	float drawDistance = 200;
+
 	for (uint32_t i = 0; i < drawCount; ++i)
 	{
 		size_t meshIndex = rand() % geometry.meshes.size();
 		const Mesh& mesh = geometry.meshes[meshIndex];
 
-		draws[i].position[0] = (float(rand()) / RAND_MAX) * 100 - 50;
-		draws[i].position[1] = (float(rand()) / RAND_MAX) * 100 - 50;
-		draws[i].position[2] = (float(rand()) / RAND_MAX) * 100 - 50;
+		draws[i].position[0] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+		draws[i].position[1] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+		draws[i].position[2] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
 		draws[i].scale = (float(rand()) / RAND_MAX) + 1;
 
 		vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
@@ -554,7 +592,7 @@ int main(int argc, const char** argv)
 		draws[i].meshIndex = uint32_t(meshIndex);
 		draws[i].vertexOffset = mesh.vertexOffset;
 
-		triangleCount += mesh.indexCount / 3;
+		triangleCount += mesh.lods[0].indexCount / 3;
 	}
 
 	Buffer db = {};
@@ -608,24 +646,23 @@ int main(int argc, const char** argv)
 		vkCmdResetQueryPool(commandBuffer, queryPool, 0, 128);
 		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 0);
 
-		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), 0.01f);
-		float drawDistance = 100;
+		mat4 projection = perspectiveProjection(glm::radians(50.f), float(swapchain.width) / float(swapchain.height), 0.01f);
 
 		{
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 2);
 
 			mat4 projectionT = transpose(projection);
 
-			vec4 frustum[6] = {};
-			if (cullingEnabled)
-			{
-				frustum[0] = normalizePlane(projectionT[3] + projectionT[0]); // x + w < 0
-				frustum[1] = normalizePlane(projectionT[3] - projectionT[0]); // x - w > 0
-				frustum[2] = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
-				frustum[3] = normalizePlane(projectionT[3] - projectionT[1]); // y - w > 0
-				frustum[4] = normalizePlane(projectionT[3] - projectionT[2]); // z - w > 0 -- reverse z
-				frustum[5] = vec4(0, 0, -1, drawDistance); // reverse z, infinite far plane
-			}
+			DrawCullData cullData = {};
+			cullData.frustum[0] = normalizePlane(projectionT[3] + projectionT[0]); // x + w < 0
+			cullData.frustum[1] = normalizePlane(projectionT[3] - projectionT[0]); // x - w > 0
+			cullData.frustum[2] = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
+			cullData.frustum[3] = normalizePlane(projectionT[3] - projectionT[1]); // y - w > 0
+			cullData.frustum[4] = normalizePlane(projectionT[3] - projectionT[2]); // z - w > 0 -- reverse z
+			cullData.frustum[5] = vec4(0, 0, -1, drawDistance); // reverse z, infinite far plane
+			cullData.drawCount = drawCount;
+			cullData.cullingEnabled = cullingEnabled;
+			cullData.lodEnabled = lodEnabled;
 
 			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0);
 
@@ -637,7 +674,7 @@ int main(int argc, const char** argv)
 			DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
-			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(frustum), frustum);
+			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
 			vkCmdDispatch(commandBuffer, uint32_t((draws.size() + 31) / 32), 1, 1);
 
 			VkBufferMemoryBarrier cullBarrier = bufferBarrier(dcb.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -766,10 +803,10 @@ int main(int argc, const char** argv)
 		double drawsPerSec = double(drawCount) / double(frameGpuAvg * 1e-3);
 
 		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms); triangles %.1fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, culling %s",
+		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms); triangles %.1fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, culling %s, level-of-detail %s",
 			frameCpuAvg, frameGpuAvg, cullGpuTime,
 			double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6,
-			meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF");
+			meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
 
 		glfwSetWindowTitle(window, title);
 	}

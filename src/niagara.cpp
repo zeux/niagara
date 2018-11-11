@@ -102,11 +102,16 @@ VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass renderPass, VkImag
 	return framebuffer;
 }
 
-VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount)
+VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount, VkQueryType queryType)
 {
 	VkQueryPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
-	createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+	createInfo.queryType = queryType;
 	createInfo.queryCount = queryCount;
+
+	if (queryType == VK_QUERY_TYPE_PIPELINE_STATISTICS)
+	{
+		createInfo.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT;
+	}
 
 	VkQueryPool queryPool = 0;
 	VK_CHECK(vkCreateQueryPool(device, &createInfo, 0, &queryPool));
@@ -508,8 +513,11 @@ int main(int argc, const char** argv)
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
 
-	VkQueryPool queryPool = createQueryPool(device, 128);
-	assert(queryPool);
+	VkQueryPool queryPoolTimestamp = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
+	assert(queryPoolTimestamp);
+
+	VkQueryPool queryPoolPipeline = createQueryPool(device, 1, VK_QUERY_TYPE_PIPELINE_STATISTICS);
+	assert(queryPoolPipeline);
 
 	VkCommandPool commandPool = createCommandPool(device, familyIndex);
 	assert(commandPool);
@@ -569,8 +577,6 @@ int main(int argc, const char** argv)
 
 	srand(42);
 
-	uint32_t triangleCount = 0;
-
 	float sceneRadius = 300;
 	float drawDistance = 200;
 
@@ -591,8 +597,6 @@ int main(int argc, const char** argv)
 
 		draws[i].meshIndex = uint32_t(meshIndex);
 		draws[i].vertexOffset = mesh.vertexOffset;
-
-		triangleCount += mesh.lods[0].indexCount / 3;
 	}
 
 	Buffer db = {};
@@ -643,13 +647,13 @@ int main(int argc, const char** argv)
 
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-		vkCmdResetQueryPool(commandBuffer, queryPool, 0, 128);
-		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 0);
+		vkCmdResetQueryPool(commandBuffer, queryPoolTimestamp, 0, 128);
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 0);
 
 		mat4 projection = perspectiveProjection(glm::radians(50.f), float(swapchain.width) / float(swapchain.height), 0.01f);
 
 		{
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 2);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 2);
 
 			mat4 projectionT = transpose(projection);
 
@@ -680,7 +684,7 @@ int main(int argc, const char** argv)
 			VkBufferMemoryBarrier cullBarrier = bufferBarrier(dcb.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
 			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, 1, &cullBarrier, 0, 0);
 
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 3);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 3);
 		}
 
 		VkImageMemoryBarrier renderBeginBarriers[] =
@@ -690,6 +694,9 @@ int main(int argc, const char** argv)
 		};
 
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, ARRAYSIZE(renderBeginBarriers), renderBeginBarriers);
+
+		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 1);
+		vkCmdBeginQuery(commandBuffer, queryPoolPipeline, 0, 0);
 
 		VkClearValue clearValues[2] = {};
 		clearValues[0].color = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
@@ -739,6 +746,8 @@ int main(int argc, const char** argv)
 
 		vkCmdEndRenderPass(commandBuffer);
 
+		vkCmdEndQuery(commandBuffer, queryPoolPipeline, 0);
+
 		VkImageMemoryBarrier copyBarriers[] =
 		{
 			imageBarrier(colorTarget.image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL),
@@ -759,7 +768,7 @@ int main(int argc, const char** argv)
 		VkImageMemoryBarrier presentBarrier = imageBarrier(swapchain.images[imageIndex], VK_ACCESS_TRANSFER_WRITE_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &presentBarrier);
 
-		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 1);
+		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 1);
 
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
@@ -787,12 +796,17 @@ int main(int argc, const char** argv)
 
 		VK_CHECK(vkDeviceWaitIdle(device));
 
-		uint64_t queryResults[4];
-		VK_CHECK(vkGetQueryPoolResults(device, queryPool, 0, ARRAYSIZE(queryResults), sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
+		uint64_t timestampResults[4] = {};
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, ARRAYSIZE(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
 
-		double frameGpuBegin = double(queryResults[0]) * props.limits.timestampPeriod * 1e-6;
-		double frameGpuEnd = double(queryResults[1]) * props.limits.timestampPeriod * 1e-6;
-		double cullGpuTime = double(queryResults[3] - queryResults[2]) * props.limits.timestampPeriod * 1e-6;
+		uint32_t pipelineResults[1] = {};
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, 1, sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
+
+		uint32_t triangleCount = pipelineResults[0];
+
+		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
+		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
+		double cullGpuTime = double(timestampResults[3] - timestampResults[2]) * props.limits.timestampPeriod * 1e-6;
 
 		double frameCpuEnd = glfwGetTime() * 1000;
 
@@ -839,7 +853,8 @@ int main(int argc, const char** argv)
 
 	vkDestroyCommandPool(device, commandPool, 0);
 
-	vkDestroyQueryPool(device, queryPool, 0);
+	vkDestroyQueryPool(device, queryPoolTimestamp, 0);
+	vkDestroyQueryPool(device, queryPoolPipeline, 0);
 
 	destroySwapchain(device, swapchain);
 

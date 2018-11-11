@@ -273,7 +273,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\drawcmd.comp.glsl">
+    <CustomBuild Include="shaders\drawcull.comp.glsl">
       <FileType>Document</FileType>
     </CustomBuild>
   </ItemGroup>

@@ -419,8 +419,8 @@ int main(int argc, const char** argv)
 
 	bool rcs = false;
 
-	Shader drawcmdCS = {};
-	rcs = loadShader(drawcmdCS, device, "shaders/drawcmd.comp.spv");
+	Shader drawcullCS = {};
+	rcs = loadShader(drawcullCS, device, "shaders/drawcull.comp.spv");
 	assert(rcs);
 
 	Shader meshVS = {};
@@ -445,9 +445,9 @@ int main(int argc, const char** argv)
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	Program drawcmdProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcmdCS }, 6 * sizeof(glm::vec4));
+	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, 6 * sizeof(glm::vec4));
 
-	VkPipeline drawcmdPipeline = createComputePipeline(device, pipelineCache, drawcmdCS, drawcmdProgram.layout);
+	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout);
 
 	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals));
 
@@ -617,12 +617,12 @@ int main(int argc, const char** argv)
 			frustum[4] = projectionT[3] - projectionT[2]; // z - w > 0 -- reverse z
 			frustum[5] = glm::vec4(0, 0, -1, drawDistance); // reverse z, infinite far plane
 
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, drawcmdPipeline);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, drawcullPipeline);
 
 			DescriptorInfo descriptors[] = { db.buffer, dcb.buffer };
-			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcmdProgram.updateTemplate, drawcmdProgram.layout, 0, descriptors);
+			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
-			vkCmdPushConstants(commandBuffer, drawcmdProgram.layout, drawcmdProgram.pushConstantStages, 0, sizeof(frustum), frustum);
+			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(frustum), frustum);
 			vkCmdDispatch(commandBuffer, uint32_t((draws.size() + 31) / 32), 1, 1);
 
 			VkBufferMemoryBarrier cmdEndBarrier = bufferBarrier(dcb.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT);
@@ -787,8 +787,8 @@ int main(int argc, const char** argv)
 
 	destroySwapchain(device, swapchain);
 
-	vkDestroyPipeline(device, drawcmdPipeline, 0);
-	destroyProgram(device, drawcmdProgram);
+	vkDestroyPipeline(device, drawcullPipeline, 0);
+	destroyProgram(device, drawcullProgram);
 
 	vkDestroyPipeline(device, meshPipeline, 0);
 	destroyProgram(device, meshProgram);
@@ -799,7 +799,7 @@ int main(int argc, const char** argv)
 		destroyProgram(device, meshProgramMS);
 	}
 
-	vkDestroyShaderModule(device, drawcmdCS.module, 0);
+	vkDestroyShaderModule(device, drawcullCS.module, 0);
 
 	vkDestroyShaderModule(device, meshVS.module, 0);
 	vkDestroyShaderModule(device, meshFS.module, 0);

@@ -157,7 +157,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\drawcmd.comp.glsl">
+    <None Include="shaders\drawcull.comp.glsl">
       <Filter>shaders</Filter>
     </None>
   </ItemGroup>

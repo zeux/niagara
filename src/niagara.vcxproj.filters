@@ -47,6 +47,7 @@
     <ClInclude Include="swapchain.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="resources.h" />
+    <ClInclude Include="math.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c">
@@ -155,10 +156,8 @@
     <CustomBuild Include="shaders\meshlet.task.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="shaders\drawcull.comp.glsl">
+    <CustomBuild Include="shaders\drawcull.comp.glsl">
       <Filter>shaders</Filter>
-    </None>
+    </CustomBuild>
   </ItemGroup>
 </Project>

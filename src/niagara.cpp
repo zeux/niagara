@@ -17,7 +17,6 @@
 #include <objparser.h>
 #include <meshoptimizer.h>
 
-
 bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 
@@ -137,14 +136,8 @@ struct alignas(16) MeshDraw
 	float scale;
 	quat orientation;
 
-	vec3 center;
-	float radius;
-
+	uint32_t meshIndex;
 	uint32_t vertexOffset;
-	uint32_t indexOffset;
-	uint32_t indexCount;
-	uint32_t meshletOffset;
-	uint32_t meshletCount;
 };
 
 struct MeshDrawCommand
@@ -161,19 +154,17 @@ struct Vertex
 	uint16_t tu, tv;
 };
 
-struct Mesh
+struct alignas(16) Mesh
 {
 	vec3 center;
 	float radius;
 
-	uint32_t meshletOffset;
-	uint32_t meshletCount;
-
 	uint32_t vertexOffset;
 	uint32_t vertexCount;
-
 	uint32_t indexOffset;
 	uint32_t indexCount;
+	uint32_t meshletOffset;
+	uint32_t meshletCount;
 };
 
 struct Geometry
@@ -183,7 +174,6 @@ struct Geometry
 	std::vector<uint32_t> indices;
 	std::vector<Meshlet> meshlets;
 	std::vector<uint32_t> meshletdata;
-
 	std::vector<Mesh> meshes;
 };
 
@@ -300,14 +290,14 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	mesh.center = center;
 	mesh.radius = radius;
 
-	mesh.meshletOffset = meshletOffset;
-	mesh.meshletCount = meshletCount;
-
 	mesh.vertexOffset = vertexOffset;
 	mesh.vertexCount = uint32_t(vertices.size());
 
 	mesh.indexOffset = indexOffset;
 	mesh.indexCount = uint32_t(indices.size());
+
+	mesh.meshletOffset = meshletOffset;
+	mesh.meshletCount = meshletCount;
 
 	result.meshes.push_back(mesh);
 
@@ -507,26 +497,31 @@ int main(int argc, const char** argv)
 	Buffer scratch = {};
 	createBuffer(scratch, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+	Buffer mb = {};
+	createBuffer(mb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
 	Buffer vb = {};
 	createBuffer(vb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer ib = {};
 	createBuffer(ib, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	Buffer mb = {};
+	Buffer mlb = {};
 	Buffer mdb = {};
 	if (meshShadingSupported)
 	{
-		createBuffer(mb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(mlb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		createBuffer(mdb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
+
+	uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, geometry.vertices.data(), geometry.vertices.size() * sizeof(Vertex));
 	uploadBuffer(device, commandPool, commandBuffer, queue, ib, scratch, geometry.indices.data(), geometry.indices.size() * sizeof(uint32_t));
 
 	if (meshShadingSupported)
 	{
-		uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
+		uploadBuffer(device, commandPool, commandBuffer, queue, mlb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
@@ -543,7 +538,8 @@ int main(int argc, const char** argv)
 
 	for (uint32_t i = 0; i < drawCount; ++i)
 	{
-		const Mesh& mesh = geometry.meshes[rand() % geometry.meshes.size()];
+		size_t meshIndex = rand() % geometry.meshes.size();
+		const Mesh& mesh = geometry.meshes[meshIndex];
 
 		draws[i].position[0] = (float(rand()) / RAND_MAX) * 100 - 50;
 		draws[i].position[1] = (float(rand()) / RAND_MAX) * 100 - 50;
@@ -555,14 +551,8 @@ int main(int argc, const char** argv)
 
 		draws[i].orientation = rotate(quat(1, 0, 0, 0), angle, axis);
 
-		draws[i].center = mesh.center;
-		draws[i].radius = mesh.radius;
-
+		draws[i].meshIndex = uint32_t(meshIndex);
 		draws[i].vertexOffset = mesh.vertexOffset;
-		draws[i].indexOffset = mesh.indexOffset;
-		draws[i].indexCount = mesh.indexCount;
-		draws[i].meshletOffset = mesh.meshletOffset;
-		draws[i].meshletCount = mesh.meshletCount;
 
 		triangleCount += mesh.indexCount / 3;
 	}
@@ -644,7 +634,7 @@ int main(int argc, const char** argv)
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, drawcullPipeline);
 
-			DescriptorInfo descriptors[] = { db.buffer, dcb.buffer, dccb.buffer };
+			DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
 			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(frustum), frustum);
@@ -691,7 +681,7 @@ int main(int argc, const char** argv)
 		{
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineMS);
 
-			DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mb.buffer, mdb.buffer, vb.buffer };
+			DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer };
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramMS.updateTemplate, meshProgramMS.layout, 0, descriptors);
 
 			vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globals), &globals);
@@ -793,13 +783,15 @@ int main(int argc, const char** argv)
 	if (targetFB)
 		vkDestroyFramebuffer(device, targetFB, 0);
 
+	destroyBuffer(mb, device);
+
 	destroyBuffer(db, device);
 	destroyBuffer(dcb, device);
 	destroyBuffer(dccb, device);
 
 	if (meshShadingSupported)
 	{
-		destroyBuffer(mb, device);
+		destroyBuffer(mlb, device);
 		destroyBuffer(mdb, device);
 	}
 

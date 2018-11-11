@@ -43,5 +43,5 @@ void main()
 	drawCommands[di].vertexOffset = draws[di].vertexOffset;
 	drawCommands[di].firstInstance = 0;
 	drawCommands[di].taskCount = visible ? (draws[di].meshletCount + 31) / 32 : 0;
-	drawCommands[di].firstTask = 0;
+	drawCommands[di].firstTask = draws[di].meshletOffset / 32;
 }

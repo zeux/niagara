@@ -67,3 +67,7 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/450
 
 * ✔️ vkCmdDrawMeshTasksIndirectNV doesn't trigger an error when multiDrawIndirect feature is disabled \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/451
+
+* vkCmdDrawIndexedIndirect is rendering fewer than drawCount draw calls in some cases on Intel
+
+* vkCmdDrawIndexedIndirectCountKHR is causing a GPU crash in some cases on Intel

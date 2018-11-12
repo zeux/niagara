@@ -26,6 +26,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 9. Tuning mesh shading pipeline for performance: https://youtu.be/snZkA4D_qjU
 10. Depth buffer, perspective projection, 3D transforms and multi draw indirect: https://youtu.be/y4WOsAaXLh0
 11. Multiple meshes and GPU frustum culling: https://youtu.be/NGGzk4Fi2iU
+12. Draw call compaction using KHR_draw_indirect_count and LOD support: https://youtu.be/IYRgDcnJJ2I
 
 # Issues
 

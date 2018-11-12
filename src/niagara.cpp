@@ -582,21 +582,23 @@ int main(int argc, const char** argv)
 
 	for (uint32_t i = 0; i < drawCount; ++i)
 	{
+		MeshDraw& draw = draws[i];
+
 		size_t meshIndex = rand() % geometry.meshes.size();
 		const Mesh& mesh = geometry.meshes[meshIndex];
 
-		draws[i].position[0] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draws[i].position[1] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draws[i].position[2] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draws[i].scale = (float(rand()) / RAND_MAX) + 1;
+		draw.position[0] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+		draw.position[1] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+		draw.position[2] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
+		draw.scale = (float(rand()) / RAND_MAX) + 1;
 
 		vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
 		float angle = glm::radians((float(rand()) / RAND_MAX) * 90.f);
 
-		draws[i].orientation = rotate(quat(1, 0, 0, 0), angle, axis);
+		draw.orientation = rotate(quat(1, 0, 0, 0), angle, axis);
 
-		draws[i].meshIndex = uint32_t(meshIndex);
-		draws[i].vertexOffset = mesh.vertexOffset;
+		draw.meshIndex = uint32_t(meshIndex);
+		draw.vertexOffset = mesh.vertexOffset;
 	}
 
 	Buffer db = {};

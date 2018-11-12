@@ -143,7 +143,7 @@ struct alignas(16) MeshDraw
 	quat orientation;
 
 	uint32_t meshIndex;
-	uint32_t vertexOffset;
+	uint32_t vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
 };
 
 struct MeshDrawCommand

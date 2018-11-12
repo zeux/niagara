@@ -10,8 +10,10 @@
 #include "mesh.h"
 
 // The ballot code atm assumes gl_SubgroupSize == 32 which needs to be revised for non-NVidia archs
+// TODO: Simple to fix with gl_SubgroupInvocationID
 #define BALLOT 0
 
+// TODO: This can be 64
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 layout(push_constant) uniform block
@@ -90,6 +92,7 @@ void main()
 
 		lodIndex = lodEnabled == 1 ? lodIndex : 0;
 
+		// TODO: compiler doesn't seem to optimize this into a load directly from meshes array, so this is slow
 		MeshLod lod = mesh.lods[lodIndex];
 
 		drawCommands[dci].drawId = di;

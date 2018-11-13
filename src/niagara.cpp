@@ -221,7 +221,7 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 		for (unsigned int i = 0; i < indexGroupCount; ++i)
 			result.meshletdata.push_back(indexGroups[i]);
 
-		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);

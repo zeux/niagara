@@ -28,3 +28,5 @@ void createImage(Image& result, VkDevice device, const VkPhysicalDeviceMemoryPro
 void destroyImage(const Image& image, VkDevice device);
 
 uint32_t getImageMipLevels(uint32_t width, uint32_t height);
+
+VkSampler createSampler(VkDevice device);

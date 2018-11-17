@@ -191,7 +191,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				shader.resourceMask |= 1 << id.binding;
 				break;
 			case Id::TypeSampledImage:
-				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 				shader.resourceMask |= 1 << id.binding;
 				break;
 			default:

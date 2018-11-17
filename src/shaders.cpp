@@ -62,6 +62,21 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			assert(wordCount >= 2);
 			shader.stage = getShaderStage(SpvExecutionModel(insn[1]));
 		} break;
+		case SpvOpExecutionMode:
+		{
+			assert(wordCount >= 3);
+			uint32_t mode = insn[2];
+
+			switch (mode)
+			{
+			case SpvExecutionModeLocalSize:
+				assert(wordCount == 6);
+				shader.localSizeX = insn[3];
+				shader.localSizeY = insn[4];
+				shader.localSizeZ = insn[5];
+				break;
+			}
+		} break;
 		case SpvOpDecorate:
 		{
 			assert(wordCount >= 3);

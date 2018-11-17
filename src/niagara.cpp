@@ -591,6 +591,7 @@ int main(int argc, const char** argv)
 		draw.position[1] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
 		draw.position[2] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
 		draw.scale = (float(rand()) / RAND_MAX) + 1;
+		draw.scale *= 2;
 
 		vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
 		float angle = glm::radians((float(rand()) / RAND_MAX) * 90.f);
@@ -652,7 +653,7 @@ int main(int argc, const char** argv)
 		vkCmdResetQueryPool(commandBuffer, queryPoolTimestamp, 0, 128);
 		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 0);
 
-		mat4 projection = perspectiveProjection(glm::radians(50.f), float(swapchain.width) / float(swapchain.height), 0.01f);
+		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), 0.01f);
 
 		{
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 2);
@@ -681,7 +682,7 @@ int main(int argc, const char** argv)
 			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
 			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
-			vkCmdDispatch(commandBuffer, uint32_t((draws.size() + 31) / 32), 1, 1);
+			vkCmdDispatch(commandBuffer, uint32_t((draws.size() + drawcullCS.localSizeX - 1) / drawcullCS.localSizeX), 1, 1);
 
 			VkBufferMemoryBarrier cullBarriers[] =
 			{

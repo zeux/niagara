@@ -160,4 +160,9 @@
       <Filter>shaders</Filter>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\depthreduce.comp.glsl">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
 </Project>

@@ -5,8 +5,8 @@ struct Shader
 	VkShaderModule module;
 	VkShaderStageFlagBits stage;
 
-	// TODO: Replace with array of 32 descriptor types
-	uint32_t storageBufferMask;
+	VkDescriptorType resourceTypes[32];
+	uint32_t resourceMask;
 
 	uint32_t localSizeX;
 	uint32_t localSizeY;
@@ -32,6 +32,11 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize);
 void destroyProgram(VkDevice device, const Program& program);
 
+inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
+{
+	return (threadCount + localSize - 1) / localSize;
+}
+
 struct DescriptorInfo
 {
 	union
@@ -42,6 +47,13 @@ struct DescriptorInfo
 
 	DescriptorInfo()
 	{
+	}
+
+	DescriptorInfo(VkImageView imageView, VkImageLayout imageLayout)
+	{
+		image.sampler = VK_NULL_HANDLE;
+		image.imageView = imageView;
+		image.imageLayout = imageLayout;
 	}
 
 	DescriptorInfo(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)

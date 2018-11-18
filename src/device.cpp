@@ -3,7 +3,8 @@
 
 VkInstance createInstance()
 {
-	// TODO: we should probably check if 1.1 is available via vkEnumerateInstanceVersion
+	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_1);
+
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = VK_API_VERSION_1_1;
 

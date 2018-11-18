@@ -282,9 +282,9 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		v.vx = file.v[vi * 3 + 0];
 		v.vy = file.v[vi * 3 + 1];
 		v.vz = file.v[vi * 3 + 2];
-		v.nx = uint8_t(nx * 127.f + 127.f); // TODO: fix rounding
-		v.ny = uint8_t(ny * 127.f + 127.f); // TODO: fix rounding
-		v.nz = uint8_t(nz * 127.f + 127.f); // TODO: fix rounding
+		v.nx = uint8_t(nx * 127.f + 127.5f);
+		v.ny = uint8_t(ny * 127.f + 127.5f);
+		v.nz = uint8_t(nz * 127.f + 127.5f);
 		v.tu = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 0]);
 		v.tv = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 1]);
 	}
@@ -411,29 +411,6 @@ uint32_t previousPow2(uint32_t v)
 		r *= 2;
 
 	return r;
-}
-
-vec4 getAxisAlignedBoundingBoxFast
-(const vec3& C, // camera-space sphere center
-	float r, // sphere radius
-	float nearZ, // near clipping plane position (negative)
-	float P00,
-	float P11)
-{
-	if (C.z < r + nearZ)
-		return vec4(); // TODO: return boolean
-
-	vec2 cx(-C.x, -C.z);
-	vec2 vx = vec2(sqrt(dot(cx, cx) - r * r), r) / length(cx);
-	vec2 minx = mat2(vx.x, vx.y, -vx.y, vx.x) * cx;
-	vec2 maxx = mat2(vx.x, -vx.y, vx.y, vx.x) * cx;
-
-	vec2 cy(-C.y, -C.z);
-	vec2 vy = vec2(sqrt(dot(cy, cy) - r * r), r) / length(cy);
-	vec2 miny = mat2(vy.x, -vy.y, vy.y, vy.x) * cy;
-	vec2 maxy = mat2(vy.x, vy.y, -vy.y, vy.x) * cy;
-
-	return vec4(minx.x / minx.y * P00, miny.x / miny.y * P11, maxx.x / maxx.y * P00, maxy.x / maxy.y * P11) * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
 }
 
 int main(int argc, const char** argv)
@@ -588,7 +565,7 @@ int main(int argc, const char** argv)
 	}
 
 	Swapchain swapchain;
-	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass);
+	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat);
 
 	VkQueryPool queryPoolTimestamp = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
 	assert(queryPoolTimestamp);
@@ -713,7 +690,12 @@ int main(int argc, const char** argv)
 
 		glfwPollEvents();
 
-		if (resizeSwapchainIfNecessary(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat, renderPass) || !targetFB)
+		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat);
+
+		if (swapchainStatus == Swapchain_NotReady)
+			continue;
+
+		if (swapchainStatus == Swapchain_Resized || !targetFB)
 		{
 			if (colorTarget.image)
 				destroyImage(colorTarget, device);

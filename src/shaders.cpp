@@ -10,6 +10,7 @@
 // https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.pdf
 struct Id
 {
+	// TODO: we could use opcode for this
 	enum Kind { Unknown = 0, Variable, TypePointer, TypeStruct, TypeImage, TypeSampler, TypeSampledImage };
 
 	Kind kind;
@@ -96,6 +97,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				break;
 			}
 		} break;
+		// TODO: all type cases could be collapsed
 		case SpvOpTypeStruct:
 		{
 			assert(wordCount >= 2);
@@ -173,6 +175,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			assert(id.set == 0);
 			assert(id.binding < 32);
 			assert(ids[id.typeId].kind == Id::TypePointer);
+
+			// TODO: verify that resources don't overlap (at least with diff types)
 
 			Id::Kind typeKind = ids[ids[id.typeId].typeId].kind;
 

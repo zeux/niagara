@@ -39,6 +39,29 @@ layout(binding = 4) buffer DrawVisibility
 	uint drawVisibility[];
 };
 
+layout(binding = 5) uniform sampler2D depthPyramid;
+
+// 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
+bool projectSphere(vec3 C, float r, float znear, float P00, float P11, out vec4 aabb)
+{
+	if (C.z < r + znear)
+		return false;
+
+	vec2 cx = -C.xz;
+	vec2 vx = vec2(sqrt(dot(cx, cx) - r * r), r) / length(cx);
+	vec2 minx = mat2(vx.x, vx.y, -vx.y, vx.x) * cx;
+	vec2 maxx = mat2(vx.x, -vx.y, vx.y, vx.x) * cx;
+
+	vec2 cy = -C.yz;
+	vec2 vy = vec2(sqrt(dot(cy, cy) - r * r), r) / length(cy);
+	vec2 miny = mat2(vy.x, -vy.y, vy.y, vy.x) * cy;
+	vec2 maxy = mat2(vy.x, vy.y, -vy.y, vy.x) * cy;
+
+	aabb = vec4(minx.x / minx.y * P00, miny.x / miny.y * P11, maxx.x / maxx.y * P00, maxy.x / maxy.y * P11) * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
+
+	return true;
+}
+
 void main()
 {
 	uint di = gl_GlobalInvocationID.x;
@@ -57,6 +80,23 @@ void main()
 		visible = visible && dot(cullData.frustum[i], vec4(center, 1)) > -radius;
 
 	visible = cullData.cullingEnabled == 1 ? visible : true;
+
+	if (visible && cullData.occlusionEnabled == 1)
+	{
+		vec4 aabb;
+		if (projectSphere(center, radius, cullData.znear, cullData.P00, cullData.P11, aabb))
+		{
+			float width = (aabb.z - aabb.x) * cullData.pyramidWidth;
+			float height = (aabb.w - aabb.y) * cullData.pyramidHeight;
+
+			float level = floor(log2(max(width, height)));
+
+			float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
+			float depthSphere = cullData.znear / (center.z - radius);
+
+			visible = visible && depthSphere > depth;
+		}
+	}
 
 	if (visible && drawVisibility[di] == 0)
 	{

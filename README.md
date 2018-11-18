@@ -11,7 +11,7 @@ The renderer is written using Visual Studio and targets Windows desktops with mo
 
 # Stream
 
-The development of this project streams on YouTube on weekends; Saturday and Sunday, 10 AM PST. You can watch the stream here: https://www.youtube.com/c/zeuxcg/live
+The development of this project has streamed on YouTube on weekends in October and November 2018; the project is currently on hold.
 
 Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
 
@@ -28,6 +28,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 11. Multiple meshes and GPU frustum culling: https://youtu.be/NGGzk4Fi2iU
 12. Draw call compaction using KHR_draw_indirect_count and LOD support: https://youtu.be/IYRgDcnJJ2I
 13. Depth pyramid construction and extending SPIRV reflection parser: https://youtu.be/YCteLdYdZWQ
+14. Automatic occlusion culling: https://youtu.be/Fj1E1A4CPCM
 
 # Issues
 

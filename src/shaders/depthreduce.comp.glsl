@@ -14,9 +14,8 @@ void main()
 {
 	uvec2 pos = gl_GlobalInvocationID.xy;
 
-	// TODO: VK_EXT_sampler_filter_minmax could be used instead to avoid the need to do 3 mins manually
-	vec4 depth4 = textureGather(inImage, (vec2(pos) + vec2(0.5)) / imageSize);
-	float depth = min(min(depth4.x, depth4.y), min(depth4.z, depth4.w));
+	// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
+	float depth = texture(inImage, (vec2(pos) + vec2(0.5)) / imageSize).x;
 
 	imageStore(outImage, ivec2(pos), vec4(depth));
 }

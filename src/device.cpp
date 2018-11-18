@@ -183,6 +183,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
 		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
 		VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
+		VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME,
 	};
 
 	if (meshShadingSupported)

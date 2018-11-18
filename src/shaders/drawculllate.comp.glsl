@@ -91,6 +91,7 @@ void main()
 
 			float level = floor(log2(max(width, height)));
 
+			// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
 			float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
 			float depthSphere = cullData.znear / (center.z - radius);
 

@@ -523,7 +523,7 @@ int main(int argc, const char** argv)
 	VkRenderPass renderPassLate = createRenderPass(device, swapchainFormat, depthFormat, /* late= */ true);
 	assert(renderPassLate);
 
-	VkSampler depthSampler = createSampler(device);
+	VkSampler depthSampler = createSampler(device, VK_SAMPLER_REDUCTION_MODE_MIN_EXT);
 	assert(depthSampler);
 
 	bool rcs = false;

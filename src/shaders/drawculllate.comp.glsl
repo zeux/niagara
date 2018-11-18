@@ -46,9 +46,6 @@ void main()
 	if (di >= cullData.drawCount)
 		return;
 
-	if (drawVisibility[di] == 0)
-		return;
-
 	uint meshIndex = draws[di].meshIndex;
 	Mesh mesh = meshes[meshIndex];
 
@@ -61,7 +58,7 @@ void main()
 
 	visible = cullData.cullingEnabled == 1 ? visible : true;
 
-	if (visible)
+	if (visible && drawVisibility[di] == 0)
 	{
 		uint dci = atomicAdd(drawCommandCount, 1);
 
@@ -81,4 +78,6 @@ void main()
 		drawCommands[dci].taskCount = (lod.meshletCount + 31) / 32;
 		drawCommands[dci].firstTask = lod.meshletOffset / 32;
 	}
+
+	drawVisibility[di] = visible ? 1 : 0;
 }

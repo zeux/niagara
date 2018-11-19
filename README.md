@@ -3,7 +3,7 @@
 This is a Vulkan renderer that is written on stream from scratch - without using any third party code that is Vulkan specific. We are using non-Vulkan-specific third party libraries however.
 
 The goal is to experiment with a few modern Vulkan rendering techniques, such as GPU culling & scene submission, cone culling, automatic occlusion culling, task/mesh shading, and whatever else it is that we will want to experiment with.
-The code will be written exclusively on stream.
+The code will be written on stream.
 
 # Requirements
 

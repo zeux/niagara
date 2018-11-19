@@ -161,9 +161,4 @@
     </CustomBuild>
     <CustomBuild Include="shaders\depthreduce.comp.glsl" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="shaders\drawculllate.comp.glsl">
-      <Filter>shaders</Filter>
-    </None>
-  </ItemGroup>
 </Project>

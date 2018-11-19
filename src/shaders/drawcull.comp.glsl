@@ -81,10 +81,12 @@ void main()
 	float radius = mesh.radius * draws[di].scale;
 
 	bool visible = true;
-	for (int i = 0; i < 6; ++i)
-		visible = visible && dot(cullData.frustum[i], vec4(center, 1)) > -radius;
-
-	visible = cullData.cullingEnabled == 1 ? visible : true;
+	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
+	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
+	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
+	// the near/far plane culling uses camera space Z directly
+	visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
+	visible = visible || cullData.cullingEnabled == 0;
 
 	if (LATE && visible && cullData.occlusionEnabled == 1)
 	{
@@ -108,8 +110,10 @@ void main()
 	{
 		uint dci = atomicAdd(drawCommandCount, 1);
 
-		float lodDistance = log2(max(1, (distance(center, vec3(0)) - radius)));
-		uint lodIndex = clamp(int(lodDistance), 0, int(mesh.lodCount) - 1);
+		// lod distance i = base * pow(step, i)
+		// i = log2(distance / base) / log2(step)
+		float lodIndexF = log2(distance(center, vec3(0)) / cullData.lodBase) / log2(cullData.lodStep);
+		uint lodIndex = min(uint(max(lodIndexF + 1, 0)), mesh.lodCount - 1);
 
 		lodIndex = cullData.lodEnabled == 1 ? lodIndex : 0;
 

@@ -196,16 +196,16 @@ struct Geometry
 
 struct alignas(16) DrawCullData
 {
-	vec4 frustum[6];
+	float P00, P11, znear, zfar; // symmetric projection parameters
+	float frustum[4]; // data for left/right/top/bottom frustum planes
+	float lodBase, lodStep; // lod distance i = base * pow(step, i)
+	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint32_t drawCount;
 
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
-
-	float P00, P11, znear;
-	float pyramidWidth, pyramidHeight;
 };
 
 struct alignas(16) DepthReduceData
@@ -751,20 +751,24 @@ int main(int argc, const char** argv)
 
 		mat4 projectionT = transpose(projection);
 
+		vec4 frustumX = normalizePlane(projectionT[3] + projectionT[0]); // x + w < 0
+		vec4 frustumY = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
+
 		DrawCullData cullData = {};
-		cullData.frustum[0] = normalizePlane(projectionT[3] + projectionT[0]); // x + w < 0
-		cullData.frustum[1] = normalizePlane(projectionT[3] - projectionT[0]); // x - w > 0
-		cullData.frustum[2] = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
-		cullData.frustum[3] = normalizePlane(projectionT[3] - projectionT[1]); // y - w > 0
-		cullData.frustum[4] = normalizePlane(projectionT[3] - projectionT[2]); // z - w > 0 -- reverse z
-		cullData.frustum[5] = vec4(0, 0, -1, drawDistance); // reverse z, infinite far plane
+		cullData.P00 = projection[0][0];
+		cullData.P11 = projection[1][1];
+		cullData.znear = znear;
+		cullData.zfar = drawDistance;
+		cullData.frustum[0] = frustumX.x;
+		cullData.frustum[1] = frustumX.z;
+		cullData.frustum[2] = frustumY.y;
+		cullData.frustum[3] = frustumY.z;
 		cullData.drawCount = drawCount;
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;
-		cullData.P00 = projection[0][0];
-		cullData.P11 = projection[1][1];
-		cullData.znear = znear;
+		cullData.lodBase = 10.f;
+		cullData.lodStep = 1.5f;
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
 

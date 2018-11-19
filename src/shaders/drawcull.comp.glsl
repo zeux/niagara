@@ -112,7 +112,7 @@ void main()
 
 		// lod distance i = base * pow(step, i)
 		// i = log2(distance / base) / log2(step)
-		float lodIndexF = log2(distance(center, vec3(0)) / cullData.lodBase) / log2(cullData.lodStep);
+		float lodIndexF = log2(length(center) / cullData.lodBase) / log2(cullData.lodStep);
 		uint lodIndex = min(uint(max(lodIndexF + 1, 0)), mesh.lodCount - 1);
 
 		lodIndex = cullData.lodEnabled == 1 ? lodIndex : 0;

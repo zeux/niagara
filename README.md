@@ -75,3 +75,6 @@ Reproduce using https://github.com/zeux/niagara/commit/fda3d8743c933fb3a533fed56
 
 * vkCmdDrawIndexedIndirectCountKHR is causing a GPU crash in some cases on Intel \
 Reproduce using https://github.com/zeux/niagara/commit/c22c2c56d06249835a474e370ea3218463721f42
+
+* Crash during Vulkan replay in push descriptor replay \
+https://github.com/baldurk/renderdoc/issues/1182

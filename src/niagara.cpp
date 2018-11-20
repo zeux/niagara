@@ -819,6 +819,12 @@ int main(int argc, const char** argv)
 
 			vkCmdBeginRenderPass(commandBuffer, &passBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+			VkViewport viewport = { 0, float(swapchain.height), float(swapchain.width), -float(swapchain.height), 0, 1 };
+			VkRect2D scissor = { {0, 0}, {uint32_t(swapchain.width), uint32_t(swapchain.height)} };
+
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
 			if (meshShadingSupported && meshShadingEnabled)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineMS);
@@ -898,12 +904,6 @@ int main(int argc, const char** argv)
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 1);
 		vkCmdBeginQuery(commandBuffer, queryPoolPipeline, 0, 0);
-
-		VkViewport viewport = { 0, float(swapchain.height), float(swapchain.width), -float(swapchain.height), 0, 1 };
-		VkRect2D scissor = { {0, 0}, {uint32_t(swapchain.width), uint32_t(swapchain.height)} };
-
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 		VkClearValue clearValues[2] = {};
 		clearValues[0].color = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };

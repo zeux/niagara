@@ -564,7 +564,7 @@ int main(int argc, const char** argv)
 	VkQueryPool queryPoolTimestamp = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
 	assert(queryPoolTimestamp);
 
-	VkQueryPool queryPoolPipeline = createQueryPool(device, 1, VK_QUERY_TYPE_PIPELINE_STATISTICS);
+	VkQueryPool queryPoolPipeline = createQueryPool(device, 4, VK_QUERY_TYPE_PIPELINE_STATISTICS);
 	assert(queryPoolPipeline);
 
 	VkCommandPool commandPool = createCommandPool(device, familyIndex);
@@ -775,6 +775,34 @@ int main(int argc, const char** argv)
 		Globals globals = {};
 		globals.projection = projection;
 
+		auto barrier = [&]()
+		{
+			VkMemoryBarrier wfi = { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+			wfi.srcAccessMask = 0x1ffff;
+			wfi.dstAccessMask = 0x1ffff;
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &wfi, 0, 0, 0, 0);
+		};
+
+		auto flush = [&]()
+		{
+			VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+			submitInfo.commandBufferCount = 1;
+			submitInfo.pCommandBuffers = &commandBuffer;
+
+			VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+
+			VK_CHECK(vkDeviceWaitIdle(device));
+
+			VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+
+			VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+			VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+		};
+
 		auto cull = [&](VkPipeline pipeline, uint32_t timestamp)
 		{
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, timestamp + 0);
@@ -807,8 +835,10 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, timestamp + 1);
 		};
 
-		auto render = [&](VkRenderPass renderPass, uint32_t clearValueCount, const VkClearValue* clearValues)
+		auto render = [&](VkRenderPass renderPass, uint32_t clearValueCount, const VkClearValue* clearValues, uint32_t query)
 		{
+			vkCmdBeginQuery(commandBuffer, queryPoolPipeline, query, 0);
+
 			VkRenderPassBeginInfo passBeginInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
 			passBeginInfo.renderPass = renderPass;
 			passBeginInfo.framebuffer = targetFB;
@@ -849,6 +879,8 @@ int main(int argc, const char** argv)
 			}
 
 			vkCmdEndRenderPass(commandBuffer);
+
+			vkCmdEndQuery(commandBuffer, queryPoolPipeline, query);
 		};
 
 		auto pyramid = [&]()
@@ -902,8 +934,7 @@ int main(int argc, const char** argv)
 
 		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, ARRAYSIZE(renderBeginBarriers), renderBeginBarriers);
 
-		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 1);
-		vkCmdBeginQuery(commandBuffer, queryPoolPipeline, 0, 0);
+		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 
 		VkClearValue clearValues[2] = {};
 		clearValues[0].color = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
@@ -913,7 +944,7 @@ int main(int argc, const char** argv)
 		cull(drawcullPipeline, 2);
 
 		// early render: render objects that were visible last frame
-		render(renderPass, ARRAYSIZE(clearValues), clearValues);
+		render(renderPass, ARRAYSIZE(clearValues), clearValues, 0);
 
 		// depth pyramid generation
 		pyramid();
@@ -922,9 +953,7 @@ int main(int argc, const char** argv)
 		cull(drawculllatePipeline, 6);
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
-		render(renderPassLate, 0, nullptr);
-
-		vkCmdEndQuery(commandBuffer, queryPoolPipeline, 0);
+		render(renderPassLate, 0, nullptr, 1);
 
 		VkImageMemoryBarrier copyBarriers[] =
 		{
@@ -998,10 +1027,10 @@ int main(int argc, const char** argv)
 		uint64_t timestampResults[8] = {};
 		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, ARRAYSIZE(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
 
-		uint32_t pipelineResults[1] = {};
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, 1, sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
+		uint32_t pipelineResults[2] = {};
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, ARRAYSIZE(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
 
-		uint32_t triangleCount = pipelineResults[0];
+		uint32_t triangleCount = pipelineResults[0] + pipelineResults[1];
 
 		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
 		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;

@@ -120,7 +120,7 @@ static bool supportsPresentation(VkPhysicalDevice physicalDevice, uint32_t famil
 
 VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t physicalDeviceCount)
 {
-	VkPhysicalDevice discrete = 0;
+	VkPhysicalDevice preferred = 0;
 	VkPhysicalDevice fallback = 0;
 
 	for (uint32_t i = 0; i < physicalDeviceCount; ++i)
@@ -140,9 +140,9 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (props.apiVersion < VK_API_VERSION_1_1)
 			continue;
 
-		if (!discrete && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+		if (!preferred && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			discrete = physicalDevices[i];
+			preferred = physicalDevices[i];
 		}
 
 		if (!fallback)
@@ -151,7 +151,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		}
 	}
 
-	VkPhysicalDevice result = discrete ? discrete : fallback;
+	VkPhysicalDevice result = preferred ? preferred : fallback;
 
 	if (result)
 	{

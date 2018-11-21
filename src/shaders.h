@@ -18,6 +18,7 @@ struct Shader
 struct Program
 {
 	VkPipelineLayout layout;
+	VkDescriptorSetLayout setLayout;
 	VkDescriptorUpdateTemplate updateTemplate;
 	VkShaderStageFlags pushConstantStages;
 };

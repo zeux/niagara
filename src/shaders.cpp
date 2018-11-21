@@ -239,10 +239,8 @@ static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 	return setLayout;
 }
 
-static VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, VkShaderStageFlags pushConstantStages, size_t pushConstantSize)
+static VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout setLayout, VkShaderStageFlags pushConstantStages, size_t pushConstantSize)
 {
-	VkDescriptorSetLayout setLayout = createSetLayout(device, shaders);
-
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	createInfo.setLayoutCount = 1;
 	createInfo.pSetLayouts = &setLayout;
@@ -260,8 +258,6 @@ static VkPipelineLayout createPipelineLayout(VkDevice device, Shaders shaders, V
 
 	VkPipelineLayout layout = 0;
 	VK_CHECK(vkCreatePipelineLayout(device, &createInfo, 0, &layout));
-
-	vkDestroyDescriptorSetLayout(device, setLayout, 0);
 
 	return layout;
 }
@@ -458,7 +454,10 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 
 	Program program = {};
 
-	program.layout = createPipelineLayout(device, shaders, pushConstantStages, pushConstantSize);
+	program.setLayout = createSetLayout(device, shaders);
+	assert(program.setLayout);
+
+	program.layout = createPipelineLayout(device, program.setLayout, pushConstantStages, pushConstantSize);
 	assert(program.layout);
 
 	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout,shaders);
@@ -473,4 +472,5 @@ void destroyProgram(VkDevice device, const Program& program)
 {
 	vkDestroyDescriptorUpdateTemplate(device, program.updateTemplate, 0);
 	vkDestroyPipelineLayout(device, program.layout, 0);
+	vkDestroyDescriptorSetLayout(device, program.setLayout, 0);
 }

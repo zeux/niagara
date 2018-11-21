@@ -112,7 +112,7 @@ uint32_t getGraphicsFamilyIndex(VkPhysicalDevice physicalDevice)
 static bool supportsPresentation(VkPhysicalDevice physicalDevice, uint32_t familyIndex)
 {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-	return vkGetPhysicalDeviceWin32PresentationSupportKHR(physicalDevice, familyIndex);
+	return !!vkGetPhysicalDeviceWin32PresentationSupportKHR(physicalDevice, familyIndex);
 #else
 	return true;
 #endif
@@ -168,7 +168,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool checkpointsSupported, bool meshShadingSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -186,6 +186,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME,
 		VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME,
 	};
+
+    if (checkpointsSupported)
+        extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
 
 	if (meshShadingSupported)
 		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);

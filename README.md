@@ -9,6 +9,17 @@ The code will be written on stream.
 
 The renderer is written using Visual Studio and targets Windows desktops with modern Vulkan drivers. You will need Visual Studio 2017 and Vulkan SDK to follow along
 
+# Building
+
+To build and run the project, clone this repository using --recursive flag:
+
+	git clone https://github.com/zeux/niagara.git --recursive
+
+Make sure you have Vulkan SDK installed; open the Visual Studio project in niagara/src and build it.
+
+To run the program, command line should contain arguments with paths to .obj files; you can use kitten.obj from data/ folder for testing.
+On lower-end GPUs you might want to change `drawCount` in `niagara.cpp` to be a value smaller than 1M.
+
 # Stream
 
 The development of this project has streamed on YouTube on weekends in October and November 2018; the project is currently on hold.
@@ -82,5 +93,5 @@ https://github.com/baldurk/renderdoc/issues/1182
 * NVidia GTX 10xx series GPUs cause VK_ERROR_DEVICE_LOST when drawCount is 1'000'000 \
 Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
 
-* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly, requiring AMD_SPECOP_WORKAROUND define \
-Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
+* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly, requiring a workaround in drawcull.comp.glsl \
+Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1

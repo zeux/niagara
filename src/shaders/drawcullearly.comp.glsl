@@ -7,7 +7,8 @@
 
 #include "mesh.h"
 
-layout (constant_id = 0) const bool LATE = false;
+#define LATE false
+// layout (constant_id = 0) const bool LATE = false;
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 

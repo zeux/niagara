@@ -81,10 +81,10 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/450
 * ✔️ vkCmdDrawMeshTasksIndirectNV doesn't trigger an error when multiDrawIndirect feature is disabled \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/451
 
-* vkCmdDrawIndexedIndirect is rendering fewer than drawCount draw calls in some cases on Intel \
+* vkCmdDrawIndexedIndirect is rendering fewer than drawCount draw calls on Intel \
 Reproduce using https://github.com/zeux/niagara/commit/fda3d8743c933fb3a533fed560a6671402d6693b
 
-* vkCmdDrawIndexedIndirectCountKHR is causing a GPU crash in some cases on Intel \
+* vkCmdDrawIndexedIndirectCountKHR is causing a GPU crash on Intel \
 Reproduce using https://github.com/zeux/niagara/commit/c22c2c56d06249835a474e370ea3218463721f42
 
 * ✔️ Crash during Vulkan replay in push descriptor replay \
@@ -94,4 +94,4 @@ https://github.com/baldurk/renderdoc/issues/1182
 Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
 
 * AMD drivers 18.11.2 on Windows don't handle specialization constants correctly, requiring a workaround in drawcull.comp.glsl \
-Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1
+Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1; disabling workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame

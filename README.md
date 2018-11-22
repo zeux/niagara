@@ -78,3 +78,9 @@ Reproduce using https://github.com/zeux/niagara/commit/c22c2c56d06249835a474e370
 
 * ✔️ Crash during Vulkan replay in push descriptor replay \
 https://github.com/baldurk/renderdoc/issues/1182
+
+* NVidia GTX 10xx series GPUs cause VK_ERROR_DEVICE_LOST when drawCount is 1'000'000 \
+Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
+
+* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly, requiring AMD_SPECOP_WORKAROUND define \
+Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475

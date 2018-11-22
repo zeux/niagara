@@ -7,7 +7,13 @@
 
 #include "mesh.h"
 
+#if 0
+// Note: this should work, but unfortunately on AMD drivers it doesn't :(
+// Because of this, we use the workaround where instead of a spec constant we use a uniform
 layout (constant_id = 0) const bool LATE = false;
+#else
+#define LATE cullData.lateWorkaroundAMD
+#endif
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 

@@ -25,9 +25,6 @@ bool occlusionEnabled = true;
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
 
-// Enable this workaround to have this code run on AMD GPUs
-#define AMD_SPECOP_WORKAROUND 0
-
 VkSemaphore createSemaphore(VkDevice device)
 {
 	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -209,6 +206,8 @@ struct alignas(16) DrawCullData
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
+
+	int lateWorkaroundAMD;
 };
 
 struct alignas(16) DepthReduceData
@@ -513,19 +512,9 @@ int main(int argc, const char** argv)
 
 	bool rcs = false;
 
-#if AMD_SPECOP_WORKAROUND
-	Shader drawcullCS = {};
-	rcs = loadShader(drawcullCS, device, "shaders/drawcullearly.comp.spv");
-	assert(rcs);
-
-	Shader drawculllateCS = {};
-	rcs = loadShader(drawculllateCS, device, "shaders/drawculllate.comp.spv");
-	assert(rcs);
-#else
 	Shader drawcullCS = {};
 	rcs = loadShader(drawcullCS, device, "shaders/drawcull.comp.spv");
 	assert(rcs);
-#endif
 
 	Shader depthreduceCS = {};
 	rcs = loadShader(depthreduceCS, device, "shaders/depthreduce.comp.spv");
@@ -555,15 +544,7 @@ int main(int argc, const char** argv)
 
 	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, sizeof(DrawCullData), pushDescriptorsSupported);
 	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false });
-
-#if AMD_SPECOP_WORKAROUND
-	Program drawculllateProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawculllateCS }, sizeof(DrawCullData), pushDescriptorsSupported);
-	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawculllateCS, drawculllateProgram.layout, { /* LATE= */ true });
-#else
-	Program drawculllateProgram = drawcullProgram;
 	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true });
-#endif
-
 
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData), pushDescriptorsSupported);
 	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
@@ -905,7 +886,7 @@ int main(int argc, const char** argv)
 			}
 		};
 
-		auto cull = [&](const Program& program, VkPipeline pipeline, uint32_t timestamp, const char* phase)
+		auto cull = [&](VkPipeline pipeline, uint32_t timestamp, const char* phase)
 		{
 			VK_CHECKPOINT(phase);
 
@@ -926,9 +907,9 @@ int main(int argc, const char** argv)
 			DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
 			DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
 			// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
-			pushDescriptors(program, descriptors);
+			pushDescriptors(drawcullProgram, descriptors);
 
-			vkCmdPushConstants(commandBuffer, program.layout, program.pushConstantStages, 0, sizeof(cullData), &cullData);
+			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
 			vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
 
 			VK_CHECKPOINT("culled");
@@ -1065,7 +1046,8 @@ int main(int argc, const char** argv)
 		VK_CHECKPOINT("frame");
 
 		// early cull: frustum cull & fill objects that *were* visible last frame
-		cull(drawcullProgram, drawcullPipeline, 2, "early cull");
+		cullData.lateWorkaroundAMD = 0;
+		cull(drawcullPipeline, 2, "early cull");
 
 		// early render: render objects that were visible last frame
 		render(renderPass, ARRAYSIZE(clearValues), clearValues, 0, "early render");
@@ -1074,7 +1056,8 @@ int main(int argc, const char** argv)
 		pyramid();
 
 		// late cull: frustum + occlusion cull & fill objects that were *not* visible last frame
-		cull(drawculllateProgram, drawculllatePipeline, 6, "late cull");
+		cullData.lateWorkaroundAMD = 1;
+		cull(drawculllatePipeline, 6, "late cull");
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
 		render(renderPassLate, 0, nullptr, 1, "late render");
@@ -1235,9 +1218,6 @@ int main(int argc, const char** argv)
 	vkDestroyPipeline(device, drawcullPipeline, 0);
 	vkDestroyPipeline(device, drawculllatePipeline, 0);
 	destroyProgram(device, drawcullProgram);
-#if AMD_SPECOP_WORKAROUND
-	destroyProgram(device, drawculllateProgram);
-#endif
 
 	vkDestroyPipeline(device, depthreducePipeline, 0);
 	destroyProgram(device, depthreduceProgram);
@@ -1252,9 +1232,6 @@ int main(int argc, const char** argv)
 	}
 
 	vkDestroyShaderModule(device, drawcullCS.module, 0);
-#if AMD_SPECOP_WORKAROUND
-	vkDestroyShaderModule(device, drawculllateCS.module, 0);
-#endif
 	vkDestroyShaderModule(device, depthreduceCS.module, 0);
 
 	vkDestroyShaderModule(device, meshVS.module, 0);

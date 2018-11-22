@@ -35,6 +35,8 @@ struct DrawCullData
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
+
+	bool lateWorkaroundAMD;
 };
 
 struct MeshLod

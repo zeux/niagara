@@ -93,5 +93,5 @@ https://github.com/baldurk/renderdoc/issues/1182
 * NVidia GTX 10xx series GPUs cause VK_ERROR_DEVICE_LOST when drawCount is 1'000'000 \
 Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
 
-* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly, requiring a workaround in drawcull.comp.glsl \
-Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1; disabling workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
+* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly \
+Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1; disabling AMD workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame

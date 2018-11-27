@@ -139,7 +139,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 	for (auto& id : ids)
 	{
-		if (id.opcode == SpvOpVariable && (id.storageClass == SpvStorageClassUniform || id.storageClass == SpvStorageClassUniformConstant))
+		if (id.opcode == SpvOpVariable && (id.storageClass == SpvStorageClassUniform || id.storageClass == SpvStorageClassUniformConstant || id.storageClass == SpvStorageClassStorageBuffer))
 		{
 			assert(id.set == 0);
 			assert(id.binding < 32);

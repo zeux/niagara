@@ -43,18 +43,6 @@ VkInstance createInstance()
 
 static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
 {
-	// Validation layers don't correctly detect NonWriteable declarations for storage buffers: https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
-	if (strstr(pMessage, "Shader requires vertexPipelineStoresAndAtomics but is not enabled on the device"))
-		return VK_FALSE;
-
-	// Validation layers don't correctly track set assignments when using push descriptors with update templates: https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/341
-	if (strstr(pMessage, "uses set #0 but that set is not bound."))
-		return VK_FALSE;
-
-	// glslang adds UniformAndStorageBuffer8BitAccess capability to shaders that don't need it: https://github.com/KhronosGroup/glslang/issues/1539
-	if (strstr(pMessage, "VkPhysicalDevice8BitStorageFeaturesKHR::uniformAndStorageBuffer8BitAccess"))
-		return VK_FALSE;
-
 	// This silences warnings like "For optimal performance image layout should be VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL instead of GENERAL."
 	// We'll assume other performance warnings are also not useful.
 	if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)

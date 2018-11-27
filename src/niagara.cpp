@@ -784,7 +784,7 @@ int main(int argc, const char** argv)
 			VK_CHECKPOINT("dvb cleared");
 		}
 
-		float znear = 0.01f;
+		float znear = 0.5f;
 		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear);
 
 		mat4 projectionT = transpose(projection);

@@ -48,7 +48,7 @@ During the streams we find various bugs in parts of the Vulkan stack and report 
 * ✔️ vkAcquireNextImageKHR crashes in validation layers if vkGetSwapchainImagesKHR hasn't been called \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/358
 
-* vkGetPhysicalDeviceSurfaceFormatsKHR doesn't fill format count correctly \
+* ✔️ vkGetPhysicalDeviceSurfaceFormatsKHR doesn't fill format count correctly \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797666
 
 * ✔️ Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
@@ -63,7 +63,7 @@ https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/7977
 * ✔️ Reading uint8_t from storage buffers adds (unnecessarily) UniformAndStorageBuffer8BitAccess capability \
 https://github.com/KhronosGroup/glslang/issues/1539
 
-* Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
+* ✔️ Binding a buffer with VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as a storage buffer using push descriptors doesn't produce validation errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/413
 
 * ✔️ Fragment shader with perprimitiveNV doesn't have OpExtension SPV_NV_mesh_shader \

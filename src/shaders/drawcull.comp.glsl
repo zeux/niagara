@@ -88,11 +88,25 @@ void main()
 	float radius = mesh.radius * draws[di].scale;
 
 	bool visible = true;
+
+	// fit the center to the positive quadrant to reduce view plane tests; only use positive planes
+	vec3 pos_center = vec3(abs(center.x), abs(center.y), center.z);
+
+	// unpack the view space plane equations
+	vec3 plane1 = vec3(cullData.frustum[0], 0.0f, cullData.frustum[1]);
+	vec3 plane2 = vec3(0.0f, cullData.frustum[2], cullData.frustum[3]);
+
+	// reference implementation:
+	//visible = visible && !((dot(plane1.xyz, pos_center.xyz) < -radius) || (dot(plane2.xyz, pos_center.xyz) < -radius));
+
 	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
-	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
-	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
+	// note: this will not work for skewed or tiled projections
+	visible = visible && pos_center.z * plane1.z + pos_center.x * plane1.x > -radius;
+	visible = visible && pos_center.z * plane2.z + pos_center.y * plane2.y > -radius;
+
 	// the near/far plane culling uses camera space Z directly
 	visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
+
 	visible = visible || cullData.cullingEnabled == 0;
 
 	if (LATE && visible && cullData.occlusionEnabled == 1)

@@ -33,7 +33,8 @@ layout(location = 0) out vec4 color;
 
 void main()
 {
-	MeshDraw meshDraw = draws[drawCommands[gl_DrawIDARB].drawId];
+	uint drawId = drawCommands[gl_DrawIDARB].drawId;
+	MeshDraw meshDraw = draws[drawId];
 
 	vec3 position = vec3(vertices[gl_VertexIndex].vx, vertices[gl_VertexIndex].vy, vertices[gl_VertexIndex].vz);
 	vec3 normal = vec3(int(vertices[gl_VertexIndex].nx), int(vertices[gl_VertexIndex].ny), int(vertices[gl_VertexIndex].nz)) / 127.0 - 1.0;

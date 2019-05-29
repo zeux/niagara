@@ -48,7 +48,8 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 	uint mgi = gl_WorkGroupID.x;
 
-	MeshDraw meshDraw = draws[drawCommands[gl_DrawIDARB].drawId];
+	uint drawId = drawCommands[gl_DrawIDARB].drawId;
+	MeshDraw meshDraw = draws[drawId];
 
 	uint mi = mgi * 32 + ti;
 

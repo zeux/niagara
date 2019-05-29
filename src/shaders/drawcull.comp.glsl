@@ -84,7 +84,7 @@ void main()
 	uint meshIndex = draws[di].meshIndex;
 	Mesh mesh = meshes[meshIndex];
 
-	vec3 center = mesh.center * draws[di].scale + draws[di].position;
+	vec3 center = rotateQuat(mesh.center, draws[di].orientation) * draws[di].scale + draws[di].position;
 	float radius = mesh.radius * draws[di].scale;
 
 	bool visible = true;
@@ -93,6 +93,7 @@ void main()
 	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
 	// the near/far plane culling uses camera space Z directly
 	visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
+
 	visible = visible || cullData.cullingEnabled == 0;
 
 	if (LATE && visible && cullData.occlusionEnabled == 1)

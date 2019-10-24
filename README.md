@@ -75,7 +75,7 @@ https://github.com/KhronosGroup/GLSL/issues/31
 * ✔️ Push descriptors generate false positive DescriptorSetNotBound errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/341
 
-* vkCmdDrawIndexedIndirect doesn't issue an error when the buffer wasn't created with VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT \
+* ✔️ vkCmdDrawIndexedIndirect doesn't issue an error when the buffer wasn't created with VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/450
 
 * ✔️ vkCmdDrawMeshTasksIndirectNV doesn't trigger an error when multiDrawIndirect feature is disabled \

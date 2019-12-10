@@ -236,7 +236,7 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 		for (unsigned int i = 0; i < indexGroupCount; ++i)
 			result.meshletdata.push_back(indexGroups[i]);
 
-		meshopt_Bounds bounds = meshopt_computeMeshletBounds(meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);
@@ -370,7 +370,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		if (mesh.lodCount < ARRAYSIZE(mesh.lods))
 		{
 			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.75);
-			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-4f);
+			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-2f);
 			assert(nextIndices <= lodIndices.size());
 
 			// we've reached the error bound

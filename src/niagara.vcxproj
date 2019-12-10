@@ -208,7 +208,6 @@
     <ClInclude Include="..\extern\glfw\src\wgl_context.h" />
     <ClInclude Include="..\extern\glfw\src\win32_joystick.h" />
     <ClInclude Include="..\extern\glfw\src\win32_platform.h" />
-    <ClInclude Include="..\extern\meshoptimizer\demo\objparser.h" />
     <ClInclude Include="..\extern\meshoptimizer\src\meshoptimizer.h" />
     <ClInclude Include="..\extern\volk\volk.h" />
     <ClInclude Include="common.h" />
@@ -235,13 +234,14 @@
     <ClCompile Include="..\extern\glfw\src\win32_time.c" />
     <ClCompile Include="..\extern\glfw\src\win32_window.c" />
     <ClCompile Include="..\extern\glfw\src\window.c" />
-    <ClCompile Include="..\extern\meshoptimizer\demo\objparser.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\allocator.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\clusterizer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\indexcodec.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\indexgenerator.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\overdrawanalyzer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\overdrawoptimizer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\simplifier.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\spatialorder.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\stripifier.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\vcacheanalyzer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\vcacheoptimizer.cpp" />

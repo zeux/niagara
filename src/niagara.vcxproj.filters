@@ -36,9 +36,6 @@
     <ClInclude Include="..\extern\meshoptimizer\src\meshoptimizer.h">
       <Filter>meshoptimizer</Filter>
     </ClInclude>
-    <ClInclude Include="..\extern\meshoptimizer\demo\objparser.h">
-      <Filter>meshoptimizer</Filter>
-    </ClInclude>
     <ClInclude Include="shaders.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="shaders\mesh.h">
@@ -131,9 +128,6 @@
     <ClCompile Include="..\extern\meshoptimizer\src\vfetchoptimizer.cpp">
       <Filter>meshoptimizer</Filter>
     </ClCompile>
-    <ClCompile Include="..\extern\meshoptimizer\demo\objparser.cpp">
-      <Filter>meshoptimizer</Filter>
-    </ClCompile>
     <ClCompile Include="niagara.cpp" />
     <ClCompile Include="shaders.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\clusterizer.cpp">
@@ -143,6 +137,12 @@
     <ClCompile Include="device.cpp" />
     <ClCompile Include="resources.cpp" />
     <ClCompile Include="fast_obj.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\allocator.cpp">
+      <Filter>meshoptimizer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\extern\meshoptimizer\src\spatialorder.cpp">
+      <Filter>meshoptimizer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

@@ -1,6 +1,10 @@
 #include "common.h"
 #include "device.h"
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 VkInstance createInstance()
 {
 	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_1);

@@ -18,7 +18,7 @@ VkInstance createInstance()
 #ifdef _DEBUG
 	const char* debugLayers[] =
 	{
-		"VK_LAYER_LUNARG_standard_validation"
+		"VK_LAYER_KHRONOS_validation"
 	};
 
 	createInfo.ppEnabledLayerNames = debugLayers;

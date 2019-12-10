@@ -142,6 +142,7 @@
     <ClCompile Include="swapchain.cpp" />
     <ClCompile Include="device.cpp" />
     <ClCompile Include="resources.cpp" />
+    <ClCompile Include="fast_obj.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

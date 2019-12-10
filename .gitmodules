@@ -10,3 +10,6 @@
 [submodule "extern/glm"]
 	path = extern/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "extern/fast_obj"]
+	path = extern/fast_obj
+	url = https://github.com/thisistherk/fast_obj

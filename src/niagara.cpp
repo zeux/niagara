@@ -14,7 +14,7 @@
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
-#include <objparser.h>
+#include <fast_obj.h>
 #include <meshoptimizer.h>
 
 bool meshShadingEnabled = true;
@@ -259,37 +259,65 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 	return meshlets.size();
 }
 
-bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
+bool loadObj(std::vector<Vertex>& vertices, const char* path)
 {
-	ObjFile file;
-	if (!objParseFile(file, path))
+	fastObjMesh* obj = fast_obj_read(path);
+	if (!obj)
 		return false;
 
-	size_t index_count = file.f_size / 3;
+	size_t index_count = 0;
 
-	std::vector<Vertex> triangle_vertices(index_count);
+	for (unsigned int i = 0; i < obj->face_count; ++i)
+		index_count += 3 * (obj->face_vertices[i] - 2);
 
-	for (size_t i = 0; i < index_count; ++i)
+	vertices.resize(index_count);
+
+	size_t vertex_offset = 0;
+	size_t index_offset = 0;
+
+	for (unsigned int i = 0; i < obj->face_count; ++i)
 	{
-		Vertex& v = triangle_vertices[i];
+		for (unsigned int j = 0; j < obj->face_vertices[i]; ++j)
+		{
+            fastObjIndex gi = obj->indices[index_offset + j];
 
-		int vi = file.f[i * 3 + 0];
-		int vti = file.f[i * 3 + 1];
-		int vni = file.f[i * 3 + 2];
+			// triangulate polygon on the fly; offset-3 is always the first polygon vertex
+			if (j >= 3)
+			{
+				vertices[vertex_offset + 0] = vertices[vertex_offset - 3];
+				vertices[vertex_offset + 1] = vertices[vertex_offset - 1];
+				vertex_offset += 2;
+			}
 
-		float nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
-		float ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
-		float nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
+			Vertex& v = vertices[vertex_offset++];
 
-		v.vx = file.v[vi * 3 + 0];
-		v.vy = file.v[vi * 3 + 1];
-		v.vz = file.v[vi * 3 + 2];
-		v.nx = uint8_t(nx * 127.f + 127.5f);
-		v.ny = uint8_t(ny * 127.f + 127.5f);
-		v.nz = uint8_t(nz * 127.f + 127.5f);
-		v.tu = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 0]);
-		v.tv = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 1]);
+			v.vx = obj->positions[gi.p * 3 + 0];
+			v.vy = obj->positions[gi.p * 3 + 1];
+			v.vz = obj->positions[gi.p * 3 + 2];
+			v.nx = uint8_t(obj->normals[gi.n * 3 + 0] * 127.f + 127.5f);
+			v.ny = uint8_t(obj->normals[gi.n * 3 + 1] * 127.f + 127.5f);
+			v.nz = uint8_t(obj->normals[gi.n * 3 + 2] * 127.f + 127.5f);
+			v.tu = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 0]);
+			v.tv = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 1]);
+		}
+
+		index_offset += obj->face_vertices[i];
 	}
+
+	assert(vertex_offset == index_count);
+
+	fast_obj_destroy(obj);
+
+	return true;
+}
+
+bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
+{
+	std::vector<Vertex> triangle_vertices;
+	if (!loadObj(triangle_vertices, path))
+		return false;
+
+	size_t index_count = triangle_vertices.size();
 
 	std::vector<uint32_t> remap(index_count);
 	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, triangle_vertices.data(), index_count, sizeof(Vertex));

@@ -7,7 +7,7 @@ The code will be written on stream.
 
 # Requirements
 
-The renderer is written using Visual Studio and targets Windows desktops with modern Vulkan drivers. You will need Visual Studio 2017 and Vulkan SDK to follow along
+The renderer is written using Visual Studio and targets Windows desktops with modern Vulkan drivers. You will need Visual Studio 2019 and Vulkan SDK to follow along
 
 # Building
 

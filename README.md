@@ -54,7 +54,7 @@ https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/7976
 * ✔️ Fix NonWritable check when vertexPipelineStoresAndAtomics not enabled \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
 
-* Implicit int8->float cast adds Int8 capability to the shader without asking for GL_KHX_shader_explicit_arithmetic_types \
+* ✔️ Implicit int8->float cast adds Int8 capability to the shader without asking for GL_KHX_shader_explicit_arithmetic_types \
 https://github.com/KhronosGroup/glslang/issues/1525
 
 * vkCreateSwapchainKHR crashes in Intel drivers when display is plugged into a dedicated GPU \

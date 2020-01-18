@@ -160,6 +160,8 @@
     <CustomBuild Include="shaders\drawcull.comp.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\depthreduce.comp.glsl" />
+    <CustomBuild Include="shaders\depthreduce.comp.glsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

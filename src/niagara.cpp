@@ -94,7 +94,7 @@ VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass renderPass, VkImag
 
 	VkFramebufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
 	createInfo.renderPass = renderPass;
-	createInfo.attachmentCount = ARRAYSIZE(attachments);
+	createInfo.attachmentCount = COUNTOF(attachments);
 	createInfo.pAttachments = attachments;
 	createInfo.width = width;
 	createInfo.height = height;
@@ -355,7 +355,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 
 	std::vector<uint32_t> lodIndices = indices;
 
-	while (mesh.lodCount < ARRAYSIZE(mesh.lods))
+	while (mesh.lodCount < COUNTOF(mesh.lods))
 	{
 		MeshLod& lod = mesh.lods[mesh.lodCount++];
 
@@ -367,7 +367,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		lod.meshletOffset = uint32_t(result.meshlets.size());
 		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices)) : 0;
 
-		if (mesh.lodCount < ARRAYSIZE(mesh.lods))
+		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{
 			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.75);
 			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-2f);
@@ -631,7 +631,7 @@ int main(int argc, const char** argv)
 		VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
 
 		poolInfo.maxSets = descriptorCount;
-		poolInfo.poolSizeCount = ARRAYSIZE(poolSizes);
+		poolInfo.poolSizeCount = COUNTOF(poolSizes);
 		poolInfo.pPoolSizes = poolSizes;
 
 		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, 0, &descriptorPool));
@@ -948,7 +948,7 @@ int main(int argc, const char** argv)
 				bufferBarrier(dccb.buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
 			};
 
-			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, ARRAYSIZE(cullBarriers), cullBarriers, 0, 0);
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, COUNTOF(cullBarriers), cullBarriers, 0, 0);
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, timestamp + 1);
 		};
@@ -1021,7 +1021,7 @@ int main(int argc, const char** argv)
 				imageBarrier(depthPyramid.image, 0, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL),
 			};
 
-			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, ARRAYSIZE(depthReadBarriers), depthReadBarriers);
+			vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, COUNTOF(depthReadBarriers), depthReadBarriers);
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthreducePipeline);
 
@@ -1063,7 +1063,7 @@ int main(int argc, const char** argv)
 			imageBarrier(depthTarget.image, 0, 0, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
 		};
 
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, ARRAYSIZE(renderBeginBarriers), renderBeginBarriers);
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, COUNTOF(renderBeginBarriers), renderBeginBarriers);
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 
@@ -1078,7 +1078,7 @@ int main(int argc, const char** argv)
 		cull(drawcullPipeline, 2, "early cull");
 
 		// early render: render objects that were visible last frame
-		render(renderPass, ARRAYSIZE(clearValues), clearValues, 0, "early render");
+		render(renderPass, COUNTOF(clearValues), clearValues, 0, "early render");
 
 		// depth pyramid generation
 		pyramid();
@@ -1096,7 +1096,7 @@ int main(int argc, const char** argv)
 			imageBarrier(swapchain.images[imageIndex], 0, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL),
 		};
 
-		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, ARRAYSIZE(copyBarriers), copyBarriers);
+		vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, COUNTOF(copyBarriers), copyBarriers);
 
 		VK_CHECKPOINT("swapchain copy");
 
@@ -1167,10 +1167,10 @@ int main(int argc, const char** argv)
 		VK_CHECK(wfi);
 
 		uint64_t timestampResults[8] = {};
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, ARRAYSIZE(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
 
 		uint32_t pipelineResults[2] = {};
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, ARRAYSIZE(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
 
 		uint32_t triangleCount = pipelineResults[0] + pipelineResults[1];
 

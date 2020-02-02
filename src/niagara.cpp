@@ -391,7 +391,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 {
 	if (action == GLFW_PRESS)
 	{
-		if (key == GLFW_KEY_R)
+		if (key == GLFW_KEY_M)
 		{
 			meshShadingEnabled = !meshShadingEnabled;
 		}
@@ -463,7 +463,7 @@ int main(int argc, const char** argv)
 	VkInstance instance = createInstance();
 	assert(instance);
 
-	volkLoadInstance(instance);
+	volkLoadInstanceOnly(instance);
 
 #ifdef _DEBUG
 	VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
@@ -504,6 +504,8 @@ int main(int argc, const char** argv)
 
 	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, checkpointsSupported, meshShadingSupported);
 	assert(device);
+
+	volkLoadDevice(device);
 
 	GLFWwindow* window = glfwCreateWindow(1024, 768, "niagara", 0, 0);
 	assert(window);

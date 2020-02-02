@@ -535,7 +535,7 @@ int main(int argc, const char** argv)
 	VkRenderPass renderPassLate = createRenderPass(device, swapchainFormat, depthFormat, /* late= */ true);
 	assert(renderPassLate);
 
-	VkSampler depthSampler = createSampler(device, VK_SAMPLER_REDUCTION_MODE_MIN_EXT);
+	VkSampler depthSampler = createSampler(device, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
 
 	bool rcs = false;
@@ -999,7 +999,7 @@ int main(int argc, const char** argv)
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
 				vkCmdPushConstants(commandBuffer, meshProgram.layout, meshProgram.pushConstantStages, 0, sizeof(globals), &globals);
-				vkCmdDrawIndexedIndirectCountKHR(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirect), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
+				vkCmdDrawIndexedIndirectCount(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirect), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
 			}
 
 			VK_CHECKPOINT("after draw");

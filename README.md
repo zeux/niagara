@@ -95,3 +95,6 @@ Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8af
 
 * AMD drivers 18.11.2 on Windows don't handle specialization constants correctly \
 Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1; disabling AMD workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
+
+* During validation of pipelines with SPIRV 1.4/1.5 and specialization constants, optimizer isn't configured to use Vulkan 1.2 \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1512

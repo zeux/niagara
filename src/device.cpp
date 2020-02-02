@@ -190,6 +190,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;
 	features.features.pipelineStatisticsQuery = true;
+	features.features.shaderInt16 = true;
+	features.features.shaderInt64 = true;
 
 	VkPhysicalDeviceVulkan12Features features12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	features12.drawIndirectCount = true;

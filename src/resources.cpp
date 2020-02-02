@@ -63,6 +63,15 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 	allocateInfo.allocationSize = memoryRequirements.size;
 	allocateInfo.memoryTypeIndex = memoryTypeIndex;
 
+	VkMemoryAllocateFlagsInfo flagInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+
+	if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+	{
+		allocateInfo.pNext = &flagInfo;
+		flagInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		flagInfo.deviceMask = 1;
+	}
+
 	VkDeviceMemory memory = 0;
 	VK_CHECK(vkAllocateMemory(device, &allocateInfo, 0, &memory));
 
@@ -113,6 +122,17 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 {
 	vkDestroyBuffer(device, buffer.buffer, 0);
 	vkFreeMemory(device, buffer.memory, 0);
+}
+
+uint64_t getBufferAddress(const Buffer& buffer, VkDevice device)
+{
+	VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	info.buffer = buffer.buffer;
+
+	VkDeviceAddress address = vkGetBufferDeviceAddress(device, &info);
+	assert(address != 0);
+
+	return address;
 }
 
 VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount)

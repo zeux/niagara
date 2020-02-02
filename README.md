@@ -40,6 +40,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 12. Draw call compaction using KHR_draw_indirect_count and LOD support: https://youtu.be/IYRgDcnJJ2I
 13. Depth pyramid construction and extending SPIRV reflection parser: https://youtu.be/YCteLdYdZWQ
 14. Automatic occlusion culling: https://youtu.be/Fj1E1A4CPCM
+15. Vulkan 1.2 and GPU buffer pointers: https://youtu.be/78tVIA6nRQg
 
 # Issues
 

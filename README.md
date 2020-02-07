@@ -102,3 +102,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1512
 
 * ✔️ Crash when calling vkCmdDrawIndexedIndirectCount loaded through GIPA \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1513
+
+* SHADER_MODULE_STATE::has_specialization_constants is not initialized \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1530

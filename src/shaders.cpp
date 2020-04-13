@@ -5,7 +5,11 @@
 
 #include <vector>
 
+#if VK_HEADER_VERSION >= 135
+#include <spirv-headers/spirv.h>
+#else
 #include <vulkan/spirv.h>
+#endif
 
 // https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.pdf
 struct Id

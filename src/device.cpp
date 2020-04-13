@@ -202,7 +202,6 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
     features12.shaderInt8 = true;
     features12.samplerFilterMinmax = true;
     features12.scalarBlockLayout = true;
-    features12.bufferDeviceAddress = true;
 
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };

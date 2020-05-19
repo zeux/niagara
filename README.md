@@ -105,3 +105,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1513
 
 * ✔️ SHADER_MODULE_STATE::has_specialization_constants is not initialized \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1530
+
+* Missing validation: push descriptor updates don't trigger image layout mismatch errors \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1862

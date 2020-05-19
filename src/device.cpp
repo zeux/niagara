@@ -178,30 +178,35 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
-    if (pushDescriptorsSupported)
+	if (pushDescriptorsSupported)
 		extensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
 
-    if (checkpointsSupported)
-        extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
+	if (checkpointsSupported)
+		extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
 
 	if (meshShadingSupported)
 		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
 
+	VkPhysicalDeviceFeatures2 availableFeatures2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+	VkPhysicalDeviceVulkan12Features availableFeatures12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+	availableFeatures2.pNext = &availableFeatures12;
+	vkGetPhysicalDeviceFeatures2(physicalDevice, &availableFeatures2);
+
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-	features.features.multiDrawIndirect = true;
-	features.features.pipelineStatisticsQuery = true;
-	features.features.shaderInt16 = true;
-	features.features.shaderInt64 = true;
+	features.features.multiDrawIndirect = availableFeatures2.features.multiDrawIndirect;
+	features.features.pipelineStatisticsQuery = availableFeatures2.features.pipelineStatisticsQuery;
+	features.features.shaderInt16 = availableFeatures2.features.shaderInt16;
+	features.features.shaderInt64 = availableFeatures2.features.shaderInt64;
 
 	VkPhysicalDeviceVulkan12Features features12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
-	features12.drawIndirectCount = true;
-	features12.storageBuffer8BitAccess = true;
-    features12.uniformAndStorageBuffer8BitAccess = true;
-    features12.storagePushConstant8 = true;
-    features12.shaderFloat16 = true;
-    features12.shaderInt8 = true;
-    features12.samplerFilterMinmax = true;
-    features12.scalarBlockLayout = true;
+	features12.drawIndirectCount = availableFeatures12.drawIndirectCount;
+	features12.storageBuffer8BitAccess = availableFeatures12.storageBuffer8BitAccess;
+	features12.uniformAndStorageBuffer8BitAccess = availableFeatures12.uniformAndStorageBuffer8BitAccess;
+	features12.storagePushConstant8 = availableFeatures12.storagePushConstant8;
+	features12.shaderFloat16 = availableFeatures12.shaderFloat16;
+	features12.shaderInt8 = availableFeatures12.shaderInt8;
+	features12.samplerFilterMinmax = availableFeatures12.samplerFilterMinmax;
+	features12.scalarBlockLayout = availableFeatures12.scalarBlockLayout;
 
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };

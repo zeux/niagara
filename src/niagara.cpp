@@ -25,6 +25,17 @@ bool occlusionEnabled = true;
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
 
+struct CameraData
+{
+	const float MovementSpeed = 0.1f;
+	const float MouseSensitivity = 0.1f;
+	vec3 position = vec3(0,0,0);
+	quat orientation = quat(1,0,0,0);
+	float vertAngle = 0;
+	float horAngle = 0;
+	mat4 viewMatrix;
+} cameraData {};
+
 VkSemaphore createSemaphore(VkDevice device)
 {
 	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -681,7 +692,8 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
-	uint32_t drawCount = 1'000'000;
+	// uint32_t drawCount = 1'000'000;
+	uint32_t drawCount = 100000;
 	std::vector<MeshDraw> draws(drawCount);
 
 	srand(42);
@@ -726,6 +738,7 @@ int main(int argc, const char** argv)
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
 
+
 	Image colorTarget = {};
 	Image depthTarget = {};
 	VkFramebuffer targetFB = 0;
@@ -741,12 +754,61 @@ int main(int argc, const char** argv)
 
 	uint64_t frameIndex = 0;
 
+	dvec2 mousePos;
+	glfwGetCursorPos(window, &mousePos.x, &mousePos.y);
+	dvec2 prevMousePos = mousePos;
+
+	double currFrameTime = glfwGetTime() * 1000;
 	while (!glfwWindowShouldClose(window))
 	{
 		double frameCpuBegin = glfwGetTime() * 1000;
 
 		glfwPollEvents();
 
+		// camera
+		{
+			prevMousePos = mousePos;
+			glfwGetCursorPos(window, &mousePos.x, &mousePos.y);
+	
+			double deltaTime = frameCpuBegin - currFrameTime;
+			currFrameTime = frameCpuBegin;
+			
+			vec3 dir = vec3(0.0f, 0.0f, 0.0f);
+			if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2))
+			{
+				glm::dvec2 deltaPos = mousePos - prevMousePos;
+				cameraData.horAngle -= static_cast<float>(deltaPos.x * cameraData.MouseSensitivity);
+				cameraData.vertAngle += static_cast<float>(deltaPos.y * cameraData.MouseSensitivity);
+
+				quat aroundY = angleAxis(glm::radians(-cameraData.horAngle), vec3(0, 1, 0));
+				quat aroundX = angleAxis(glm::radians(cameraData.vertAngle), vec3(1, 0, 0));
+				cameraData.orientation = aroundY * aroundX;					
+			}
+
+			float velocity = cameraData.MovementSpeed * deltaTime;
+
+			quat qF = cameraData.orientation * quat(0, 0, 0, -1) * inverse(cameraData.orientation);
+			vec3 Front = {qF.x, qF.y, qF.z};
+			vec3 Right = normalize(cross(Front, vec3(0, 1, 0)));
+
+			if (glfwGetKey(window, GLFW_KEY_W))
+				cameraData.position -= Front * velocity;
+
+			if (glfwGetKey(window, GLFW_KEY_S))
+				cameraData.position += Front * velocity;
+
+			if (glfwGetKey(window, GLFW_KEY_A))
+				cameraData.position -= Right * velocity;
+
+			if (glfwGetKey(window, GLFW_KEY_D))
+				cameraData.position += Right * velocity;
+
+			quat reverseOrient = inverse(cameraData.orientation);
+			mat4 rot = mat4_cast(reverseOrient);
+			mat4 translation = translate(mat4(1.0), -cameraData.position);
+			cameraData.viewMatrix = rot * translation;
+		}
+		
 		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat);
 
 		if (swapchainStatus == Swapchain_NotReady)
@@ -815,7 +877,7 @@ int main(int argc, const char** argv)
 		}
 
 		float znear = 0.5f;
-		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear);
+		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear) * cameraData.viewMatrix;
 
 		mat4 projectionT = transpose(projection);
 

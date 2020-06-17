@@ -198,7 +198,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features12.storageBuffer8BitAccess = true;
     features12.uniformAndStorageBuffer8BitAccess = true;
     features12.storagePushConstant8 = true;
-    features12.shaderFloat16 = true;
+    features12.shaderFloat16 = false;
     features12.shaderInt8 = true;
     features12.samplerFilterMinmax = true;
     features12.scalarBlockLayout = true;

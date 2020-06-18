@@ -879,7 +879,7 @@ int main(int argc, const char** argv)
 		}
 
 		float znear = 0.5f;
-		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear) * cameraData.viewMatrix;
+		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear);
 
 		mat4 projectionT = transpose(projection);
 

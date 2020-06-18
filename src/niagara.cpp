@@ -694,8 +694,7 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
-	// uint32_t drawCount = 1'000'000;
-	uint32_t drawCount = 100000;
+	uint32_t drawCount = 1'000'000;
 	std::vector<MeshDraw> draws(drawCount);
 
 	srand(42);

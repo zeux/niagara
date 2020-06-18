@@ -20,11 +20,13 @@ struct Meshlet
 
 struct Globals
 {
+	mat4 viewMatrix;
 	mat4 projection;
 };
 
 struct DrawCullData
 {
+	mat4 viewMatrix;
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 	float lodBase, lodStep; // lod distance i = base * pow(step, i)

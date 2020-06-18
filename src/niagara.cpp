@@ -148,6 +148,7 @@ struct alignas(16) Meshlet
 
 struct alignas(16) Globals
 {
+	mat4 viewMatrix;
 	mat4 projection;
 };
 
@@ -207,6 +208,7 @@ struct Geometry
 
 struct alignas(16) DrawCullData
 {
+	mat4 viewMatrix;
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 	float lodBase, lodStep; // lod distance i = base * pow(step, i)
@@ -901,9 +903,11 @@ int main(int argc, const char** argv)
 		cullData.lodStep = 1.5f;
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
-
+		cullData.viewMatrix = cameraData.viewMatrix;
+		
 		Globals globals = {};
-		globals.projection = projection;
+		globals.viewMatrix = cameraData.viewMatrix;
+		globals.projection = projection;		
 
 		auto barrier = [&]()
 		{

@@ -87,6 +87,8 @@ void main()
 	vec3 center = rotateQuat(mesh.center, draws[di].orientation) * draws[di].scale + draws[di].position;
 	float radius = mesh.radius * draws[di].scale;
 
+	center = (cullData.viewMatrix * vec4(center, 1.0)).xyz;
+
 	bool visible = true;
 	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
 	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;

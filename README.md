@@ -109,5 +109,5 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1530
 * ✔️ Missing validation: push descriptor updates don't trigger image layout mismatch errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1862
 
-* A valid interface block in mesh/task shader is considered invalid
+* ✔️ A valid interface block in mesh/task shader is considered invalid
 https://github.com/KhronosGroup/SPIRV-Tools/issues/3653

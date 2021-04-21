@@ -1,5 +1,5 @@
+#define VOLK_IMPLEMENTATION
 #include "common.h"
-
 #include "device.h"
 #include "resources.h"
 #include "shaders.h"
@@ -14,7 +14,7 @@
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
-#include <fast_obj.h>
+#include "../extern/fast_obj/fast_obj.h"
 #include <meshoptimizer.h>
 
 bool meshShadingEnabled = true;
@@ -279,7 +279,7 @@ bool loadObj(std::vector<Vertex>& vertices, const char* path)
 	{
 		for (unsigned int j = 0; j < obj->face_vertices[i]; ++j)
 		{
-            fastObjIndex gi = obj->indices[index_offset + j];
+			fastObjIndex gi = obj->indices[index_offset + j];
 
 			// triangulate polygon on the fly; offset-3 is always the first polygon vertex
 			if (j >= 3)

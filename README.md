@@ -13,7 +13,13 @@ The renderer is written using Visual Studio and targets Windows desktops with mo
 
 To build and run the project, clone this repository using --recursive flag:
 
-	git clone https://github.com/zeux/niagara.git --recursive
+```bash
+git clone https://github.com/zeux/niagara.git --recursive
+```
+```bash
+mkdir build && cd build
+cmake ..
+```
 
 Make sure you have Vulkan SDK installed; open the Visual Studio project in niagara/src and build it.
 

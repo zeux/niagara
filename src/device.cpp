@@ -178,11 +178,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
-    if (pushDescriptorsSupported)
+	if (pushDescriptorsSupported)
 		extensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
 
-    if (checkpointsSupported)
-        extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
+	if (checkpointsSupported)
+		extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
 
 	if (meshShadingSupported)
 		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
@@ -193,15 +193,18 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features.features.shaderInt16 = true;
 	features.features.shaderInt64 = true;
 
+	VkPhysicalDeviceVulkan11Features features11 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
+	features11.storageBuffer16BitAccess = true;
+
 	VkPhysicalDeviceVulkan12Features features12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	features12.drawIndirectCount = true;
 	features12.storageBuffer8BitAccess = true;
-    features12.uniformAndStorageBuffer8BitAccess = true;
-    features12.storagePushConstant8 = true;
-    features12.shaderFloat16 = true;
-    features12.shaderInt8 = true;
-    features12.samplerFilterMinmax = true;
-    features12.scalarBlockLayout = true;
+	features12.uniformAndStorageBuffer8BitAccess = true;
+	features12.storagePushConstant8 = true;
+	features12.shaderFloat16 = true;
+	features12.shaderInt8 = true;
+	features12.samplerFilterMinmax = true;
+	features12.scalarBlockLayout = true;
 
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
@@ -216,7 +219,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	createInfo.enabledExtensionCount = uint32_t(extensions.size());
 
 	createInfo.pNext = &features;
-	features.pNext = &features12;
+	features.pNext = &features11;
+	features11.pNext = &features12;
 
 	if (meshShadingSupported)
 		features12.pNext = &featuresMesh;

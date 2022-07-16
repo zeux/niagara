@@ -41,6 +41,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 13. Depth pyramid construction and extending SPIRV reflection parser: https://youtu.be/YCteLdYdZWQ
 14. Automatic occlusion culling: https://youtu.be/Fj1E1A4CPCM
 15. Vulkan 1.2 and GPU buffer pointers: https://youtu.be/78tVIA6nRQg
+16. Upgrading to Vulkan 1.3: https://youtu.be/Ka30T6BMdhI
 
 # Issues
 

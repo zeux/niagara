@@ -748,10 +748,10 @@ int main(int argc, const char** argv)
 		{
 			vkCmdFillBuffer(commandBuffer, dvb.buffer, 0, 4 * drawCount, 0);
 
-			VkBufferMemoryBarrier2 fillBarrier = bufferBarrier2(dvb.buffer,
+			VkBufferMemoryBarrier2 fillBarrier = bufferBarrier(dvb.buffer,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
-			pipelineBarrier2(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
+			pipelineBarrier(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
 
 			dvbCleared = true;
 
@@ -871,10 +871,10 @@ int main(int argc, const char** argv)
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, timestamp + 0);
 
-			VkBufferMemoryBarrier2 prefillBarrier = bufferBarrier2(dccb.buffer,
+			VkBufferMemoryBarrier2 prefillBarrier = bufferBarrier(dccb.buffer,
 				VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
-			pipelineBarrier2(commandBuffer, 0, 1, &prefillBarrier, 0, nullptr);
+			pipelineBarrier(commandBuffer, 0, 1, &prefillBarrier, 0, nullptr);
 
 			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0);
 
@@ -884,21 +884,21 @@ int main(int argc, const char** argv)
 			// the first cull (late=0) doesn't read pyramid data BUT the read in the shader is guarded by a push constant value (which could be specialization constant but isn't due to AMD bug)
 			// the second cull (late=1) does read pyramid data that was written in the pyramid stage
 			// as such, second cull needs to transition GENERAL->GENERAL with a COMPUTE->COMPUTE barrier, but the first cull needs to have a dummy transition because pyramid starts in UNDEFINED state on first frame
-			VkImageMemoryBarrier2 pyramidBarrier = imageBarrier2(depthPyramid.image,
+			VkImageMemoryBarrier2 pyramidBarrier = imageBarrier(depthPyramid.image,
 				late ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : 0, late ? VK_ACCESS_SHADER_WRITE_BIT : 0, late ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
 			VkBufferMemoryBarrier2 fillBarriers[] =
 			{
-				bufferBarrier2(dcb.buffer,
+				bufferBarrier(dcb.buffer,
 					VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | rasterizationStage, VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT),
-				bufferBarrier2(dccb.buffer,
+				bufferBarrier(dccb.buffer,
 					VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT),
 			};
 
-			pipelineBarrier2(commandBuffer, 0, COUNTOF(fillBarriers), fillBarriers, 1, &pyramidBarrier);
+			pipelineBarrier(commandBuffer, 0, COUNTOF(fillBarriers), fillBarriers, 1, &pyramidBarrier);
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
@@ -914,15 +914,15 @@ int main(int argc, const char** argv)
 
 			VkBufferMemoryBarrier2 cullBarriers[] =
 			{
-				bufferBarrier2(dcb.buffer,
+				bufferBarrier(dcb.buffer,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
 					VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | rasterizationStage, VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT),
-				bufferBarrier2(dccb.buffer,
+				bufferBarrier(dccb.buffer,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
 					VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
 			};
 
-			pipelineBarrier2(commandBuffer, 0, COUNTOF(cullBarriers), cullBarriers, 0, nullptr);
+			pipelineBarrier(commandBuffer, 0, COUNTOF(cullBarriers), cullBarriers, 0, nullptr);
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, timestamp + 1);
 		};
@@ -1005,16 +1005,16 @@ int main(int argc, const char** argv)
 
 			VkImageMemoryBarrier2 depthBarriers[] =
 			{
-				imageBarrier2(depthTarget.image,
+				imageBarrier(depthTarget.image,
 					VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 					VK_IMAGE_ASPECT_DEPTH_BIT),
-				imageBarrier2(depthPyramid.image,
+				imageBarrier(depthPyramid.image,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL)
 			};
 
-			pipelineBarrier2(commandBuffer, 0, 0, nullptr, COUNTOF(depthBarriers), depthBarriers);
+			pipelineBarrier(commandBuffer, 0, 0, nullptr, COUNTOF(depthBarriers), depthBarriers);
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthreducePipeline);
 
@@ -1038,35 +1038,35 @@ int main(int argc, const char** argv)
 				vkCmdPushConstants(commandBuffer, depthreduceProgram.layout, depthreduceProgram.pushConstantStages, 0, sizeof(reduceData), &reduceData);
 				vkCmdDispatch(commandBuffer, getGroupCount(levelWidth, depthreduceCS.localSizeX), getGroupCount(levelHeight, depthreduceCS.localSizeY), 1);
 
-				VkImageMemoryBarrier2 reduceBarrier = imageBarrier2(depthPyramid.image,
+				VkImageMemoryBarrier2 reduceBarrier = imageBarrier(depthPyramid.image,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
 					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
-				pipelineBarrier2(commandBuffer, 0, 0, nullptr, 1, &reduceBarrier);
+				pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &reduceBarrier);
 			}
 
-			VkImageMemoryBarrier2 depthWriteBarrier = imageBarrier2(depthTarget.image,
+			VkImageMemoryBarrier2 depthWriteBarrier = imageBarrier(depthTarget.image,
 				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 				VK_IMAGE_ASPECT_DEPTH_BIT);
 
-			pipelineBarrier2(commandBuffer, 0, 0, nullptr, 1, &depthWriteBarrier);
+			pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &depthWriteBarrier);
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 5);
 		};
 
 		VkImageMemoryBarrier2 renderBeginBarriers[] =
 		{
-			imageBarrier2(colorTarget.image,
+			imageBarrier(colorTarget.image,
 				VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL),
-			imageBarrier2(depthTarget.image,
+			imageBarrier(depthTarget.image,
 				VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 				VK_IMAGE_ASPECT_DEPTH_BIT),
 		};
 
-		pipelineBarrier2(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(renderBeginBarriers), renderBeginBarriers);
+		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(renderBeginBarriers), renderBeginBarriers);
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 
@@ -1094,15 +1094,15 @@ int main(int argc, const char** argv)
 
 		VkImageMemoryBarrier2 copyBarriers[] =
 		{
-			imageBarrier2(colorTarget.image,
+			imageBarrier(colorTarget.image,
 				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL),
-			imageBarrier2(swapchain.images[imageIndex],
+			imageBarrier(swapchain.images[imageIndex],
 				0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL),
 		};
 
-		pipelineBarrier2(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(copyBarriers), copyBarriers);
+		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(copyBarriers), copyBarriers);
 
 		VK_CHECKPOINT("swapchain copy");
 
@@ -1138,11 +1138,11 @@ int main(int argc, const char** argv)
 
 		VK_CHECKPOINT("present");
 
-		VkImageMemoryBarrier2 presentBarrier = imageBarrier2(swapchain.images[imageIndex],
+		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
 			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-		pipelineBarrier2(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &presentBarrier);
+		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &presentBarrier);
 
 		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPoolTimestamp, 1);
 

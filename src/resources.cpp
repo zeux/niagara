@@ -90,6 +90,7 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 void uploadBuffer(VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const Buffer& buffer, const Buffer& scratch, const void* data, size_t size)
 {
 	// TODO: this function is submitting a command buffer and waiting for device idle for each buffer upload; this is obviously suboptimal and we'd need to batch this later
+	assert(size > 0);
 	assert(scratch.data);
 	assert(scratch.size >= size);
 	memcpy(scratch.data, data, size);

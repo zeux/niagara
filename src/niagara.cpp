@@ -650,6 +650,12 @@ int main(int argc, const char** argv)
 			printf("Error: mesh %s failed to load\n", argv[i]);
 	}
 
+	if (geometry.meshes.empty())
+	{
+		printf("Error: no meshes loaded!\n");
+		return 1;
+	}
+
 	Buffer scratch = {};
 	createBuffer(scratch, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 

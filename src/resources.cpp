@@ -1,39 +1,6 @@
 #include "common.h"
 #include "resources.h"
 
-VkImageMemoryBarrier imageBarrier(VkImage image, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
-{
-	VkImageMemoryBarrier result = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-
-	result.srcAccessMask = srcAccessMask;
-	result.dstAccessMask = dstAccessMask;
-	result.oldLayout = oldLayout;
-	result.newLayout = newLayout;
-	result.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	result.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	result.image = image;
-	result.subresourceRange.aspectMask = aspectMask;
-	result.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-	result.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-	return result;
-}
-
-VkBufferMemoryBarrier bufferBarrier(VkBuffer buffer, VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask)
-{
-	VkBufferMemoryBarrier result = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
-
-	result.srcAccessMask = srcAccessMask;
-	result.dstAccessMask = dstAccessMask;
-	result.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	result.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	result.buffer = buffer;
-	result.offset = 0;
-	result.size = VK_WHOLE_SIZE;
-
-	return result;
-}
-
 VkImageMemoryBarrier2 imageBarrier2(VkImage image, VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 dstAccessMask, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
 {
 	VkImageMemoryBarrier2 result = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };

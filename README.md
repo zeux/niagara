@@ -58,7 +58,7 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/73
 * ✔️ Implicit int8->float cast adds Int8 capability to the shader without asking for GL_KHX_shader_explicit_arithmetic_types \
 https://github.com/KhronosGroup/glslang/issues/1525
 
-* vkCreateSwapchainKHR crashes in Intel drivers when display is plugged into a dedicated GPU \
+* ⁉ vkCreateSwapchainKHR crashes in Intel drivers when display is plugged into a dedicated GPU \
 https://software.intel.com/en-us/forums/graphics-driver-bug-reporting/topic/797756
 
 * ✔️ Reading uint8_t from storage buffers adds (unnecessarily) UniformAndStorageBuffer8BitAccess capability \
@@ -95,7 +95,8 @@ https://github.com/baldurk/renderdoc/issues/1182
 Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
 
 * AMD drivers 18.11.2 on Windows don't handle specialization constants correctly \
-Reproduce using https://github.com/zeux/niagara/commit/6150fbc7e36c64249051227dd9821d5eb6bce9e1; disabling AMD workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
+Reproduce using master + disable AMD workaround in drawcull.comp.glsl (change 0 to 1 on line 10) \
+Disabling AMD workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
 
 * ✔️ During validation of pipelines with SPIRV 1.4/1.5 and specialization constants, optimizer isn't configured to use Vulkan 1.2 \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1512

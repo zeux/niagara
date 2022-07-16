@@ -204,7 +204,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\extern\glfw\src\egl_context.h" />
+    <ClInclude Include="..\extern\glfw\src\null_joystick.h" />
+    <ClInclude Include="..\extern\glfw\src\null_platform.h" />
     <ClInclude Include="..\extern\glfw\src\osmesa_context.h" />
+    <ClInclude Include="..\extern\glfw\src\platform.h" />
     <ClInclude Include="..\extern\glfw\src\wgl_context.h" />
     <ClInclude Include="..\extern\glfw\src\win32_joystick.h" />
     <ClInclude Include="..\extern\glfw\src\win32_platform.h" />
@@ -224,11 +227,17 @@
     <ClCompile Include="..\extern\glfw\src\init.c" />
     <ClCompile Include="..\extern\glfw\src\input.c" />
     <ClCompile Include="..\extern\glfw\src\monitor.c" />
+    <ClCompile Include="..\extern\glfw\src\null_init.c" />
+    <ClCompile Include="..\extern\glfw\src\null_joystick.c" />
+    <ClCompile Include="..\extern\glfw\src\null_monitor.c" />
+    <ClCompile Include="..\extern\glfw\src\null_window.c" />
     <ClCompile Include="..\extern\glfw\src\osmesa_context.c" />
+    <ClCompile Include="..\extern\glfw\src\platform.c" />
     <ClCompile Include="..\extern\glfw\src\vulkan.c" />
     <ClCompile Include="..\extern\glfw\src\wgl_context.c" />
     <ClCompile Include="..\extern\glfw\src\win32_init.c" />
     <ClCompile Include="..\extern\glfw\src\win32_joystick.c" />
+    <ClCompile Include="..\extern\glfw\src\win32_module.c" />
     <ClCompile Include="..\extern\glfw\src\win32_monitor.c" />
     <ClCompile Include="..\extern\glfw\src\win32_thread.c" />
     <ClCompile Include="..\extern\glfw\src\win32_time.c" />

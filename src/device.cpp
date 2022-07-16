@@ -9,6 +9,7 @@ VkInstance createInstance()
 {
 	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_3);
 
+
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = VK_API_VERSION_1_3;
 
@@ -23,6 +24,17 @@ VkInstance createInstance()
 
 	createInfo.ppEnabledLayerNames = debugLayers;
 	createInfo.enabledLayerCount = sizeof(debugLayers) / sizeof(debugLayers[0]);
+
+	VkValidationFeatureEnableEXT enabledValidationFeatures[] =
+	{
+		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+	};
+
+	VkValidationFeaturesEXT validationFeatures = { VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT };
+	validationFeatures.enabledValidationFeatureCount = sizeof(enabledValidationFeatures) / sizeof(enabledValidationFeatures[0]);
+	validationFeatures.pEnabledValidationFeatures = enabledValidationFeatures;
+
+	createInfo.pNext = &validationFeatures;
 #endif
 
 	const char* extensions[] =

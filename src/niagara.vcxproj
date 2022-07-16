@@ -99,7 +99,7 @@
       <AdditionalDependencies>$(VULKAN_SDK)\Lib32\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuild>
-      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.2 -o shaders/%(Filename).spv</Command>
+      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.3 -o shaders/%(Filename).spv</Command>
     </CustomBuild>
     <CustomBuild>
       <Outputs>shaders/%(Filename).spv</Outputs>
@@ -127,7 +127,7 @@
       <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuild>
-      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.2 -o shaders/%(Filename).spv</Command>
+      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.3 -o shaders/%(Filename).spv</Command>
     </CustomBuild>
     <CustomBuild>
       <Outputs>shaders/%(Filename).spv</Outputs>
@@ -159,7 +159,7 @@
       <AdditionalDependencies>$(VULKAN_SDK)\Lib32\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuild>
-      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.2 -o shaders/%(Filename).spv</Command>
+      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.3 -o shaders/%(Filename).spv</Command>
     </CustomBuild>
     <CustomBuild>
       <Outputs>shaders/%(Filename).spv</Outputs>
@@ -191,7 +191,7 @@
       <AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuild>
-      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.2 -o shaders/%(Filename).spv</Command>
+      <Command>"$(VULKAN_SDK)\Bin\glslangValidator" "%(FullPath)" -V --target-env vulkan1.3 -o shaders/%(Filename).spv</Command>
     </CustomBuild>
     <CustomBuild>
       <Outputs>shaders/%(Filename).spv</Outputs>

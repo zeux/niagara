@@ -19,6 +19,7 @@ struct Id
 	uint32_t storageClass;
 	uint32_t binding;
 	uint32_t set;
+	uint32_t constant;
 };
 
 static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
@@ -50,6 +51,10 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 	std::vector<Id> ids(idBound);
 
+	int localSizeIdX = -1;
+	int localSizeIdY = -1;
+	int localSizeIdZ = -1;
+
 	const uint32_t* insn = code + 5;
 
 	while (insn != code + codeSize)
@@ -76,6 +81,21 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				shader.localSizeX = insn[3];
 				shader.localSizeY = insn[4];
 				shader.localSizeZ = insn[5];
+				break;
+			}
+		} break;
+		case SpvOpExecutionModeId:
+		{
+			assert(wordCount >= 3);
+			uint32_t mode = insn[2];
+
+			switch (mode)
+			{
+			case SpvExecutionModeLocalSizeId:
+				assert(wordCount == 6);
+				localSizeIdX = int(insn[3]);
+				localSizeIdY = int(insn[4]);
+				localSizeIdZ = int(insn[5]);
 				break;
 			}
 		} break;
@@ -122,6 +142,18 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			ids[id].opcode = opcode;
 			ids[id].typeId = insn[3];
 			ids[id].storageClass = insn[2];
+		} break;
+		case SpvOpConstant:
+		{
+			assert(wordCount >= 4); // we currently only correctly handle 32-bit integer constants
+
+			uint32_t id = insn[2];
+			assert(id < idBound);
+
+			assert(ids[id].opcode == 0);
+			ids[id].opcode = opcode;
+			ids[id].typeId = insn[1];
+			ids[id].constant = insn[3]; // note: this is the value, not the id of the constant
 		} break;
 		case SpvOpVariable:
 		{
@@ -180,6 +212,29 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 		{
 			shader.usesPushConstants = true;
 		}
+	}
+
+	if (shader.stage == VK_SHADER_STAGE_COMPUTE_BIT)
+	{
+		if (localSizeIdX >= 0)
+		{
+			assert(ids[localSizeIdX].opcode == SpvOpConstant);
+			shader.localSizeX = ids[localSizeIdX].constant;
+		}
+
+		if (localSizeIdY >= 0)
+		{
+			assert(ids[localSizeIdY].opcode == SpvOpConstant);
+			shader.localSizeY = ids[localSizeIdY].constant;
+		}
+
+		if (localSizeIdZ >= 0)
+		{
+			assert(ids[localSizeIdZ].opcode == SpvOpConstant);
+			shader.localSizeZ = ids[localSizeIdZ].constant;
+		}
+
+		assert(shader.localSizeX && shader.localSizeY && shader.localSizeZ);
 	}
 }
 

@@ -7,10 +7,10 @@
 
 VkInstance createInstance()
 {
-	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_2);
+	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_3);
 
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
-	appInfo.apiVersion = VK_API_VERSION_1_2;
+	appInfo.apiVersion = VK_API_VERSION_1_3;
 
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
@@ -129,7 +129,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (!supportsPresentation(physicalDevices[i], familyIndex))
 			continue;
 
-		if (props.apiVersion < VK_API_VERSION_1_2)
+		if (props.apiVersion < VK_API_VERSION_1_3)
 			continue;
 
 		if (!preferred && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
@@ -202,6 +202,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features12.samplerFilterMinmax = true;
 	features12.scalarBlockLayout = true;
 
+	VkPhysicalDeviceVulkan13Features features13 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+	features13.dynamicRendering = true;
+	features13.synchronization2 = true;
+	features13.maintenance4 = true;
+
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
 	featuresMesh.taskShader = true;
@@ -217,9 +222,10 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	createInfo.pNext = &features;
 	features.pNext = &features11;
 	features11.pNext = &features12;
+	features12.pNext = &features13;
 
 	if (meshShadingSupported)
-		features12.pNext = &featuresMesh;
+		features13.pNext = &featuresMesh;
 
 	VkDevice device = 0;
 	VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));

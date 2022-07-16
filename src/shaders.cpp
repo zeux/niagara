@@ -407,7 +407,7 @@ static VkSpecializationInfo fillSpecializationInfo(std::vector<VkSpecializationM
 	return result;
 }
 
-VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, VkRenderPass renderPass, Shaders shaders, VkPipelineLayout layout, Constants constants)
+VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, const VkPipelineRenderingCreateInfo& renderingInfo, Shaders shaders, VkPipelineLayout layout, Constants constants)
 {
 	std::vector<VkSpecializationMapEntry> specializationEntries;
 	VkSpecializationInfo specializationInfo = fillSpecializationInfo(specializationEntries, constants);
@@ -473,7 +473,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	createInfo.pDynamicState = &dynamicState;
 
 	createInfo.layout = layout;
-	createInfo.renderPass = renderPass;
+	createInfo.pNext = &renderingInfo;
 
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateGraphicsPipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));

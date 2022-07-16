@@ -52,10 +52,6 @@ static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDe
 	if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
 		return VK_FALSE;
 
-	// Works around https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1512
-	if (strstr(pMessage, "Invalid opcode: 400 The Vulkan spec states: module must be a valid VkShaderModule handle"))
-		return VK_FALSE;
-
 	const char* type =
 		(flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 		? "ERROR"

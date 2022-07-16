@@ -1,6 +1,9 @@
 #include "common.h"
 #include "device.h"
 
+// Synchronization validation is enabled by default in Debug but it's rather slow
+#define SYNC_VALIDATION 1
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -27,7 +30,10 @@ VkInstance createInstance()
 
 	VkValidationFeatureEnableEXT enabledValidationFeatures[] =
 	{
+		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
+#if SYNC_VALIDATION
 		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+#endif
 	};
 
 	VkValidationFeaturesEXT validationFeatures = { VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT };

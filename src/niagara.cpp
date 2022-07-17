@@ -1071,7 +1071,7 @@ int main(int argc, const char** argv)
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 
 		VkClearColorValue colorClear = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
-		VkClearDepthStencilValue depthStencil = { 0.f, 0 };
+		VkClearDepthStencilValue depthClear = { 0.f, 0 };
 
 		VK_CHECKPOINT("frame");
 
@@ -1080,7 +1080,7 @@ int main(int argc, const char** argv)
 		cull(drawcullPipeline, 2, "early cull", /* late= */ false);
 
 		// early render: render objects that were visible last frame
-		render(/* late= */ false, colorClear, depthStencil, 0, "early render");
+		render(/* late= */ false, colorClear, depthClear, 0, "early render");
 
 		// depth pyramid generation
 		pyramid();
@@ -1090,7 +1090,7 @@ int main(int argc, const char** argv)
 		cull(drawculllatePipeline, 6, "late cull", /* late= */ true);
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
-		render(/* late= */ true, colorClear, depthStencil, 1, "late render");
+		render(/* late= */ true, colorClear, depthClear, 1, "late render");
 
 		VkImageMemoryBarrier2 copyBarriers[] =
 		{

@@ -648,10 +648,10 @@ int main(int argc, const char** argv)
 		draw.scale = (float(rand()) / RAND_MAX) + 1;
 		draw.scale *= 2;
 
-		vec3 axis((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1);
+		vec3 axis = normalize(vec3((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1));
 		float angle = glm::radians((float(rand()) / RAND_MAX) * 90.f);
 
-		draw.orientation = rotate(quat(1, 0, 0, 0), angle, axis);
+		draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
 
 		draw.meshIndex = uint32_t(meshIndex);
 		draw.vertexOffset = mesh.vertexOffset;

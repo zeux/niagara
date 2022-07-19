@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-VkImageMemoryBarrier2 imageBarrier(VkImage image, VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 dstAccessMask, VkImageLayout newLayout, VkImageAspectFlags aspectMask)
+VkImageMemoryBarrier2 imageBarrier(VkImage image, VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 dstAccessMask, VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount)
 {
 	VkImageMemoryBarrier2 result = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 
@@ -17,7 +17,8 @@ VkImageMemoryBarrier2 imageBarrier(VkImage image, VkPipelineStageFlags2 srcStage
 	result.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	result.image = image;
 	result.subresourceRange.aspectMask = aspectMask;
-	result.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+	result.subresourceRange.baseMipLevel = baseMipLevel;
+	result.subresourceRange.levelCount = levelCount;
 	result.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
 	return result;

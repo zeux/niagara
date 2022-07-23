@@ -1,6 +1,8 @@
 #include "common.h"
 #include "device.h"
 
+#include <stdio.h>
+
 // Synchronization validation is enabled by default in Debug but it's rather slow
 #define SYNC_VALIDATION 1
 
@@ -11,7 +13,6 @@
 VkInstance createInstance()
 {
 	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_3);
-
 
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = VK_API_VERSION_1_3;
@@ -48,6 +49,9 @@ VkInstance createInstance()
 		VK_KHR_SURFACE_EXTENSION_NAME,
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
 #endif
 #ifdef _DEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,

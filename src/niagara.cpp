@@ -26,6 +26,8 @@ bool occlusionEnabled = true;
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
 
+#define SHADER_PATH "src/shaders/"
+
 VkSemaphore createSemaphore(VkDevice device)
 {
 	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -484,29 +486,29 @@ int main(int argc, const char** argv)
 	bool rcs = false;
 
 	Shader drawcullCS = {};
-	rcs = loadShader(drawcullCS, device, "shaders/drawcull.comp.spv");
+	rcs = loadShader(drawcullCS, device, SHADER_PATH "drawcull.comp.spv");
 	assert(rcs);
 
 	Shader depthreduceCS = {};
-	rcs = loadShader(depthreduceCS, device, "shaders/depthreduce.comp.spv");
+	rcs = loadShader(depthreduceCS, device, SHADER_PATH "depthreduce.comp.spv");
 	assert(rcs);
 
 	Shader meshVS = {};
-	rcs = loadShader(meshVS, device, "shaders/mesh.vert.spv");
+	rcs = loadShader(meshVS, device, SHADER_PATH "mesh.vert.spv");
 	assert(rcs);
 
 	Shader meshFS = {};
-	rcs = loadShader(meshFS, device, "shaders/mesh.frag.spv");
+	rcs = loadShader(meshFS, device, SHADER_PATH "mesh.frag.spv");
 	assert(rcs);
 
 	Shader meshletMS = {};
 	Shader meshletTS = {};
 	if (meshShadingSupported)
 	{
-		rcs = loadShader(meshletMS, device, "shaders/meshlet.mesh.spv");
+		rcs = loadShader(meshletMS, device, SHADER_PATH "meshlet.mesh.spv");
 		assert(rcs);
 
-		rcs = loadShader(meshletTS, device, "shaders/meshlet.task.spv");
+		rcs = loadShader(meshletTS, device, SHADER_PATH "meshlet.task.spv");
 		assert(rcs);
 	}
 

@@ -5,7 +5,7 @@
 
 #include <vector>
 
-#if 1
+#ifdef __linux__
 #include <spirv/unified1/spirv.h>
 #elif VK_HEADER_VERSION >= 135
 #include <spirv-headers/spirv.h>

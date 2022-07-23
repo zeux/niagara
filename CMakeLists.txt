@@ -3,23 +3,13 @@ cmake_minimum_required(VERSION 3.14)
 project(niagara)
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES "src/shaders/*.glsl")
+file(GLOB_RECURSE GLSL_HEADER_FILES "src/shaders/*.h")
+file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.h" "src/*.cpp")
 
 add_executable(niagara
-  "src/common.h"
-  "src/math.h"
-  "src/device.h"
-  "src/device.cpp"
-  "src/swapchain.h"
-  "src/swapchain.cpp"
-  "src/shaders.h"
-  "src/shaders.cpp"
-  "src/resources.h"
-  "src/resources.cpp"
-  "src/niagara.cpp"
-  "src/fast_obj.cpp"
-
+  ${CPP_SOURCE_FILES}
   ${GLSL_SOURCE_FILES}
-  "src/shaders/mesh.h")
+  ${GLSL_HEADER_FILES})
 
 set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 
@@ -63,8 +53,8 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/src/shaders/"
-    COMMAND ${GLSL_VALIDATOR} -V --target-env vulkan1.3 ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL} "src/shaders/mesh.h")
+    COMMAND ${GLSL_VALIDATOR} -V --target-env vulkan1.3 --quiet ${GLSL} -o ${SPIRV}
+    DEPENDS ${GLSL} ${GLSL_HEADER_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach()
 

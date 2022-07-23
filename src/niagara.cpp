@@ -8,6 +8,7 @@
 #include "math.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include <vector>
 #include <algorithm>
@@ -627,7 +628,7 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
-	uint32_t drawCount = 1'000'000;
+	uint32_t drawCount = 1000000;
 	std::vector<MeshDraw> draws(drawCount);
 
 	srand(42);
@@ -797,7 +798,7 @@ int main(int argc, const char** argv)
 
 		auto itsdeadjim = [&]()
 		{
-			printf("FATAL ERROR: DEVICE LOST (frame %lld)\n", frameIndex);
+			printf("FATAL ERROR: DEVICE LOST (frame %lld)\n", (long long)frameIndex);
 
 			if (checkpointsSupported)
 			{

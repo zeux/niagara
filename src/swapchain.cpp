@@ -10,6 +10,7 @@
 
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 {
+	// Note: GLFW has a helper glfwCreateWindowSurface but we're going to do this the hard way to reduce our reliance on GLFW Vulkan specifics
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 	VkWin32SurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
 	createInfo.hinstance = GetModuleHandle(0);
@@ -17,6 +18,14 @@ VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 
 	VkSurfaceKHR surface = 0;
 	VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
+	return surface;
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+	VkXlibSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
+	createInfo.dpy = glfwGetX11Display();
+	createInfo.window = glfwGetX11Window(window);
+
+	VkSurfaceKHR surface = 0;
+	VK_CHECK(vkCreateXlibSurfaceKHR(instance, &createInfo, 0, &surface));
 	return surface;
 #else
 #error Unsupported platform

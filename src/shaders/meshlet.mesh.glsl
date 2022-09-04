@@ -49,7 +49,7 @@ layout(binding = 4) readonly buffer Vertices
 
 layout(location = 0) out vec4 color[];
 
-taskPayloadSharedEXT uint meshletIndices[32];
+taskPayloadSharedEXT MeshTaskPayload payload;
 
 uint hash(uint a)
 {
@@ -65,9 +65,9 @@ uint hash(uint a)
 void main()
 {
 	uint ti = gl_LocalInvocationID.x;
-	uint mi = meshletIndices[gl_WorkGroupID.x];
+	uint mi = payload.meshletIndices[gl_WorkGroupID.x];
 
-	uint drawId = drawCommands[gl_DrawIDARB].drawId;
+	uint drawId = payload.drawId;
 	MeshDraw meshDraw = draws[drawId];
 
 	uint vertexCount = uint(meshlets[mi].vertexCount);

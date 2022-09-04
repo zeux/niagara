@@ -83,6 +83,12 @@ struct MeshDrawCommand
 	uint taskZ;
 };
 
+struct MeshTaskPayload
+{
+	uint drawId;
+	uint meshletIndices[32];
+};
+
 vec3 rotateQuat(vec3 v, vec4 q)
 {
 	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);

@@ -31,7 +31,7 @@ layout(binding = 2) readonly buffer Meshlets
 	Meshlet meshlets[];
 };
 
-taskPayloadSharedEXT uint meshletIndices[32];
+taskPayloadSharedEXT MeshTaskPayload payload;
 
 bool coneCull(vec3 center, float radius, vec3 cone_axis, float cone_cutoff, vec3 camera_position)
 {
@@ -61,13 +61,16 @@ void main()
 	uint index = subgroupBallotExclusiveBitCount(ballot);
 
 	if (accept)
-		meshletIndices[index] = mi;
+		payload.meshletIndices[index] = mi;
 
 	uint count = subgroupBallotBitCount(ballot);
 
+	payload.drawId = drawId;
+
 	EmitMeshTasksEXT(count, 1, 1);
 #else
-	meshletIndices[ti] = mi;
+	payload.drawId = drawId;
+	payload.meshletIndices[ti] = mi;
 
 	EmitMeshTasksEXT(32, 1, 1);
 #endif

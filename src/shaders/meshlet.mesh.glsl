@@ -2,7 +2,7 @@
 
 #extension GL_EXT_shader_16bit_storage: require
 #extension GL_EXT_shader_8bit_storage: require
-#extension GL_NV_mesh_shader: require
+#extension GL_EXT_mesh_shader: require
 
 #extension GL_GOOGLE_include_directive: require
 
@@ -12,7 +12,9 @@
 
 #define DEBUG 0
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+#define GROUP 64
+
+layout(local_size_x = GROUP, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(push_constant) uniform block
@@ -45,12 +47,9 @@ layout(binding = 4) readonly buffer Vertices
 	Vertex vertices[];
 };
 
-in taskNV block
-{
-	uint meshletIndices[32];
-};
-
 layout(location = 0) out vec4 color[];
+
+taskPayloadSharedEXT uint meshletIndices[32];
 
 uint hash(uint a)
 {
@@ -73,7 +72,6 @@ void main()
 
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);
-	uint indexCount = triangleCount * 3;
 
 	uint dataOffset = meshlets[mi].dataOffset;
 	uint vertexOffset = dataOffset;
@@ -85,7 +83,7 @@ void main()
 #endif
 
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
-	for (uint i = ti; i < vertexCount; i += 32)
+	for (uint i = ti; i < vertexCount; i += GROUP)
 	{
 		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
@@ -93,7 +91,7 @@ void main()
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
-		gl_MeshVerticesNV[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+		gl_MeshVerticesEXT[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
 		color[i] = vec4(normal * 0.5 + vec3(0.5), 1.0);
 
 	#if DEBUG
@@ -101,13 +99,12 @@ void main()
 	#endif
 	}
 
-	uint indexGroupCount = (indexCount + 3) / 4;
-
-	for (uint i = ti; i < indexGroupCount; i += 32)
+	for (uint i = ti; i < triangleCount; i += GROUP)
 	{
-		writePackedPrimitiveIndices4x8NV(i * 4, meshletData[indexOffset + i]);
+		uint tri = meshletData[indexOffset + i];
+
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3((tri >> 16) & 0xff, (tri >> 8) & 0xff, tri & 0xff);
 	}
 
-	if (ti == 0)
-		gl_PrimitiveCountNV = uint(meshlets[mi].triangleCount);
+	SetMeshOutputsEXT(vertexCount, triangleCount);
 }

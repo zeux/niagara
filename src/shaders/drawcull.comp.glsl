@@ -133,8 +133,10 @@ void main()
 		drawCommands[dci].firstIndex = lod.indexOffset;
 		drawCommands[dci].vertexOffset = mesh.vertexOffset;
 		drawCommands[dci].firstInstance = 0;
-		drawCommands[dci].taskCount = (lod.meshletCount + 31) / 32;
-		drawCommands[dci].firstTask = lod.meshletOffset / 32;
+		drawCommands[dci].taskOffset = lod.meshletOffset;
+		drawCommands[dci].taskX = (lod.meshletCount + 31) / 32;
+		drawCommands[dci].taskY = 1;
+		drawCommands[dci].taskZ = 1;
 	}
 
 	if (LATE)

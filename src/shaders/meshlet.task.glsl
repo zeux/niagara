@@ -12,7 +12,7 @@
 
 #include "mesh.h"
 
-#define CULL 0 // TODO
+#define CULL 1
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
@@ -38,6 +38,10 @@ bool coneCull(vec3 center, float radius, vec3 cone_axis, float cone_cutoff, vec3
 	return dot(center - camera_position, cone_axis) >= cone_cutoff * length(center - camera_position) + radius;
 }
 
+#if CULL
+shared int sharedCount;
+#endif
+
 void main()
 {
 	uint ti = gl_LocalInvocationID.x;
@@ -49,6 +53,9 @@ void main()
 	uint mi = mgi * 32 + ti + drawCommands[gl_DrawIDARB].taskOffset;
 
 #if CULL
+	sharedCount = 0;
+	memoryBarrierShared();
+
 	vec3 center = rotateQuat(meshlets[mi].center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
 	float radius = meshlets[mi].radius * meshDraw.scale;
 	vec3 cone_axis = rotateQuat(vec3(int(meshlets[mi].cone_axis[0]) / 127.0, int(meshlets[mi].cone_axis[1]) / 127.0, int(meshlets[mi].cone_axis[2]) / 127.0), meshDraw.orientation);
@@ -56,18 +63,18 @@ void main()
 
 	bool accept = !coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0));
 
-	uvec4 ballot = subgroupBallot(accept);
-
-	uint index = subgroupBallotExclusiveBitCount(ballot);
-
 	if (accept)
-		payload.meshletIndices[index] = mi;
+	{
+		uint index = atomicAdd(sharedCount, 1);
 
-	uint count = subgroupBallotBitCount(ballot);
+		payload.meshletIndices[index] = mi;
+	}
 
 	payload.drawId = drawId;
 
-	EmitMeshTasksEXT(count, 1, 1);
+	memoryBarrierShared(); // for sharedCount
+
+	EmitMeshTasksEXT(sharedCount, 1, 1);
 #else
 	payload.drawId = drawId;
 	payload.meshletIndices[ti] = mi;

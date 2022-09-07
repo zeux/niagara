@@ -154,7 +154,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (props.apiVersion < VK_API_VERSION_1_3)
 			continue;
 
-		if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+		if (!preferred && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
 			preferred = physicalDevices[i];
 		}

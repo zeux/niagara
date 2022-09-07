@@ -75,6 +75,8 @@ void main()
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);
 
+	SetMeshOutputsEXT(vertexCount, triangleCount);
+
 	uint dataOffset = meshlets[mi].dataOffset;
 	uint vertexOffset = dataOffset;
 	uint indexOffset = dataOffset + vertexCount;
@@ -109,6 +111,4 @@ void main()
 
 		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(uint(meshletData8[offset]), uint(meshletData8[offset + 1]), uint(meshletData8[offset + 2]));
 	}
-
-	SetMeshOutputsEXT(vertexCount, triangleCount);
 }

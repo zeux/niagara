@@ -34,14 +34,32 @@ static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
 		return VK_SHADER_STAGE_FRAGMENT_BIT;
 	case SpvExecutionModelGLCompute:
 		return VK_SHADER_STAGE_COMPUTE_BIT;
-	case SpvExecutionModelTaskNV:
-		return VK_SHADER_STAGE_TASK_BIT_NV;
-	case SpvExecutionModelMeshNV:
-		return VK_SHADER_STAGE_MESH_BIT_NV;
+	case SpvExecutionModelTaskEXT:
+		return VK_SHADER_STAGE_TASK_BIT_EXT;
+	case SpvExecutionModelMeshEXT:
+		return VK_SHADER_STAGE_MESH_BIT_EXT;
 
 	default:
 		assert(!"Unsupported execution model");
 		return VkShaderStageFlagBits(0);
+	}
+}
+
+static VkDescriptorType getDescriptorType(SpvOp op)
+{
+	switch (op)
+	{
+	case SpvOpTypeStruct:
+		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case SpvOpTypeImage:
+		return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	case SpvOpTypeSampler:
+		return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case SpvOpTypeSampledImage:
+		return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	default:
+		assert(!"Unknown resource type");
+		return VkDescriptorType(0);
 	}
 }
 
@@ -183,31 +201,13 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			assert(id.binding < 32);
 			assert(ids[id.typeId].opcode == SpvOpTypePointer);
 
-			assert((shader.resourceMask & (1 << id.binding)) == 0);
-
 			uint32_t typeKind = ids[ids[id.typeId].typeId].opcode;
+			VkDescriptorType resourceType = getDescriptorType(SpvOp(typeKind));
 
-			switch (typeKind)
-			{
-			case SpvOpTypeStruct:
-				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-				shader.resourceMask |= 1 << id.binding;
-				break;
-			case SpvOpTypeImage:
-				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-				shader.resourceMask |= 1 << id.binding;
-				break;
-			case SpvOpTypeSampler:
-				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_SAMPLER;
-				shader.resourceMask |= 1 << id.binding;
-				break;
-			case SpvOpTypeSampledImage:
-				shader.resourceTypes[id.binding] = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				shader.resourceMask |= 1 << id.binding;
-				break;
-			default:
-				assert(!"Unknown resource type");
-			}
+			assert((shader.resourceMask & (1 << id.binding)) == 0 || shader.resourceTypes[id.binding] == resourceType);
+
+			shader.resourceTypes[id.binding] = resourceType;
+			shader.resourceMask |= 1 << id.binding;
 		}
 
 		if (id.opcode == SpvOpVariable && id.storageClass == SpvStorageClassPushConstant)

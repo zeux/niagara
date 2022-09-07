@@ -98,7 +98,9 @@ struct MeshDrawCommand
 {
 	uint32_t drawId;
 	VkDrawIndexedIndirectCommand indirect; // 5 uint32_t
-	VkDrawMeshTasksIndirectCommandNV indirectMS; // 2 uint32_t
+	uint32_t taskOffset;
+	uint32_t taskCount;
+	VkDrawMeshTasksIndirectCommandEXT indirectMS; // 3 uint32_t
 };
 
 struct Vertex
@@ -196,9 +198,6 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 
 		result.meshlets.push_back(m);
 	}
-
-	while (result.meshlets.size() % 32)
-		result.meshlets.push_back(Meshlet());
 
 	return meshlets.size();
 }
@@ -326,6 +325,10 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		}
 	}
 
+	// pad meshlets to 64 to allow shaders to over-read when running task shaders
+	while (result.meshlets.size() % 64)
+		result.meshlets.push_back(Meshlet());
+
 	result.meshes.push_back(mesh);
 
 	return true;
@@ -434,7 +437,7 @@ int main(int argc, const char** argv)
 	{
 		pushDescriptorsSupported = pushDescriptorsSupported || strcmp(ext.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0;
 		checkpointsSupported = checkpointsSupported || strcmp(ext.extensionName, VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME) == 0;
-		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_NV_MESH_SHADER_EXTENSION_NAME) == 0;
+		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -870,7 +873,7 @@ int main(int argc, const char** argv)
 		{
 			uint32_t rasterizationStage =
 				(meshShadingSupported && meshShadingEnabled)
-				? VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV | VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV
+				? VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
 				: VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
 			VK_CHECKPOINT(phase);
@@ -979,7 +982,7 @@ int main(int argc, const char** argv)
 				pushDescriptors(meshProgramMS, descriptors);
 
 				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globals), &globals);
-				vkCmdDrawMeshTasksIndirectCountNV(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirectMS), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
+				vkCmdDrawMeshTasksIndirectCountEXT(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirectMS), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
 			}
 			else
 			{

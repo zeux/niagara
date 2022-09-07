@@ -203,7 +203,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		extensions.push_back(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
 
 	if (meshShadingSupported)
-		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
+		extensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;
@@ -230,7 +230,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features13.maintenance4 = true;
 
 	// This will only be used if meshShadingSupported=true (see below)
-	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
+	VkPhysicalDeviceMeshShaderFeaturesEXT featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT };
 	featuresMesh.taskShader = true;
 	featuresMesh.meshShader = true;
 

@@ -2,7 +2,7 @@
 
 #extension GL_EXT_shader_16bit_storage: require
 #extension GL_EXT_shader_8bit_storage: require
-#extension GL_NV_mesh_shader: require
+#extension GL_EXT_mesh_shader: require
 
 #extension GL_GOOGLE_include_directive: require
 
@@ -12,7 +12,7 @@
 
 #define DEBUG 0
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = MESH_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(push_constant) uniform block
@@ -40,17 +40,19 @@ layout(binding = 3) readonly buffer MeshletData
 	uint meshletData[];
 };
 
+layout(binding = 3) readonly buffer MeshletData8
+{
+	uint8_t meshletData8[];
+};
+
 layout(binding = 4) readonly buffer Vertices
 {
 	Vertex vertices[];
 };
 
-in taskNV block
-{
-	uint meshletIndices[32];
-};
-
 layout(location = 0) out vec4 color[];
+
+taskPayloadSharedEXT MeshTaskPayload payload;
 
 uint hash(uint a)
 {
@@ -66,14 +68,12 @@ uint hash(uint a)
 void main()
 {
 	uint ti = gl_LocalInvocationID.x;
-	uint mi = meshletIndices[gl_WorkGroupID.x];
+	uint mi = payload.meshletIndices[gl_WorkGroupID.x];
 
-	uint drawId = drawCommands[gl_DrawIDARB].drawId;
-	MeshDraw meshDraw = draws[drawId];
+	MeshDraw meshDraw = draws[payload.drawId];
 
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);
-	uint indexCount = triangleCount * 3;
 
 	uint dataOffset = meshlets[mi].dataOffset;
 	uint vertexOffset = dataOffset;
@@ -85,7 +85,7 @@ void main()
 #endif
 
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
-	for (uint i = ti; i < vertexCount; i += 32)
+	for (uint i = ti; i < vertexCount; i += MESH_WGSIZE)
 	{
 		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
@@ -93,7 +93,7 @@ void main()
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
-		gl_MeshVerticesNV[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+		gl_MeshVerticesEXT[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
 		color[i] = vec4(normal * 0.5 + vec3(0.5), 1.0);
 
 	#if DEBUG
@@ -101,13 +101,12 @@ void main()
 	#endif
 	}
 
-	uint indexGroupCount = (indexCount + 3) / 4;
-
-	for (uint i = ti; i < indexGroupCount; i += 32)
+	for (uint i = ti; i < triangleCount; i += MESH_WGSIZE)
 	{
-		writePackedPrimitiveIndices4x8NV(i * 4, meshletData[indexOffset + i]);
+		uint offset = indexOffset * 4 + i * 3;
+
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(uint(meshletData8[offset]), uint(meshletData8[offset + 1]), uint(meshletData8[offset + 2]));
 	}
 
-	if (ti == 0)
-		gl_PrimitiveCountNV = uint(meshlets[mi].triangleCount);
+	SetMeshOutputsEXT(vertexCount, triangleCount);
 }

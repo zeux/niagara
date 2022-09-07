@@ -165,24 +165,29 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 {
 	const size_t max_vertices = 64;
 	const size_t max_triangles = 124;
+	const float cone_weight = 0.5f;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));
-	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
+	std::vector<unsigned int> meshlet_vertices(meshlets.size() * max_vertices);
+	std::vector<unsigned char> meshlet_triangles(meshlets.size() * max_triangles * 3);
 
+	meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), max_vertices, max_triangles, cone_weight));
+
+	// note: we can append meshlet_vertices & meshlet_triangles buffers more or less directly with small changes in Meshlet struct, but for now keep the GPU side layout flexible and separate
 	for (auto& meshlet : meshlets)
 	{
 		size_t dataOffset = result.meshletdata.size();
 
 		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
-			result.meshletdata.push_back(meshlet.vertices[i]);
+			result.meshletdata.push_back(meshlet_vertices[meshlet.vertex_offset + i]);
 
-		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
+		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(&meshlet_triangles[0] + meshlet.triangle_offset);
 		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
 
 		for (unsigned int i = 0; i < indexGroupCount; ++i)
 			result.meshletdata.push_back(indexGroups[i]);
 
-		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, &vertices[0].vx, vertices.size(), sizeof(Vertex));
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);

@@ -1,3 +1,6 @@
+#define TASK_WGSIZE 64
+#define MESH_WGSIZE 64
+
 struct Vertex
 {
 	float vx, vy, vz;
@@ -91,13 +94,10 @@ struct MeshDrawCommand
 struct MeshTaskPayload
 {
 	uint drawId;
-	uint meshletIndices[32];
+	uint meshletIndices[TASK_WGSIZE];
 };
 
 vec3 rotateQuat(vec3 v, vec4 q)
 {
 	return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
 }
-
-#define TASK_WGSIZE 64
-#define MESH_WGSIZE 64

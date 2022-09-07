@@ -99,6 +99,7 @@ struct MeshDrawCommand
 	uint32_t drawId;
 	VkDrawIndexedIndirectCommand indirect; // 5 uint32_t
 	uint32_t taskOffset;
+	uint32_t taskCount;
 	VkDrawMeshTasksIndirectCommandEXT indirectMS; // 3 uint32_t
 };
 
@@ -201,9 +202,6 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 
 		result.meshlets.push_back(m);
 	}
-
-	while (result.meshlets.size() % 32)
-		result.meshlets.push_back(Meshlet());
 
 	return meshlets.size();
 }
@@ -330,6 +328,10 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 			meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertex_count);
 		}
 	}
+
+	// pad meshlets to 64 to allow shaders to over-read when running task shaders
+	while (result.meshlets.size() % 64)
+		result.meshlets.push_back(Meshlet());
 
 	result.meshes.push_back(mesh);
 

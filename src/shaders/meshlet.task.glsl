@@ -14,7 +14,7 @@
 
 #define CULL 1
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = TASK_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 
 layout(binding = 0) readonly buffer DrawCommands
 {
@@ -44,13 +44,11 @@ shared int sharedCount;
 
 void main()
 {
-	uint ti = gl_LocalInvocationID.x;
-	uint mgi = gl_WorkGroupID.x;
-
 	uint drawId = drawCommands[gl_DrawIDARB].drawId;
 	MeshDraw meshDraw = draws[drawId];
 
-	uint mi = mgi * 32 + ti + drawCommands[gl_DrawIDARB].taskOffset;
+	uint mgi = gl_GlobalInvocationID.x;
+	uint mi = mgi + drawCommands[gl_DrawIDARB].taskOffset;
 
 #if CULL
 	sharedCount = 0;
@@ -61,7 +59,9 @@ void main()
 	vec3 cone_axis = rotateQuat(vec3(int(meshlets[mi].cone_axis[0]) / 127.0, int(meshlets[mi].cone_axis[1]) / 127.0, int(meshlets[mi].cone_axis[2]) / 127.0), meshDraw.orientation);
 	float cone_cutoff = int(meshlets[mi].cone_cutoff) / 127.0;
 
-	bool accept = !coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0));
+	bool accept =
+		mgi < drawCommands[gl_DrawIDARB].taskCount &&
+		!coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0));
 
 	if (accept)
 	{
@@ -76,8 +76,10 @@ void main()
 	EmitMeshTasksEXT(sharedCount, 1, 1);
 #else
 	payload.drawId = drawId;
-	payload.meshletIndices[ti] = mi;
+	payload.meshletIndices[gl_LocalInvocationID.x] = mi;
 
-	EmitMeshTasksEXT(32, 1, 1);
+	uint count = min(TASK_WGSIZE, drawCommands[gl_DrawIDARB].taskCount - gl_WorkGroupID.x * TASK_WGSIZE);
+
+	EmitMeshTasksEXT(count, 1, 1);
 #endif
 }

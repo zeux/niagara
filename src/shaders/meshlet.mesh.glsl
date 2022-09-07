@@ -12,9 +12,7 @@
 
 #define DEBUG 0
 
-#define GROUP 64
-
-layout(local_size_x = GROUP, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = MESH_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(push_constant) uniform block
@@ -82,7 +80,7 @@ void main()
 #endif
 
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
-	for (uint i = ti; i < vertexCount; i += GROUP)
+	for (uint i = ti; i < vertexCount; i += MESH_WGSIZE)
 	{
 		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
@@ -98,7 +96,7 @@ void main()
 	#endif
 	}
 
-	for (uint i = ti; i < triangleCount; i += GROUP)
+	for (uint i = ti; i < triangleCount; i += MESH_WGSIZE)
 	{
 		uint tri = meshletData[indexOffset + i];
 

@@ -40,6 +40,11 @@ layout(binding = 3) readonly buffer MeshletData
 	uint meshletData[];
 };
 
+layout(binding = 3) readonly buffer MeshletData8
+{
+	uint8_t meshletData8[];
+};
+
 layout(binding = 4) readonly buffer Vertices
 {
 	Vertex vertices[];
@@ -98,9 +103,9 @@ void main()
 
 	for (uint i = ti; i < triangleCount; i += MESH_WGSIZE)
 	{
-		uint tri = meshletData[indexOffset + i];
+		uint offset = indexOffset * 4 + i * 3;
 
-		gl_PrimitiveTriangleIndicesEXT[i] = uvec3((tri >> 16) & 0xff, (tri >> 8) & 0xff, tri & 0xff);
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(uint(meshletData8[offset]), uint(meshletData8[offset + 1]), uint(meshletData8[offset + 2]));
 	}
 
 	SetMeshOutputsEXT(vertexCount, triangleCount);

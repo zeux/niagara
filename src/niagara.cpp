@@ -179,12 +179,8 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(meshlet.indices);
 		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
 
-		for (unsigned int i = 0; i < meshlet.triangle_count; ++i)
-		{
-			unsigned int tri = (meshlet.indices[i][0] << 16) | (meshlet.indices[i][1] << 8) | meshlet.indices[i][2];
-
-			result.meshletdata.push_back(tri);
-		}
+		for (unsigned int i = 0; i < indexGroupCount; ++i)
+			result.meshletdata.push_back(indexGroups[i]);
 
 		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet, &vertices[0].vx, vertices.size(), sizeof(Vertex));
 

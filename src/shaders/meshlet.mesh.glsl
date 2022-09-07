@@ -67,7 +67,7 @@ uint hash(uint a)
 
 void main()
 {
-	uint ti = gl_LocalInvocationID.x;
+	uint ti = gl_LocalInvocationIndex;
 	uint mi = payload.meshletIndices[gl_WorkGroupID.x];
 
 	MeshDraw meshDraw = draws[payload.drawId];
@@ -85,8 +85,10 @@ void main()
 #endif
 
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
-	for (uint i = ti; i < vertexCount; i += MESH_WGSIZE)
+	// NOTE: instead of a for (uint i = ti; i < vertexCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max vertex count, and write 1 vertex/thread
+	if (ti < vertexCount)
 	{
+		uint i = ti;
 		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);

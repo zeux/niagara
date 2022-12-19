@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 
+// Validation is enabled by default in Debug
+#ifndef NDEBUG
+#define KHR_VALIDATION 1
+#endif
+
 // Synchronization validation is enabled by default in Debug but it's rather slow
 #define SYNC_VALIDATION 1
 
@@ -20,7 +25,7 @@ VkInstance createInstance()
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
 
-#ifdef _DEBUG
+#if KHR_VALIDATION
 	const char* debugLayers[] =
 	{
 		"VK_LAYER_KHRONOS_validation"
@@ -53,7 +58,7 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
 #endif
-#ifdef _DEBUG
+#if KHR_VALIDATION
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 #endif
 	};

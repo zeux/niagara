@@ -740,7 +740,7 @@ int main(int argc, const char** argv)
 		}
 
 		uint32_t imageIndex = 0;
-		VK_CHECK(vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
+		VK_CHECK_SUBOPTIMAL(vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
 
 		VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 
@@ -1185,7 +1185,7 @@ int main(int argc, const char** argv)
 		presentInfo.pSwapchains = &swapchain.swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 
-		VK_CHECK(vkQueuePresentKHR(queue, &presentInfo));
+		VK_CHECK_SUBOPTIMAL(vkQueuePresentKHR(queue, &presentInfo));
 
 		VkResult wfi = vkDeviceWaitIdle(device);
 		if (wfi == VK_ERROR_DEVICE_LOST)

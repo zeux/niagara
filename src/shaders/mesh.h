@@ -24,6 +24,9 @@ struct Meshlet
 struct Globals
 {
 	mat4 projection;
+
+	float screenWidth, screenHeight, znear, zfar; // symmetric projection parameters
+	float frustum[4]; // data for left/right/top/bottom frustum planes
 };
 
 struct DrawCullData

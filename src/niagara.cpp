@@ -82,6 +82,9 @@ struct alignas(16) Meshlet
 struct alignas(16) Globals
 {
 	mat4 projection;
+
+	float screenWidth, screenHeight, znear, zfar; // symmetric projection parameters
+	float frustum[4]; // data for left/right/top/bottom frustum planes
 };
 
 struct alignas(16) MeshDraw
@@ -797,6 +800,14 @@ int main(int argc, const char** argv)
 
 		Globals globals = {};
 		globals.projection = projection;
+		globals.screenWidth = float(swapchain.width);
+		globals.screenHeight = float(swapchain.height);
+		globals.znear = znear;
+		globals.zfar = drawDistance;
+		globals.frustum[0] = frustumX.x;
+		globals.frustum[1] = frustumX.z;
+		globals.frustum[2] = frustumY.y;
+		globals.frustum[3] = frustumY.z;
 
 		auto fullbarrier = [&]()
 		{

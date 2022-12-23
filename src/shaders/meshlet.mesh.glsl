@@ -11,6 +11,7 @@
 #include "mesh.h"
 
 #define DEBUG 0
+#define CULL 1
 
 layout(local_size_x = MESH_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
@@ -65,6 +66,10 @@ uint hash(uint a)
    return a;
 }
 
+#if CULL
+shared vec3 vertexClip[64]; // TODO: this is the # of vertices per meshlet and should be tuned in sync with 64 at top of shader
+#endif
+
 void main()
 {
 	uint ti = gl_LocalInvocationIndex;
@@ -86,8 +91,7 @@ void main()
 	vec3 mcolor = vec3(float(mhash & 255), float((mhash >> 8) & 255), float((mhash >> 16) & 255)) / 255.0;
 #endif
 
-	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
-	// NOTE: instead of a for (uint i = ti; i < vertexCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max vertex count, and write 1 vertex/thread
+	// TODO: instead of a for (uint i = ti; i < vertexCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max vertex count, and write 1 vertex/thread
 	if (ti < vertexCount)
 	{
 		uint i = ti;
@@ -97,18 +101,60 @@ void main()
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
-		gl_MeshVerticesEXT[i].gl_Position = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+		vec4 clip = globals.projection * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1);
+
+		gl_MeshVerticesEXT[i].gl_Position = clip;
 		color[i] = vec4(normal * 0.5 + vec3(0.5), 1.0);
+
+	#if CULL
+		vertexClip[i] = vec3(clip.xy / clip.w, clip.w);
+	#endif
 
 	#if DEBUG
 		color[i] = vec4(mcolor, 1.0);
 	#endif
 	}
 
+#if CULL
+	barrier();
+#endif
+
+	vec2 screen = vec2(globals.screenWidth, globals.screenHeight);
+
 	for (uint i = ti; i < triangleCount; i += MESH_WGSIZE)
 	{
 		uint offset = indexOffset * 4 + i * 3;
+		uint a = uint(meshletData8[offset]), b = uint(meshletData8[offset + 1]), c = uint(meshletData8[offset + 2]);
 
-		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(uint(meshletData8[offset]), uint(meshletData8[offset + 1]), uint(meshletData8[offset + 2]));
+		gl_PrimitiveTriangleIndicesEXT[i] = uvec3(a, b, c);
+
+	#if CULL
+		bool culled = false;
+
+		vec2 pa = vertexClip[a].xy, pb = vertexClip[b].xy, pc = vertexClip[c].xy;
+
+		// backface culling + zero-area culling
+		vec2 eb = pb - pa;
+		vec2 ec = pc - pa;
+
+		culled = culled || (eb.x * ec.y >= eb.y * ec.x);
+
+		// small primitive culling
+		vec2 bmin = (min(pa, min(pb, pc)) * 0.5 + vec2(0.5)) * screen;
+		vec2 bmax = (max(pa, max(pb, pc)) * 0.5 + vec2(0.5)) * screen;
+		float sbprec = 1.0 / 256.0; // note: this can be set to 1/2^subpixelPrecisionBits
+
+		// note: this is slightly imprecise (doesn't fully match hw behavior and is both too loose and too strict)
+		culled = culled || (round(bmin.x - sbprec) == round(bmax.x + sbprec) || round(bmin.y - sbprec) == round(bmax.y + sbprec));
+
+		// TODO: why does this not reduce # of triangles at all even with frustum culling enabled?
+		// TODO: also, why does increasing znear to 3.5 *increase* the number of rendered triangles?
+		// culled = culled || (vertexClip[a].z < 0 && vertexClip[b].z < 0 && vertexClip[c].z < 0);
+
+		// the computations above are only valid if all vertices are in front of perspective plane
+		culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);
+
+		gl_MeshPrimitivesEXT[i].gl_CullPrimitiveEXT = culled;
+	#endif
 	}
 }

@@ -73,7 +73,7 @@ void main()
 	visible = visible && center.z * globals.frustum[3] - abs(center.y) * globals.frustum[2] > -radius;
 	// the near/far plane culling uses camera space Z directly
 	// note: because we use an infinite projection matrix, this may cull meshlets that belong to a mesh that straddles the "far" plane; we could optionally remove the far check to be conservative
-	visible = visible && center.z + radius > globals.znear;// && center.z - radius < globals.zfar;
+	visible = visible && center.z + radius > globals.znear && center.z - radius < globals.zfar;
 
 	if (visible)
 	{

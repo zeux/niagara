@@ -145,7 +145,7 @@ void main()
 		float sbprec = 1.0 / 256.0; // note: this can be set to 1/2^subpixelPrecisionBits
 
 		// note: this is slightly imprecise (doesn't fully match hw behavior and is both too loose and too strict)
-		culled = culled || (round(bmin.x - sbprec) == round(bmax.x + sbprec) || round(bmin.y - sbprec) == round(bmax.y + sbprec));
+		culled = culled || (round(bmin.x - sbprec) == round(bmax.x) || round(bmin.y) == round(bmax.y + sbprec));
 
 		// the computations above are only valid if all vertices are in front of perspective plane
 		culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);

@@ -147,10 +147,6 @@ void main()
 		// note: this is slightly imprecise (doesn't fully match hw behavior and is both too loose and too strict)
 		culled = culled || (round(bmin.x - sbprec) == round(bmax.x + sbprec) || round(bmin.y - sbprec) == round(bmax.y + sbprec));
 
-		// TODO: why does this not reduce # of triangles at all even with frustum culling enabled?
-		// TODO: also, why does increasing znear to 3.5 *increase* the number of rendered triangles?
-		// culled = culled || (vertexClip[a].z < 0 && vertexClip[b].z < 0 && vertexClip[c].z < 0);
-
 		// the computations above are only valid if all vertices are in front of perspective plane
 		culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);
 

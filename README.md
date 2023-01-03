@@ -43,6 +43,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 15. Vulkan 1.2 and GPU buffer pointers: https://youtu.be/78tVIA6nRQg
 16. Upgrading to Vulkan 1.3: https://youtu.be/Ka30T6BMdhI
 17. Implementing triangle culling: https://youtu.be/JKTfAgv3Vlo
+18. Meshlet occlusion culling: https://youtu.be/5sBpo5wKmEM
 
 # Issues
 
@@ -114,3 +115,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1862
 
 * ✔️ A valid interface block in mesh/task shader is considered invalid
 https://github.com/KhronosGroup/SPIRV-Tools/issues/3653
+
+* Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used
+https://github.com/KhronosGroup/glslang/issues/3103

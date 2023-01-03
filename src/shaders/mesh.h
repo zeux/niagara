@@ -27,6 +27,10 @@ struct Globals
 
 	float screenWidth, screenHeight, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
+
+	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+	int occlusionEnabled;
+	bool lateWorkaroundAMD; // TODO: rename
 };
 
 struct DrawCullData
@@ -41,6 +45,7 @@ struct DrawCullData
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
+	int meshShadingEnabled;
 
 	bool lateWorkaroundAMD;
 };
@@ -73,6 +78,7 @@ struct MeshDraw
 
 	uint meshIndex;
 	uint vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
+	uint meshletVisibilityOffset;
 };
 
 struct MeshDrawCommand
@@ -87,6 +93,8 @@ struct MeshDrawCommand
 	uint firstInstance;
 
 	// used by mesh shading path
+	uint lateDrawVisibility;
+	uint meshletVisibilityOffset;
 	uint taskOffset;
 	uint taskCount;
 	uint taskX;

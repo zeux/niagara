@@ -175,7 +175,7 @@ struct alignas(16) DepthReduceData
 size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
 	const size_t max_vertices = 64;
-	const size_t max_triangles = 124;
+	const size_t max_triangles = 64;
 	const float cone_weight = 0.5f;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));

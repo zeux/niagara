@@ -89,7 +89,6 @@ struct alignas(16) Globals
 
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 	int clusterOcclusionEnabled;
-	bool latePass;
 };
 
 struct alignas(16) MeshDraw
@@ -164,8 +163,6 @@ struct alignas(16) DrawCullData
 	int lodEnabled;
 	int occlusionEnabled;
 	int clusterOcclusionEnabled;
-
-	int latePass;
 };
 
 struct alignas(16) DepthReduceData
@@ -556,10 +553,12 @@ int main(int argc, const char** argv)
 	assert(meshPipeline);
 
 	VkPipeline meshPipelineMS = 0;
+	VkPipeline meshlatePipelineMS = 0;
 	if (meshShadingSupported)
 	{
-		meshPipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout);
-		assert(meshPipelineMS);
+		meshPipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ false });
+		meshlatePipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ true });
+		assert(meshPipelineMS && meshlatePipelineMS);
 	}
 
 	Swapchain swapchain;
@@ -1046,7 +1045,7 @@ int main(int argc, const char** argv)
 
 			if (meshShadingSupported && meshShadingEnabled)
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipelineMS);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? meshlatePipelineMS : meshPipelineMS);
 
 				// TODO: double-check synchronization
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
@@ -1054,10 +1053,7 @@ int main(int argc, const char** argv)
 				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramMS.updateTemplate, meshProgramMS.layout, 0, descriptors);
 				pushDescriptors(meshProgramMS, descriptors);
 
-				Globals globalsTemp = globals;
-				globalsTemp.latePass = late;
-
-				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globalsTemp), &globalsTemp);
+				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectCountEXT(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirectMS), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
 			}
 			else
@@ -1163,7 +1159,6 @@ int main(int argc, const char** argv)
 		VK_CHECKPOINT("frame");
 
 		// early cull: frustum cull & fill objects that *were* visible last frame
-		cullData.latePass = 0;
 		cull(drawcullPipeline, 2, "early cull", /* late= */ false);
 
 		// early render: render objects that were visible last frame
@@ -1173,7 +1168,6 @@ int main(int argc, const char** argv)
 		pyramid();
 
 		// late cull: frustum + occlusion cull & fill objects that were *not* visible last frame
-		cullData.latePass = 1;
 		cull(drawculllatePipeline, 6, "late cull", /* late= */ true);
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
@@ -1358,6 +1352,7 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		vkDestroyPipeline(device, meshPipelineMS, 0);
+		vkDestroyPipeline(device, meshlatePipelineMS, 0);
 		destroyProgram(device, meshProgramMS);
 	}
 

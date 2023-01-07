@@ -13,8 +13,9 @@
 #include "mesh.h"
 #include "math.h"
 
+layout (constant_id = 0) const bool LATE = false;
+
 #define CULL 1
-#define LATE globals.latePass
 
 layout(local_size_x = TASK_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 

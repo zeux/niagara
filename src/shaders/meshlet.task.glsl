@@ -84,7 +84,7 @@ void main()
 	// TODO: this might not be the most efficient way to do this
 	// occlusionEnabled=1 check is necessary because otherwise if we disable OC, cluster occlusion status becomes "sticky":
 	// for draw calls are always dispatched with LATE=0, we never update their cull status because they are skipped
-	if (!LATE && meshletVisibilityBit == 0 && globals.occlusionEnabled == 1)
+	if (!LATE && meshletVisibilityBit == 0 && globals.clusterOcclusionEnabled == 1)
 		visible = false;
 
 	bool skip = false;
@@ -101,7 +101,7 @@ void main()
 	// note: because we use an infinite projection matrix, this may cull meshlets that belong to a mesh that straddles the "far" plane; we could optionally remove the far check to be conservative
 	visible = visible && center.z + radius > globals.znear && center.z - radius < globals.zfar;
 
-	if (LATE && visible && globals.occlusionEnabled == 1)
+	if (LATE && visible && globals.clusterOcclusionEnabled == 1)
 	{
 		float P00 = globals.projection[0][0], P11 = globals.projection[1][1];
 

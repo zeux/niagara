@@ -22,6 +22,7 @@ bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
 bool occlusionEnabled = true;
+bool clusterOcclusionEnabled = false;
 
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
@@ -87,7 +88,7 @@ struct alignas(16) Globals
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
-	int occlusionEnabled;
+	int clusterOcclusionEnabled;
 	bool lateWorkaroundAMD; // TODO: rename
 };
 
@@ -164,6 +165,7 @@ struct alignas(16) DrawCullData
 	int occlusionEnabled;
 	int meshShadingEnabled;
 
+	int clusterOcclusionEnabled;
 	int lateWorkaroundAMD;
 };
 
@@ -365,6 +367,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		if (key == GLFW_KEY_O)
 		{
 			occlusionEnabled = !occlusionEnabled;
+		}
+		if (key == GLFW_KEY_K)
+		{
+			clusterOcclusionEnabled = !clusterOcclusionEnabled;
 		}
 		if (key == GLFW_KEY_L)
 		{
@@ -690,8 +696,6 @@ int main(int argc, const char** argv)
 
 	uint32_t meshletVisibilityBytes = (meshletVisibilityCount + 31) / 32 * sizeof(uint32_t);
 
-	printf("total meshlet vis count: %d; size in MB: %d\n", meshletVisibilityCount, meshletVisibilityBytes / 1024 / 1024);
-
 	Buffer db = {};
 	createBuffer(db, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -844,6 +848,7 @@ int main(int argc, const char** argv)
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
 		cullData.meshShadingEnabled = meshShadingSupported && meshShadingEnabled;
+		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled;
 
 		Globals globals = {};
 		globals.projection = projection;
@@ -857,7 +862,7 @@ int main(int argc, const char** argv)
 		globals.frustum[3] = frustumY.z;
 		globals.pyramidWidth = float(depthPyramidWidth);
 		globals.pyramidHeight = float(depthPyramidHeight);
-		globals.occlusionEnabled = occlusionEnabled;
+		globals.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled;
 
 		auto fullbarrier = [&]()
 		{
@@ -1287,12 +1292,12 @@ int main(int argc, const char** argv)
 		double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 		double drawsPerSec = double(drawCount) / double(frameGpuAvg * 1e-3);
 
-		char title[256];
-		sprintf(title, "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, render: %.2f ms, pyramid: %.2f ms, cull late: %.2f, render late: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s",
+		char title[512];
+		snprintf(title, sizeof(title), "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, render: %.2f ms, pyramid: %.2f ms, cull late: %.2f, render late: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",
 			frameCpuAvg, frameGpuAvg,
 			cullGpuTime, renderGpuTime, pyramidGpuTime, culllateGpuTime, renderlateGpuTime,
 			double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6,
-			meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
+			meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF", clusterOcclusionEnabled ? "ON" : "OFF");
 
 		glfwSetWindowTitle(window, title);
 

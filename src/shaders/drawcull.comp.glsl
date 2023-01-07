@@ -97,7 +97,7 @@ void main()
 	// TODO: when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
 	// so that we can correctly render now-visible previously-invisible meshlets. we also will need to pass drawvis[] along to
 	// task shader so that it can *reject* clusters that we *did* draw in the first pass
-	if (visible && (!LATE || (cullData.meshShadingEnabled == 1 && cullData.occlusionEnabled == 1) || drawVisibility[di] == 0))
+	if (visible && (!LATE || (cullData.meshShadingEnabled == 1 && cullData.clusterOcclusionEnabled == 1) || drawVisibility[di] == 0))
 	{
 		uint dci = atomicAdd(drawCommandCount, 1);
 

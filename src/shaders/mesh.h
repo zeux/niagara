@@ -29,7 +29,7 @@ struct Globals
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
-	int occlusionEnabled;
+	int clusterOcclusionEnabled;
 	bool lateWorkaroundAMD; // TODO: rename
 };
 
@@ -47,6 +47,7 @@ struct DrawCullData
 	int occlusionEnabled;
 	int meshShadingEnabled;
 
+	int clusterOcclusionEnabled;
 	bool lateWorkaroundAMD;
 };
 

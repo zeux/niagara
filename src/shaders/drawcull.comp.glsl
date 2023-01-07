@@ -13,7 +13,7 @@
 // Because of this, we use the workaround where instead of a spec constant we use a uniform
 layout (constant_id = 0) const bool LATE = false;
 #else
-#define LATE cullData.lateWorkaroundAMD
+#define LATE cullData.latePass
 #endif
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
@@ -97,7 +97,7 @@ void main()
 	// TODO: when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
 	// so that we can correctly render now-visible previously-invisible meshlets. we also will need to pass drawvis[] along to
 	// task shader so that it can *reject* clusters that we *did* draw in the first pass
-	if (visible && (!LATE || (cullData.meshShadingEnabled == 1 && cullData.clusterOcclusionEnabled == 1) || drawVisibility[di] == 0))
+	if (visible && (!LATE || cullData.clusterOcclusionEnabled == 1 || drawVisibility[di] == 0))
 	{
 		uint dci = atomicAdd(drawCommandCount, 1);
 

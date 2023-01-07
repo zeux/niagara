@@ -89,7 +89,7 @@ struct alignas(16) Globals
 
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 	int clusterOcclusionEnabled;
-	bool lateWorkaroundAMD; // TODO: rename
+	bool latePass;
 };
 
 struct alignas(16) MeshDraw
@@ -163,10 +163,9 @@ struct alignas(16) DrawCullData
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
-	int meshShadingEnabled;
-
 	int clusterOcclusionEnabled;
-	int lateWorkaroundAMD;
+
+	int latePass;
 };
 
 struct alignas(16) DepthReduceData
@@ -847,8 +846,7 @@ int main(int argc, const char** argv)
 		cullData.lodStep = 1.5f;
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
-		cullData.meshShadingEnabled = meshShadingSupported && meshShadingEnabled;
-		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled;
+		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;
 
 		Globals globals = {};
 		globals.projection = projection;
@@ -862,7 +860,7 @@ int main(int argc, const char** argv)
 		globals.frustum[3] = frustumY.z;
 		globals.pyramidWidth = float(depthPyramidWidth);
 		globals.pyramidHeight = float(depthPyramidHeight);
-		globals.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled;
+		globals.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;
 
 		auto fullbarrier = [&]()
 		{
@@ -1057,7 +1055,7 @@ int main(int argc, const char** argv)
 				pushDescriptors(meshProgramMS, descriptors);
 
 				Globals globalsTemp = globals;
-				globalsTemp.lateWorkaroundAMD = late;
+				globalsTemp.latePass = late;
 
 				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globalsTemp), &globalsTemp);
 				vkCmdDrawMeshTasksIndirectCountEXT(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirectMS), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
@@ -1165,7 +1163,7 @@ int main(int argc, const char** argv)
 		VK_CHECKPOINT("frame");
 
 		// early cull: frustum cull & fill objects that *were* visible last frame
-		cullData.lateWorkaroundAMD = 0;
+		cullData.latePass = 0;
 		cull(drawcullPipeline, 2, "early cull", /* late= */ false);
 
 		// early render: render objects that were visible last frame
@@ -1175,7 +1173,7 @@ int main(int argc, const char** argv)
 		pyramid();
 
 		// late cull: frustum + occlusion cull & fill objects that were *not* visible last frame
-		cullData.lateWorkaroundAMD = 1;
+		cullData.latePass = 1;
 		cull(drawculllatePipeline, 6, "late cull", /* late= */ true);
 
 		// late render: render objects that are visible this frame but weren't drawn in the early pass

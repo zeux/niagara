@@ -30,7 +30,7 @@ struct Globals
 
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 	int clusterOcclusionEnabled;
-	bool lateWorkaroundAMD; // TODO: rename
+	bool latePass;
 };
 
 struct DrawCullData
@@ -45,10 +45,9 @@ struct DrawCullData
 	int cullingEnabled;
 	int lodEnabled;
 	int occlusionEnabled;
-	int meshShadingEnabled;
-
 	int clusterOcclusionEnabled;
-	bool lateWorkaroundAMD;
+
+	bool latePass;
 };
 
 struct MeshLod

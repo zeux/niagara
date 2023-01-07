@@ -44,6 +44,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 16. Upgrading to Vulkan 1.3: https://youtu.be/Ka30T6BMdhI
 17. Implementing triangle culling: https://youtu.be/JKTfAgv3Vlo
 18. Meshlet occlusion culling: https://youtu.be/5sBpo5wKmEM
+19. Optimizing culling: https://youtu.be/1Tj6bZvZMts
 
 # Issues
 
@@ -97,9 +98,8 @@ https://github.com/baldurk/renderdoc/issues/1182
 * ✔️ NVidia GTX 10xx series GPUs cause VK_ERROR_DEVICE_LOST when drawCount is 1'000'000 \
 Reproduce using https://github.com/zeux/niagara/commit/8d69552aede9c429765c8c8afd6687d3f3e53475
 
-* AMD drivers 18.11.2 on Windows don't handle specialization constants correctly \
-Reproduce using master + disable AMD workaround in drawcull.comp.glsl (change 0 to 1 on line 10) \
-Disabling AMD workaround in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
+* ✔️ AMD drivers 18.11.2 on Windows don't handle specialization constants correctly \
+Using specialization constant LATE in drawcull.comp.glsl leads to no objects being rendered on screen after the first frame
 
 * ✔️ During validation of pipelines with SPIRV 1.4/1.5 and specialization constants, optimizer isn't configured to use Vulkan 1.2 \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1512

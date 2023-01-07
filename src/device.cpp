@@ -8,8 +8,8 @@
 #define KHR_VALIDATION 1
 #endif
 
-// Synchronization validation is enabled by default in Debug but it's rather slow
-#define SYNC_VALIDATION 1
+// Synchronization validation is disable by default in Debug since it's rather slow
+#define SYNC_VALIDATION 0
 
 #ifdef _WIN32
 #include <Windows.h>

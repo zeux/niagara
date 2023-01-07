@@ -79,15 +79,17 @@ void main()
 	bool valid = mgi < drawCommands[gl_DrawIDARB].taskCount;
 	bool visible = valid;
 
+	uint meshletVisibilityBit = meshletVisibility[mvi >> 5] & (1u << (mvi & 31));
+
 	// TODO: this might not be the most efficient way to do this
 	// occlusionEnabled=1 check is necessary because otherwise if we disable OC, cluster occlusion status becomes "sticky":
 	// for draw calls are always dispatched with LATE=0, we never update their cull status because they are skipped
-	if (!LATE && meshletVisibility[mvi] == 0 && globals.occlusionEnabled == 1)
+	if (!LATE && meshletVisibilityBit == 0 && globals.occlusionEnabled == 1)
 		visible = false;
 
 	bool skip = false;
 
-	if (LATE && lateDrawVisibility == 1 && meshletVisibility[mvi] == 1)
+	if (LATE && lateDrawVisibility == 1 && meshletVisibilityBit != 0)
 		skip = true;
 
 	// backface cone culling
@@ -120,7 +122,12 @@ void main()
 	}
 
 	if (LATE && valid)
-		meshletVisibility[mvi] = visible ? 1 : 0;
+	{
+		if (visible)
+			atomicOr(meshletVisibility[mvi >> 5], 1u << (mvi & 31));
+		else
+			atomicAnd(meshletVisibility[mvi >> 5], ~(1u << (mvi & 31)));
+	}
 
 	if (visible && !skip)
 	{

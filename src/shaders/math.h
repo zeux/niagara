@@ -1,20 +1,21 @@
 // 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
-bool projectSphere(vec3 C, float r, float znear, float P00, float P11, out vec4 aabb)
+bool projectSphere(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb)
 {
-	if (C.z < r + znear)
+	if (c.z < r + znear)
 		return false;
 
-	vec2 cx = -C.xz;
-	vec2 vx = vec2(sqrt(dot(cx, cx) - r * r), r);
-	vec2 minx = mat2(vx.x, vx.y, -vx.y, vx.x) * cx;
-	vec2 maxx = mat2(vx.x, -vx.y, vx.y, vx.x) * cx;
+	vec3 cr = c * r;
+	float czr2 = c.z * c.z - r * r;
 
-	vec2 cy = -C.yz;
-	vec2 vy = vec2(sqrt(dot(cy, cy) - r * r), r);
-	vec2 miny = mat2(vy.x, vy.y, -vy.y, vy.x) * cy;
-	vec2 maxy = mat2(vy.x, -vy.y, vy.y, vy.x) * cy;
+	float vx = sqrt(c.x * c.x + czr2);
+	float minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
+	float maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
 
-	aabb = vec4(minx.x / minx.y * P00, miny.x / miny.y * P11, maxx.x / maxx.y * P00, maxy.x / maxy.y * P11);
+	float vy = sqrt(c.y * c.y + czr2);
+	float miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
+	float maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
+
+	aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
 	aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f); // clip space -> uv space
 
 	return true;

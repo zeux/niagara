@@ -412,8 +412,6 @@ uint32_t previousPow2(uint32_t v)
 	return r;
 }
 
-#define VK_CHECKPOINT(name) do { if (checkpointsSupported) vkCmdSetCheckpointNV(commandBuffer, name); } while (0)
-
 int main(int argc, const char** argv)
 {
 	if (argc < 2)
@@ -452,13 +450,11 @@ int main(int argc, const char** argv)
 	VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice, 0, &extensionCount, extensions.data()));
 
 	bool pushDescriptorsSupported = false;
-	bool checkpointsSupported = false;
 	bool meshShadingSupported = false;
 
 	for (auto& ext : extensions)
 	{
 		pushDescriptorsSupported = pushDescriptorsSupported || strcmp(ext.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0;
-		checkpointsSupported = checkpointsSupported || strcmp(ext.extensionName, VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME) == 0;
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
 	}
 
@@ -471,7 +467,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, checkpointsSupported, meshShadingSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -807,8 +803,6 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
 
 			dvbCleared = true;
-
-			VK_CHECKPOINT("dvb cleared");
 		}
 
 		if (!mvbCleared && meshShadingSupported)
@@ -822,8 +816,6 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
 
 			mvbCleared = true;
-
-			VK_CHECKPOINT("mvb cleared");
 		}
 
 		float znear = 0.5f;
@@ -880,48 +872,6 @@ int main(int argc, const char** argv)
 			vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 		};
 
-		auto itsdeadjim = [&]()
-		{
-			printf("FATAL ERROR: DEVICE LOST (frame %lld)\n", (long long)frameIndex);
-
-			if (checkpointsSupported)
-			{
-				uint32_t checkpointCount = 0;
-				vkGetQueueCheckpointDataNV(queue, &checkpointCount, 0);
-
-				std::vector<VkCheckpointDataNV> checkpoints(checkpointCount, { VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV });
-				vkGetQueueCheckpointDataNV(queue, &checkpointCount, checkpoints.data());
-
-				for (auto& cp: checkpoints)
-				{
-					printf("NV CHECKPOINT: stage %08x name %s\n", cp.stage, cp.pCheckpointMarker ? static_cast<const char*>(cp.pCheckpointMarker) : "??");
-				}
-			}
-		};
-
-		auto flush = [&]()
-		{
-			VK_CHECK(vkEndCommandBuffer(commandBuffer));
-
-			VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-			submitInfo.commandBufferCount = 1;
-			submitInfo.pCommandBuffers = &commandBuffer;
-
-			VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-			VkResult wfi = vkDeviceWaitIdle(device);
-			if (wfi == VK_ERROR_DEVICE_LOST)
-				itsdeadjim();
-			VK_CHECK(wfi);
-
-			VK_CHECK(vkResetCommandPool(device, commandPool, 0));
-
-			VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-			VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-		};
-
 		auto pushDescriptors = [&](const Program& program, const DescriptorInfo* descriptors)
 		{
 			if (pushDescriptorsSupported)
@@ -952,8 +902,6 @@ int main(int argc, const char** argv)
 				? VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
 				: VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
-			VK_CHECKPOINT(phase);
-
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
 			VkBufferMemoryBarrier2 prefillBarrier = bufferBarrier(dccb.buffer,
@@ -963,8 +911,6 @@ int main(int argc, const char** argv)
 
 			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0); // fills groupCountX for taskSubmit *or* indirect draw count for regular submit
 			vkCmdFillBuffer(commandBuffer, dccb.buffer, 4, 8, 1); // fills groupCountY/Z for taskSubmit
-
-			VK_CHECKPOINT("clear buffer");
 
 			// pyramid barrier is tricky: our frame sequence is cull -> render -> pyramid -> cull -> render
 			// the first cull (late=0) doesn't read pyramid data BUT the read in the shader is guarded by a push constant value (which could be specialization constant but isn't due to AMD bug)
@@ -995,8 +941,6 @@ int main(int argc, const char** argv)
 			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
 			vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
 
-			VK_CHECKPOINT("culled");
-
 			VkBufferMemoryBarrier2 cullBarriers[] =
 			{
 				bufferBarrier(dcb.buffer,
@@ -1014,8 +958,6 @@ int main(int argc, const char** argv)
 
 		auto render = [&](bool late, const VkClearColorValue& colorClear, const VkClearDepthStencilValue& depthClear, uint32_t query, uint32_t timestamp, const char* phase)
 		{
-			VK_CHECKPOINT(phase);
-
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
 			vkCmdBeginQuery(commandBuffer, queryPoolPipeline, query, 0);
@@ -1050,8 +992,6 @@ int main(int argc, const char** argv)
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-			VK_CHECKPOINT("before draw");
-
 			if (taskSubmit)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? meshlatePipelineMS : meshPipelineMS);
@@ -1079,8 +1019,6 @@ int main(int argc, const char** argv)
 				vkCmdDrawIndexedIndirectCount(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirect), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
 			}
 
-			VK_CHECKPOINT("after draw");
-
 			vkCmdEndRendering(commandBuffer);
 
 			vkCmdEndQuery(commandBuffer, queryPoolPipeline, query);
@@ -1090,8 +1028,6 @@ int main(int argc, const char** argv)
 
 		auto pyramid = [&]()
 		{
-			VK_CHECKPOINT("pyramid");
-
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, 4);
 
 			VkImageMemoryBarrier2 depthBarriers[] =
@@ -1111,8 +1047,6 @@ int main(int argc, const char** argv)
 
 			for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 			{
-				VK_CHECKPOINT("pyramid level");
-
 				DescriptorInfo sourceDepth = (i == 0)
 					? DescriptorInfo(depthSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 					: DescriptorInfo(depthSampler, depthPyramidMips[i - 1], VK_IMAGE_LAYOUT_GENERAL);
@@ -1165,8 +1099,6 @@ int main(int argc, const char** argv)
 		VkClearColorValue colorClear = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
 		VkClearDepthStencilValue depthClear = { 0.f, 0 };
 
-		VK_CHECKPOINT("frame");
-
 		// early cull: frustum cull & fill objects that *were* visible last frame
 		cull(taskSubmit ? taskcullPipeline : drawcullPipeline, 2, "early cull", /* late= */ false);
 
@@ -1197,8 +1129,6 @@ int main(int argc, const char** argv)
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(copyBarriers), copyBarriers);
 
-		VK_CHECKPOINT("swapchain copy");
-
 		if (debugPyramid)
 		{
 			uint32_t levelWidth = std::max(1u, depthPyramidWidth >> debugPyramidLevel);
@@ -1228,8 +1158,6 @@ int main(int argc, const char** argv)
 
 			vkCmdCopyImage(commandBuffer, colorTarget.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchain.images[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 		}
-
-		VK_CHECKPOINT("present");
 
 		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
 			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1263,10 +1191,7 @@ int main(int argc, const char** argv)
 
 		VK_CHECK_SUBOPTIMAL(vkQueuePresentKHR(queue, &presentInfo));
 
-		VkResult wfi = vkDeviceWaitIdle(device);
-		if (wfi == VK_ERROR_DEVICE_LOST)
-			itsdeadjim();
-		VK_CHECK(wfi);
+		VK_CHECK(vkDeviceWaitIdle(device));
 
 		uint64_t timestampResults[12] = {};
 		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));

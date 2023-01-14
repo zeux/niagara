@@ -21,11 +21,6 @@ layout(push_constant) uniform block
 	Globals globals;
 };
 
-layout(binding = 0) readonly buffer DrawCommands
-{
-	MeshDrawCommand drawCommands[];
-};
-
 layout(binding = 1) readonly buffer Draws
 {
 	MeshDraw draws[];

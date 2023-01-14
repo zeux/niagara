@@ -9,6 +9,7 @@
 #include "math.h"
 
 layout (constant_id = 0) const bool LATE = false;
+layout (constant_id = 1) const bool TASK = false;
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
@@ -30,6 +31,11 @@ layout(binding = 1) readonly buffer Meshes
 layout(binding = 2) writeonly buffer DrawCommands
 {
 	MeshDrawCommand drawCommands[];
+};
+
+layout(binding = 2) writeonly buffer TaskCommands
+{
+	MeshTaskCommand taskCommands[];
 };
 
 layout(binding = 3) buffer DrawCommandCount
@@ -93,8 +99,6 @@ void main()
 	// task shader so that it can *reject* clusters that we *did* draw in the first pass
 	if (visible && (!LATE || cullData.clusterOcclusionEnabled == 1 || drawVisibility[di] == 0))
 	{
-		uint dci = atomicAdd(drawCommandCount, 1);
-
 		// lod distance i = base * pow(step, i)
 		// i = log2(distance / base) / log2(step)
 		float lodIndexF = log2(length(center) / cullData.lodBase) / log2(cullData.lodStep);
@@ -104,19 +108,40 @@ void main()
 
 		MeshLod lod = meshes[meshIndex].lods[lodIndex];
 
-		drawCommands[dci].drawId = di;
-		drawCommands[dci].indexCount = lod.indexCount;
-		drawCommands[dci].instanceCount = 1;
-		drawCommands[dci].firstIndex = lod.indexOffset;
-		drawCommands[dci].vertexOffset = mesh.vertexOffset;
-		drawCommands[dci].firstInstance = 0;
-		drawCommands[dci].lateDrawVisibility = drawVisibility[di];
-		drawCommands[dci].meshletVisibilityOffset = draws[di].meshletVisibilityOffset;
-		drawCommands[dci].taskOffset = lod.meshletOffset;
-		drawCommands[dci].taskCount = lod.meshletCount;
-		drawCommands[dci].taskX = (lod.meshletCount + TASK_WGSIZE - 1) / TASK_WGSIZE;
-		drawCommands[dci].taskY = 1;
-		drawCommands[dci].taskZ = 1;
+		if (TASK)
+		{
+			uint taskGroups = (lod.meshletCount + TASK_WGSIZE - 1) / TASK_WGSIZE;
+			uint dci = atomicAdd(drawCommandCount, taskGroups);
+
+			uint lateDrawVisibility = drawVisibility[di];
+			uint meshletVisibilityOffset = draws[di].meshletVisibilityOffset;
+
+			for (uint i = 0; i < taskGroups; ++i)
+			{
+				taskCommands[dci + i].drawId = di;
+				taskCommands[dci + i].taskOffset = lod.meshletOffset + i * TASK_WGSIZE;
+				taskCommands[dci + i].taskCount = min(TASK_WGSIZE, lod.meshletCount - i * TASK_WGSIZE);
+				taskCommands[dci + i].lateDrawVisibility = lateDrawVisibility;
+				taskCommands[dci + i].meshletVisibilityOffset = meshletVisibilityOffset + i * TASK_WGSIZE;
+			}
+		}
+		else
+		{
+			uint dci = atomicAdd(drawCommandCount, 1);
+
+			drawCommands[dci].drawId = di;
+			drawCommands[dci].indexCount = lod.indexCount;
+			drawCommands[dci].instanceCount = 1;
+			drawCommands[dci].firstIndex = lod.indexOffset;
+			drawCommands[dci].vertexOffset = mesh.vertexOffset;
+			drawCommands[dci].firstInstance = 0;
+			drawCommands[dci].lateDrawVisibility = drawVisibility[di];
+			drawCommands[dci].taskOffset = lod.meshletOffset;
+			drawCommands[dci].taskCount = lod.meshletCount;
+			drawCommands[dci].taskX = (lod.meshletCount + TASK_WGSIZE - 1) / TASK_WGSIZE;
+			drawCommands[dci].taskY = 1;
+			drawCommands[dci].taskZ = 1;
+		}
 	}
 
 	if (LATE)

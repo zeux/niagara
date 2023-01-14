@@ -91,12 +91,20 @@ struct MeshDrawCommand
 
 	// used by mesh shading path
 	uint lateDrawVisibility;
-	uint meshletVisibilityOffset;
 	uint taskOffset;
 	uint taskCount;
 	uint taskX;
 	uint taskY;
 	uint taskZ;
+};
+
+struct MeshTaskCommand
+{
+	uint drawId;
+	uint taskOffset;
+	uint taskCount;
+	uint lateDrawVisibility;
+	uint meshletVisibilityOffset;
 };
 
 struct MeshTaskPayload

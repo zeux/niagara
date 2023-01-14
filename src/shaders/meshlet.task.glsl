@@ -14,6 +14,7 @@
 #include "math.h"
 
 layout (constant_id = 0) const bool LATE = false;
+layout (constant_id = 1) const bool TASK = false;
 
 #define CULL 1
 
@@ -27,6 +28,11 @@ layout(push_constant) uniform block
 layout(binding = 0) readonly buffer DrawCommands
 {
 	MeshDrawCommand drawCommands[];
+};
+
+layout(binding = 0) readonly buffer TaskCommands
+{
+	MeshTaskCommand taskCommands[];
 };
 
 layout(binding = 1) readonly buffer Draws
@@ -59,12 +65,15 @@ shared int sharedCount;
 
 void main()
 {
-	uint drawId = drawCommands[gl_DrawIDARB].drawId;
+	uint drawId = TASK ? taskCommands[gl_WorkGroupID.x].drawId : drawCommands[gl_DrawIDARB].drawId;
 	MeshDraw meshDraw = draws[drawId];
-	uint lateDrawVisibility = drawCommands[gl_DrawIDARB].lateDrawVisibility;
 
-	uint mgi = gl_GlobalInvocationID.x;
-	uint mi = mgi + drawCommands[gl_DrawIDARB].taskOffset;
+	uint lateDrawVisibility = TASK ? taskCommands[gl_WorkGroupID.x].lateDrawVisibility : drawCommands[gl_DrawIDARB].lateDrawVisibility;
+	uint taskCount = TASK ? taskCommands[gl_WorkGroupID.x].taskCount : drawCommands[gl_DrawIDARB].taskCount;
+
+	uint mgi = TASK ? gl_LocalInvocationID.x : gl_GlobalInvocationID.x;
+	uint mi = mgi + (TASK ? taskCommands[gl_WorkGroupID.x].taskOffset : drawCommands[gl_DrawIDARB].taskOffset);
+	uint mvi = mgi + (TASK ? taskCommands[gl_WorkGroupID.x].meshletVisibilityOffset : meshDraw.meshletVisibilityOffset);
 
 #if CULL
 	sharedCount = 0;
@@ -75,9 +84,7 @@ void main()
 	vec3 cone_axis = rotateQuat(vec3(int(meshlets[mi].cone_axis[0]) / 127.0, int(meshlets[mi].cone_axis[1]) / 127.0, int(meshlets[mi].cone_axis[2]) / 127.0), meshDraw.orientation);
 	float cone_cutoff = int(meshlets[mi].cone_cutoff) / 127.0;
 
-	uint mvi = meshDraw.meshletVisibilityOffset + mgi;
-
-	bool valid = mgi < drawCommands[gl_DrawIDARB].taskCount;
+	bool valid = mgi < taskCount;
 	bool visible = valid;
 	bool skip = false;
 
@@ -148,7 +155,7 @@ void main()
 	payload.drawId = drawId;
 	payload.meshletIndices[gl_LocalInvocationIndex] = mi;
 
-	uint count = min(TASK_WGSIZE, drawCommands[gl_DrawIDARB].taskCount - gl_WorkGroupID.x * TASK_WGSIZE);
+	uint count = min(TASK_WGSIZE, taskCount - gl_WorkGroupID.x * TASK_WGSIZE);
 
 	EmitMeshTasksEXT(count, 1, 1);
 #endif

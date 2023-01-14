@@ -6,15 +6,10 @@
 
 #extension GL_GOOGLE_include_directive: require
 
-#extension GL_KHR_shader_subgroup_ballot: require
-
-#extension GL_ARB_shader_draw_parameters: require
-
 #include "mesh.h"
 #include "math.h"
 
 layout (constant_id = 0) const bool LATE = false;
-layout (constant_id = 1) const bool TASK = false;
 
 #define CULL 1
 
@@ -23,11 +18,6 @@ layout(local_size_x = TASK_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 layout(push_constant) uniform block
 {
 	Globals globals;
-};
-
-layout(binding = 0) readonly buffer DrawCommands
-{
-	MeshDrawCommand drawCommands[];
 };
 
 layout(binding = 0) readonly buffer TaskCommands
@@ -54,26 +44,22 @@ layout(binding = 6) uniform sampler2D depthPyramid;
 
 taskPayloadSharedEXT MeshTaskPayload payload;
 
-bool coneCull(vec3 center, float radius, vec3 cone_axis, float cone_cutoff, vec3 camera_position)
-{
-	return dot(center - camera_position, cone_axis) >= cone_cutoff * length(center - camera_position) + radius;
-}
-
 #if CULL
 shared int sharedCount;
 #endif
 
 void main()
 {
-	uint drawId = TASK ? taskCommands[gl_WorkGroupID.x].drawId : drawCommands[gl_DrawIDARB].drawId;
+	MeshTaskCommand command = taskCommands[gl_WorkGroupID.x];
+	uint drawId = command.drawId;
 	MeshDraw meshDraw = draws[drawId];
 
-	uint lateDrawVisibility = TASK ? taskCommands[gl_WorkGroupID.x].lateDrawVisibility : drawCommands[gl_DrawIDARB].lateDrawVisibility;
-	uint taskCount = TASK ? taskCommands[gl_WorkGroupID.x].taskCount : drawCommands[gl_DrawIDARB].taskCount;
+	uint lateDrawVisibility = command.lateDrawVisibility;
+	uint taskCount = command.taskCount;
 
-	uint mgi = TASK ? gl_LocalInvocationID.x : gl_GlobalInvocationID.x;
-	uint mi = mgi + (TASK ? taskCommands[gl_WorkGroupID.x].taskOffset : drawCommands[gl_DrawIDARB].taskOffset);
-	uint mvi = mgi + (TASK ? taskCommands[gl_WorkGroupID.x].meshletVisibilityOffset : meshDraw.meshletVisibilityOffset);
+	uint mgi = gl_LocalInvocationID.x;
+	uint mi = mgi + command.taskOffset;
+	uint mvi = mgi + command.meshletVisibilityOffset;
 
 #if CULL
 	sharedCount = 0;

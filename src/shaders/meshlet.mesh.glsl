@@ -6,9 +6,8 @@
 
 #extension GL_GOOGLE_include_directive: require
 
-#extension GL_ARB_shader_draw_parameters: require
-
 #include "mesh.h"
+#include "math.h"
 
 #define DEBUG 0
 #define CULL 1

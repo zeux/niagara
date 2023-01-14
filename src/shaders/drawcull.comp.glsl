@@ -38,9 +38,9 @@ layout(binding = 2) writeonly buffer TaskCommands
 	MeshTaskCommand taskCommands[];
 };
 
-layout(binding = 3) buffer DrawCommandCount
+layout(binding = 3) buffer CommandCount
 {
-	uint drawCommandCount;
+	uint commandCount;
 };
 
 layout(binding = 4) buffer DrawVisibility
@@ -94,9 +94,9 @@ void main()
 		}
 	}
 
-	// TODO: when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
-	// so that we can correctly render now-visible previously-invisible meshlets. we also will need to pass drawvis[] along to
-	// task shader so that it can *reject* clusters that we *did* draw in the first pass
+	// when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
+	// so that we can correctly render now-visible previously-invisible meshlets. we also pass drawvis[] along to task shader
+	// so that it can *reject* clusters that we *did* draw in the first pass
 	if (visible && (!LATE || cullData.clusterOcclusionEnabled == 1 || drawVisibility[di] == 0))
 	{
 		// lod distance i = base * pow(step, i)
@@ -111,11 +111,12 @@ void main()
 		if (TASK)
 		{
 			uint taskGroups = (lod.meshletCount + TASK_WGSIZE - 1) / TASK_WGSIZE;
-			uint dci = atomicAdd(drawCommandCount, taskGroups);
+			uint dci = atomicAdd(commandCount, taskGroups);
 
 			uint lateDrawVisibility = drawVisibility[di];
 			uint meshletVisibilityOffset = draws[di].meshletVisibilityOffset;
 
+			// TODO: ideally we would abort if commandCount overflows the output buffer
 			for (uint i = 0; i < taskGroups; ++i)
 			{
 				taskCommands[dci + i].drawId = di;
@@ -127,7 +128,7 @@ void main()
 		}
 		else
 		{
-			uint dci = atomicAdd(drawCommandCount, 1);
+			uint dci = atomicAdd(commandCount, 1);
 
 			drawCommands[dci].drawId = di;
 			drawCommands[dci].indexCount = lod.indexCount;
@@ -135,12 +136,6 @@ void main()
 			drawCommands[dci].firstIndex = lod.indexOffset;
 			drawCommands[dci].vertexOffset = mesh.vertexOffset;
 			drawCommands[dci].firstInstance = 0;
-			drawCommands[dci].lateDrawVisibility = drawVisibility[di];
-			drawCommands[dci].taskOffset = lod.meshletOffset;
-			drawCommands[dci].taskCount = lod.meshletCount;
-			drawCommands[dci].taskX = (lod.meshletCount + TASK_WGSIZE - 1) / TASK_WGSIZE;
-			drawCommands[dci].taskY = 1;
-			drawCommands[dci].taskZ = 1;
 		}
 	}
 

@@ -22,8 +22,7 @@ bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
 bool occlusionEnabled = true;
-bool clusterOcclusionEnabled = false;
-bool taskSubmitEnabled = false;
+bool clusterOcclusionEnabled = true;
 
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
@@ -107,10 +106,6 @@ struct MeshDrawCommand
 {
 	uint32_t drawId;
 	VkDrawIndexedIndirectCommand indirect; // 5 uint32_t
-	uint32_t lateDrawVisibility;
-	uint32_t taskOffset;
-	uint32_t taskCount;
-	VkDrawMeshTasksIndirectCommandEXT indirectMS; // 3 uint32_t
 };
 
 struct MeshTaskCommand
@@ -389,11 +384,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugPyramidLevel = key - GLFW_KEY_0;
 		}
-		if (key == GLFW_KEY_T)
-		{
-			taskSubmitEnabled = !taskSubmitEnabled;
-			printf("taskSubmitEnabled: %d\n", taskSubmitEnabled);
-		}
 	}
 }
 
@@ -570,15 +560,11 @@ int main(int argc, const char** argv)
 
 	VkPipeline meshPipelineMS = 0;
 	VkPipeline meshlatePipelineMS = 0;
-	VkPipeline taskPipelineMS = 0;
-	VkPipeline tasklatePipelineMS = 0;
 	if (meshShadingSupported)
 	{
-		meshPipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ false, /* TASK= */ false });
-		meshlatePipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ true, /* TASK= */ false });
-		taskPipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ false, /* TASK= */ true });
-		tasklatePipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ true, /* TASK= */ true });
-		assert(meshPipelineMS && meshlatePipelineMS && taskPipelineMS && tasklatePipelineMS);
+		meshPipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ false });
+		meshlatePipelineMS = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshProgramMS.layout, { /* LATE= */ true });
+		assert(meshPipelineMS && meshlatePipelineMS);
 	}
 
 	Swapchain swapchain;
@@ -727,8 +713,8 @@ int main(int argc, const char** argv)
 	Buffer dccb = {};
 	createBuffer(dccb, device, memoryProperties, 12, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	// TODO: this is *very* suboptimal wrt memory consumption, but we're going to rework this later
-	// TODO: maybe start by using uint8_t here
+	// TODO: there's a way to implement cluster visibility persistence *without* using bitwise storage at all, which may be beneficial on the balance, so we should try that.
+	// *if* we do that, we can drop meshletVisibilityOffset et al from everywhere
 	Buffer mvb = {};
 	bool mvbCleared = false;
 	if (meshShadingSupported)
@@ -881,7 +867,7 @@ int main(int argc, const char** argv)
 		globals.pyramidHeight = float(depthPyramidHeight);
 		globals.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;
 
-		bool taskSubmit = taskSubmitEnabled && meshShadingSupported && meshShadingEnabled;
+		bool taskSubmit = meshShadingSupported && meshShadingEnabled;
 
 		auto fullbarrier = [&]()
 		{
@@ -962,7 +948,7 @@ int main(int argc, const char** argv)
 		auto cull = [&](VkPipeline pipeline, uint32_t timestamp, const char* phase, bool late)
 		{
 			uint32_t rasterizationStage =
-				(meshShadingSupported && meshShadingEnabled)
+				taskSubmit
 				? VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
 				: VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
@@ -1066,12 +1052,9 @@ int main(int argc, const char** argv)
 
 			VK_CHECKPOINT("before draw");
 
-			if (meshShadingSupported && meshShadingEnabled)
+			if (taskSubmit)
 			{
-				if (taskSubmit)
-					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? tasklatePipelineMS : taskPipelineMS);
-				else
-					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? meshlatePipelineMS : meshPipelineMS);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? meshlatePipelineMS : meshPipelineMS);
 
 				// TODO: double-check synchronization
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
@@ -1080,10 +1063,7 @@ int main(int argc, const char** argv)
 				pushDescriptors(meshProgramMS, descriptors);
 
 				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globals), &globals);
-				if (taskSubmit)
-					vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 0, 1, 0);
-				else
-					vkCmdDrawMeshTasksIndirectCountEXT(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirectMS), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
+				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 0, 1, 0);
 			}
 			else
 			{
@@ -1318,7 +1298,7 @@ int main(int argc, const char** argv)
 			frameCpuAvg, frameGpuAvg,
 			cullGpuTime, renderGpuTime, pyramidGpuTime, culllateGpuTime, renderlateGpuTime,
 			double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6,
-			meshShadingSupported && meshShadingEnabled ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF", clusterOcclusionEnabled ? "ON" : "OFF");
+			taskSubmit ? "ON" : "OFF", cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF", clusterOcclusionEnabled ? "ON" : "OFF");
 
 		glfwSetWindowTitle(window, title);
 
@@ -1384,8 +1364,6 @@ int main(int argc, const char** argv)
 	{
 		vkDestroyPipeline(device, meshPipelineMS, 0);
 		vkDestroyPipeline(device, meshlatePipelineMS, 0);
-		vkDestroyPipeline(device, taskPipelineMS, 0);
-		vkDestroyPipeline(device, tasklatePipelineMS, 0);
 		destroyProgram(device, meshProgramMS);
 	}
 

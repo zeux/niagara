@@ -451,11 +451,13 @@ int main(int argc, const char** argv)
 
 	bool pushDescriptorsSupported = false;
 	bool meshShadingSupported = false;
+	bool profilingSupported = false;
 
 	for (auto& ext : extensions)
 	{
 		pushDescriptorsSupported = pushDescriptorsSupported || strcmp(ext.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0;
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
+		profilingSupported = profilingSupported || strcmp(ext.extensionName, VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME) == 0;
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -467,7 +469,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported, profilingSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -719,6 +721,12 @@ int main(int argc, const char** argv)
 	}
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
+
+	if (profilingSupported)
+	{
+		VkAcquireProfilingLockInfoKHR lockInfo = { VK_STRUCTURE_TYPE_ACQUIRE_PROFILING_LOCK_INFO_KHR };
+		vkAcquireProfilingLockKHR(device, &lockInfo);
+	}
 
 	Image colorTarget = {};
 	Image depthTarget = {};

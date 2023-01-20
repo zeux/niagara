@@ -516,6 +516,10 @@ int main(int argc, const char** argv)
 	rcs = loadShader(depthreduceCS, device, SHADER_PATH "depthreduce.comp.spv");
 	assert(rcs);
 
+	Shader tasksubmitCS = {};
+	rcs = loadShader(tasksubmitCS, device, SHADER_PATH "tasksubmit.comp.spv");
+	assert(rcs);
+
 	Shader meshVS = {};
 	rcs = loadShader(meshVS, device, SHADER_PATH "mesh.vert.spv");
 	assert(rcs);
@@ -543,6 +547,9 @@ int main(int argc, const char** argv)
 	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ false });
 	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ true });
 	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+
+	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &tasksubmitCS }, 0, pushDescriptorsSupported);
+	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, tasksubmitCS, tasksubmitProgram.layout);
 
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData), pushDescriptorsSupported);
 	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
@@ -709,7 +716,7 @@ int main(int argc, const char** argv)
 	createBuffer(dcb, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer dccb = {};
-	createBuffer(dccb, device, memoryProperties, 12, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	createBuffer(dccb, device, memoryProperties, 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// TODO: there's a way to implement cluster visibility persistence *without* using bitwise storage at all, which may be beneficial on the balance, so we should try that.
 	// *if* we do that, we can drop meshletVisibilityOffset et al from everywhere
@@ -917,8 +924,7 @@ int main(int argc, const char** argv)
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
 			pipelineBarrier(commandBuffer, 0, 1, &prefillBarrier, 0, nullptr);
 
-			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0); // fills groupCountX for taskSubmit *or* indirect draw count for regular submit
-			vkCmdFillBuffer(commandBuffer, dccb.buffer, 4, 8, 1); // fills groupCountY/Z for taskSubmit
+			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0);
 
 			// pyramid barrier is tricky: our frame sequence is cull -> render -> pyramid -> cull -> render
 			// the first cull (late=0) doesn't read pyramid data BUT the read in the shader is guarded by a push constant value (which could be specialization constant but isn't due to AMD bug)
@@ -939,15 +945,34 @@ int main(int argc, const char** argv)
 			};
 			pipelineBarrier(commandBuffer, 0, COUNTOF(fillBarriers), fillBarriers, 1, &pyramidBarrier);
 
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-			DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
-			DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
-			// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
-			pushDescriptors(drawcullProgram, descriptors);
+				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
+				DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
+				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
+				pushDescriptors(drawcullProgram, descriptors);
 
-			vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
-			vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
+				vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
+				vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
+			}
+
+			if (taskSubmit)
+			{
+				VkBufferMemoryBarrier2 syncBarrier = bufferBarrier(dccb.buffer,
+					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
+				pipelineBarrier(commandBuffer, 0, 1, &syncBarrier, 0, nullptr);
+
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, tasksubmitPipeline);
+
+				DescriptorInfo descriptors[] = { dccb.buffer, dcb.buffer };
+				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, tasksubmitProgram.updateTemplate, tasksubmitProgram.layout, 0, descriptors);
+				pushDescriptors(tasksubmitProgram, descriptors);
+
+				vkCmdDispatch(commandBuffer, 1, 1, 1);
+			}
 
 			VkBufferMemoryBarrier2 cullBarriers[] =
 			{
@@ -1011,7 +1036,7 @@ int main(int argc, const char** argv)
 				pushDescriptors(meshProgramMS, descriptors);
 
 				vkCmdPushConstants(commandBuffer, meshProgramMS.layout, meshProgramMS.pushConstantStages, 0, sizeof(globals), &globals);
-				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 0, 1, 0);
+				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
 			}
 			else
 			{
@@ -1287,6 +1312,9 @@ int main(int argc, const char** argv)
 	vkDestroyPipeline(device, taskculllatePipeline, 0);
 	destroyProgram(device, drawcullProgram);
 
+	vkDestroyPipeline(device, tasksubmitPipeline, 0);
+	destroyProgram(device, tasksubmitProgram);
+
 	vkDestroyPipeline(device, depthreducePipeline, 0);
 	destroyProgram(device, depthreduceProgram);
 
@@ -1301,6 +1329,7 @@ int main(int argc, const char** argv)
 	}
 
 	vkDestroyShaderModule(device, drawcullCS.module, 0);
+	vkDestroyShaderModule(device, tasksubmitCS.module, 0);
 	vkDestroyShaderModule(device, depthreduceCS.module, 0);
 
 	vkDestroyShaderModule(device, meshVS.module, 0);

@@ -190,5 +190,8 @@
     <CustomBuild Include="shaders\depthreduce.comp.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
+    <CustomBuild Include="shaders\tasksubmit.comp.glsl">
+      <Filter>shaders</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

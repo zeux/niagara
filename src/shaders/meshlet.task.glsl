@@ -140,10 +140,8 @@ void main()
 	EmitMeshTasksEXT(sharedCount, 1, 1);
 #else
 	payload.drawId = drawId;
-	payload.meshletIndices[gl_LocalInvocationIndex] = mi;
+	payload.meshletIndices[gl_LocalInvocationID.x] = mi;
 
-	uint count = min(TASK_WGSIZE, taskCount - gl_WorkGroupID.x * TASK_WGSIZE);
-
-	EmitMeshTasksEXT(count, 1, 1);
+	EmitMeshTasksEXT(taskCount, 1, 1);
 #endif
 }

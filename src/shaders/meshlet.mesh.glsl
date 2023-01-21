@@ -85,6 +85,8 @@ void main()
 	vec3 mcolor = vec3(float(mhash & 255), float((mhash >> 8) & 255), float((mhash >> 16) & 255)) / 255.0;
 #endif
 
+	vec2 screen = vec2(globals.screenWidth, globals.screenHeight);
+
 	// TODO: instead of a for (uint i = ti; i < vertexCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max vertex count, and write 1 vertex/thread
 	if (ti < vertexCount)
 	{
@@ -101,7 +103,7 @@ void main()
 		color[i] = vec4(normal * 0.5 + vec3(0.5), 1.0);
 
 	#if CULL
-		vertexClip[i] = vec3(clip.xy / clip.w, clip.w);
+		vertexClip[i] = vec3((clip.xy / clip.w * 0.5 + vec2(0.5)) * screen, clip.w);
 	#endif
 
 	#if DEBUG
@@ -112,8 +114,6 @@ void main()
 #if CULL
 	barrier();
 #endif
-
-	vec2 screen = vec2(globals.screenWidth, globals.screenHeight);
 
 	// TODO: instead of a for (uint i = ti; i < triangleCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max triangle count, and write 1 triangle/thread
 	if (ti < triangleCount)
@@ -136,8 +136,8 @@ void main()
 		culled = culled || (eb.x * ec.y >= eb.y * ec.x);
 
 		// small primitive culling
-		vec2 bmin = (min(pa, min(pb, pc)) * 0.5 + vec2(0.5)) * screen;
-		vec2 bmax = (max(pa, max(pb, pc)) * 0.5 + vec2(0.5)) * screen;
+		vec2 bmin = min(pa, min(pb, pc));
+		vec2 bmax = max(pa, max(pb, pc));
 		float sbprec = 1.0 / 256.0; // note: this can be set to 1/2^subpixelPrecisionBits
 
 		// note: this is slightly imprecise (doesn't fully match hw behavior and is both too loose and too strict)

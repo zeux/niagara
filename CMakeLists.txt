@@ -38,7 +38,11 @@ target_link_libraries(niagara
     meshoptimizer)
 
 if(UNIX)
-  set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/bin/glslangValidator")
+  if(DEFINED ENV{VULKAN_SDK})
+    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/bin/glslangValidator")
+  else()
+    set(GLSL_VALIDATOR "glslangValidator")
+  endif()
 elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
   set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
 else()

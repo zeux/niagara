@@ -2,3 +2,7 @@ src/.vs/
 src/*.user
 src/x64
 src/shaders/*.spv
+CMakeFiles/
+CMakeCache.txt
+build.ninja
+.ninja_*

@@ -58,6 +58,10 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
 #endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+		VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+		VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+#endif
 #if KHR_VALIDATION
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 #endif
@@ -65,6 +69,9 @@ VkInstance createInstance()
 
 	createInfo.ppEnabledExtensionNames = extensions;
 	createInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
+#ifdef VK_USE_PLATFORM_METAL_EXT
+	createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
 
 	VkInstance instance = 0;
 	VK_CHECK(vkCreateInstance(&createInfo, 0, &instance));
@@ -187,7 +194,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool pushDescriptorsSupported, bool meshShadingSupported, bool profilingSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool pushDescriptorsSupported, bool meshShadingSupported, bool profilingSupported, bool portabilitySubsetSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -209,6 +216,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	if (profilingSupported)
 		extensions.push_back(VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME);
+
+	if (portabilitySubsetSupported)
+		extensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;

@@ -432,7 +432,7 @@ int main(int argc, const char** argv)
 
 	volkLoadInstanceOnly(instance);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 	VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
 #endif
 
@@ -452,12 +452,14 @@ int main(int argc, const char** argv)
 	bool pushDescriptorsSupported = false;
 	bool meshShadingSupported = false;
 	bool profilingSupported = false;
+	bool portabilitySubsetSupported = false;
 
 	for (auto& ext : extensions)
 	{
 		pushDescriptorsSupported = pushDescriptorsSupported || strcmp(ext.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0;
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
 		profilingSupported = profilingSupported || strcmp(ext.extensionName, VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME) == 0;
+		portabilitySubsetSupported = portabilitySubsetSupported || strcmp(ext.extensionName, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME) == 0;
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -469,7 +471,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported, profilingSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported, profilingSupported, portabilitySubsetSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -1352,7 +1354,7 @@ int main(int argc, const char** argv)
 
 	vkDestroyDevice(device, 0);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
 #endif
 

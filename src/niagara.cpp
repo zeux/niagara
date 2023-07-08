@@ -1229,10 +1229,10 @@ int main(int argc, const char** argv)
 		uint64_t timestampResults[12] = {};
 		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
 
-		uint32_t pipelineResults[2] = {};
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), 0));
+		uint64_t pipelineResults[2] = {};
+		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
 
-		uint32_t triangleCount = pipelineResults[0] + pipelineResults[1];
+		uint64_t triangleCount = pipelineResults[0] + pipelineResults[1];
 
 		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
 		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;

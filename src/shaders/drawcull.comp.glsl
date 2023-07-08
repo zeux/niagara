@@ -116,14 +116,17 @@ void main()
 			uint lateDrawVisibility = drawVisibility[di];
 			uint meshletVisibilityOffset = draws[di].meshletVisibilityOffset;
 
-			// TODO: ideally we would abort if commandCount overflows the output buffer
-			for (uint i = 0; i < taskGroups; ++i)
+			// drop draw calls on overflow; this limits us to ~4M visible draws or ~32B visible triangles, whichever is larger
+			if (dci + taskGroups <= TASK_WGLIMIT)
 			{
-				taskCommands[dci + i].drawId = di;
-				taskCommands[dci + i].taskOffset = lod.meshletOffset + i * TASK_WGSIZE;
-				taskCommands[dci + i].taskCount = min(TASK_WGSIZE, lod.meshletCount - i * TASK_WGSIZE);
-				taskCommands[dci + i].lateDrawVisibility = lateDrawVisibility;
-				taskCommands[dci + i].meshletVisibilityOffset = meshletVisibilityOffset + i * TASK_WGSIZE;
+				for (uint i = 0; i < taskGroups; ++i)
+				{
+					taskCommands[dci + i].drawId = di;
+					taskCommands[dci + i].taskOffset = lod.meshletOffset + i * TASK_WGSIZE;
+					taskCommands[dci + i].taskCount = min(TASK_WGSIZE, lod.meshletCount - i * TASK_WGSIZE);
+					taskCommands[dci + i].lateDrawVisibility = lateDrawVisibility;
+					taskCommands[dci + i].meshletVisibilityOffset = meshletVisibilityOffset + i * TASK_WGSIZE;
+				}
 			}
 		}
 		else

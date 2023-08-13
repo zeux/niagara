@@ -7,6 +7,8 @@
 
 #ifdef __linux__
 #include <spirv/unified1/spirv.h>
+#elifdef __APPLE__
+#include <spirv_cross/spirv.h>
 #elif VK_HEADER_VERSION >= 135
 #include <spirv-headers/spirv.h>
 #else

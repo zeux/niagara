@@ -4,7 +4,7 @@ project(niagara)
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES "src/shaders/*.glsl")
 file(GLOB_RECURSE GLSL_HEADER_FILES "src/shaders/*.h")
-file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.h" "src/*.cpp")
+file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.h" "src/*.cpp" "src/*.mm")
 
 add_executable(niagara
   ${CPP_SOURCE_FILES}
@@ -13,10 +13,14 @@ add_executable(niagara
 
 set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 
-target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW)
+target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW VK_ENABLE_BETA_EXTENSIONS)
 target_include_directories(niagara PRIVATE extern/fast_obj)
 
-if(UNIX)
+if(APPLE)
+  target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_METAL_EXT GLFW_EXPOSE_NATIVE_COCOA)
+  set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_METAL_EXT")
+  target_link_libraries(niagara PRIVATE "-framework QuartzCore")
+elseif(UNIX)
   target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_XLIB_KHR GLFW_EXPOSE_NATIVE_X11)
   set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_XLIB_KHR")
 elseif(WIN32)

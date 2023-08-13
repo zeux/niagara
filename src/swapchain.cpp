@@ -27,6 +27,14 @@ VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 	VkSurfaceKHR surface = 0;
 	VK_CHECK(vkCreateXlibSurfaceKHR(instance, &createInfo, 0, &surface));
 	return surface;
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+	extern id getLayerFromWindow(id window);
+	VkMetalSurfaceCreateInfoEXT createInfo = { VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT };
+	createInfo.pLayer = getLayerFromWindow(glfwGetCocoaWindow(window));
+
+	VkSurfaceKHR surface = 0;
+	VK_CHECK(vkCreateMetalSurfaceEXT(instance, &createInfo, 0, &surface));
+	return surface;
 #else
 #error Unsupported platform
 #endif

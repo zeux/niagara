@@ -117,5 +117,5 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1862
 * ✔️ A valid interface block in mesh/task shader is considered invalid
 https://github.com/KhronosGroup/SPIRV-Tools/issues/3653
 
-* Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used
+* ✔️ Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used
 https://github.com/KhronosGroup/glslang/issues/3103

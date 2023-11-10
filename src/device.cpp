@@ -2,6 +2,7 @@
 #include "device.h"
 
 #include <stdio.h>
+#include <string.h>
 
 // Validation is enabled by default in Debug
 #ifndef NDEBUG
@@ -14,6 +15,21 @@
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+
+static bool isLayerSupported(const char* name)
+{
+	uint32_t propertyCount = 0;
+	VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, 0));
+
+	std::vector<VkLayerProperties> properties(propertyCount);
+	VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, properties.data()));
+
+	for (uint32_t i = 0; i < propertyCount; ++i)
+		if (strcmp(name, properties[i].layerName) == 0)
+			return true;
+
+	return false;
+}
 
 VkInstance createInstance()
 {
@@ -31,8 +47,15 @@ VkInstance createInstance()
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	createInfo.ppEnabledLayerNames = debugLayers;
-	createInfo.enabledLayerCount = sizeof(debugLayers) / sizeof(debugLayers[0]);
+	if (isLayerSupported("VK_LAYER_KHRONOS_validation"))
+	{
+		createInfo.ppEnabledLayerNames = debugLayers;
+		createInfo.enabledLayerCount = sizeof(debugLayers) / sizeof(debugLayers[0]);
+	}
+	else
+	{
+		printf("Warning: Vulkan debug layers are not available\n");
+	}
 
 	VkValidationFeatureEnableEXT enabledValidationFeatures[] =
 	{
@@ -58,7 +81,7 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
 #endif
-#if KHR_VALIDATION
+#ifdef _DEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 #endif
 	};

@@ -170,6 +170,9 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		VkPhysicalDeviceProperties props;
 		vkGetPhysicalDeviceProperties(physicalDevices[i], &props);
 
+		if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
+			continue;
+
 		printf("GPU%d: %s\n", i, props.deviceName);
 
 		uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevices[i]);

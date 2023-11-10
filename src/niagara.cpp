@@ -1357,4 +1357,6 @@ int main(int argc, const char** argv)
 #endif
 
 	vkDestroyInstance(instance, 0);
+
+	volkFinalize();
 }

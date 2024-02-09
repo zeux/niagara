@@ -2,6 +2,7 @@
 #include "device.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Validation is enabled by default in Debug
@@ -165,6 +166,8 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	VkPhysicalDevice preferred = 0;
 	VkPhysicalDevice fallback = 0;
 
+	const char* ngpu = getenv("NGPU");
+
 	for (uint32_t i = 0; i < physicalDeviceCount; ++i)
 	{
 		VkPhysicalDeviceProperties props;
@@ -184,6 +187,11 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 
 		if (props.apiVersion < VK_API_VERSION_1_3)
 			continue;
+
+		if (ngpu && atoi(ngpu) == i)
+		{
+			preferred = physicalDevices[i];
+		}
 
 		if (!preferred && props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{

@@ -432,9 +432,7 @@ int main(int argc, const char** argv)
 
 	volkLoadInstanceOnly(instance);
 
-#ifdef _DEBUG
 	VkDebugReportCallbackEXT debugCallback = registerDebugCallback(instance);
-#endif
 
 	VkPhysicalDevice physicalDevices[16];
 	uint32_t physicalDeviceCount = sizeof(physicalDevices) / sizeof(physicalDevices[0]);
@@ -1352,9 +1350,8 @@ int main(int argc, const char** argv)
 
 	vkDestroyDevice(device, 0);
 
-#ifdef _DEBUG
-	vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
-#endif
+	if (debugCallback)
+		vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
 
 	vkDestroyInstance(instance, 0);
 

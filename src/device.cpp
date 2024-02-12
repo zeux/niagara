@@ -10,7 +10,7 @@
 #define KHR_VALIDATION 1
 #endif
 
-// Synchronization validation is disable by default in Debug since it's rather slow
+// Synchronization validation is disabled by default in Debug since it's rather slow
 #define SYNC_VALIDATION 0
 
 #ifdef _WIN32
@@ -42,7 +42,7 @@ VkInstance createInstance()
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
 
-#if KHR_VALIDATION
+#if KHR_VALIDATION || SYNC_VALIDATION
 	const char* debugLayers[] =
 	{
 		"VK_LAYER_KHRONOS_validation"
@@ -52,18 +52,17 @@ VkInstance createInstance()
 	{
 		createInfo.ppEnabledLayerNames = debugLayers;
 		createInfo.enabledLayerCount = sizeof(debugLayers) / sizeof(debugLayers[0]);
+		printf("Enabled Vulkan validation layers (sync validation %s)\n", SYNC_VALIDATION ? "enabled" : "disabled");
 	}
 	else
 	{
 		printf("Warning: Vulkan debug layers are not available\n");
 	}
 
+#if SYNC_VALIDATION
 	VkValidationFeatureEnableEXT enabledValidationFeatures[] =
 	{
-		VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
-#if SYNC_VALIDATION
 		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
-#endif
 	};
 
 	VkValidationFeaturesEXT validationFeatures = { VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT };
@@ -71,6 +70,7 @@ VkInstance createInstance()
 	validationFeatures.pEnabledValidationFeatures = enabledValidationFeatures;
 
 	createInfo.pNext = &validationFeatures;
+#endif
 #endif
 
 	const char* extensions[] =
@@ -127,6 +127,9 @@ static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDe
 
 VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance)
 {
+	if (!vkCreateDebugReportCallbackEXT)
+		return nullptr;
+
 	VkDebugReportCallbackCreateInfoEXT createInfo = { VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT };
 	createInfo.flags = VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT;
 	createInfo.pfnCallback = debugReportCallback;

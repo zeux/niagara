@@ -39,6 +39,16 @@ VkSemaphore createSemaphore(VkDevice device)
 	return semaphore;
 }
 
+VkFence createFence(VkDevice device)
+{
+	VkFenceCreateInfo createInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+
+	VkFence fence = 0;
+	VK_CHECK(vkCreateFence(device, &createInfo, 0, &fence));
+
+	return fence;
+}
+
 VkCommandPool createCommandPool(VkDevice device, uint32_t familyIndex)
 {
 	VkCommandPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
@@ -492,6 +502,9 @@ int main(int argc, const char** argv)
 
 	VkSemaphore releaseSemaphore = createSemaphore(device);
 	assert(releaseSemaphore);
+
+	VkFence frameFence = createFence(device);
+	assert(frameFence);
 
 	VkQueue queue = 0;
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
@@ -1211,7 +1224,7 @@ int main(int argc, const char** argv)
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &releaseSemaphore;
 
-		VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+		VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, frameFence));
 
 		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
 		presentInfo.waitSemaphoreCount = 1;
@@ -1222,7 +1235,8 @@ int main(int argc, const char** argv)
 
 		VK_CHECK_SWAPCHAIN(vkQueuePresentKHR(queue, &presentInfo));
 
-		VK_CHECK(vkDeviceWaitIdle(device));
+		VK_CHECK(vkWaitForFences(device, 1, &frameFence, VK_TRUE, ~0ull));
+		VK_CHECK(vkResetFences(device, 1, &frameFence));
 
 		uint64_t timestampResults[12] = {};
 		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
@@ -1341,6 +1355,7 @@ int main(int argc, const char** argv)
 
 	vkDestroySampler(device, depthSampler, 0);
 
+	vkDestroyFence(device, frameFence, 0);
 	vkDestroySemaphore(device, releaseSemaphore, 0);
 	vkDestroySemaphore(device, acquireSemaphore, 0);
 

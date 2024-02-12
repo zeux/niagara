@@ -84,7 +84,7 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
 #endif
-#ifdef _DEBUG
+#ifndef NDEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 #endif
 	};

@@ -119,7 +119,7 @@ void main()
 	barrier();
 #endif
 
-	for (uint i = ti; ti < triangleCount; )
+	for (uint i = ti; i < triangleCount; )
 	{
 		uint offset = indexOffset * 4 + i * 3;
 		uint a = uint(meshletData8[offset]), b = uint(meshletData8[offset + 1]), c = uint(meshletData8[offset + 2]);

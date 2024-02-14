@@ -1,12 +1,14 @@
 #include "common.h"
 #include "swapchain.h"
 
+#include "config.h"
+
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
 #include <algorithm>
 
-#define VSYNC 1
+#define VSYNC CONFIG_VSYNC
 
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 {

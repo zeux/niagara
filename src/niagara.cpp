@@ -5,6 +5,7 @@
 #include "shaders.h"
 #include "swapchain.h"
 
+#include "config.h"
 #include "math.h"
 
 #include <stdio.h>
@@ -186,8 +187,8 @@ struct alignas(16) DepthReduceData
 
 size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
 {
-	const size_t max_vertices = 64;
-	const size_t max_triangles = 64;
+	const size_t max_vertices = MESH_MAXVTX;
+	const size_t max_triangles = MESH_MAXTRI;
 	const float cone_weight = 0.5f;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, max_triangles));

@@ -10,10 +10,10 @@
 #include "math.h"
 
 #define DEBUG 0
-#define CULL 1
+#define CULL MESH_CULL
 
 layout(local_size_x = MESH_WGSIZE, local_size_y = 1, local_size_z = 1) in;
-layout(triangles, max_vertices = 64, max_primitives = 64) out;
+layout(triangles, max_vertices = MESH_MAXVTX, max_primitives = MESH_MAXTRI) out;
 
 layout(push_constant) uniform block
 {
@@ -87,10 +87,8 @@ void main()
 
 	vec2 screen = vec2(globals.screenWidth, globals.screenHeight);
 
-	// TODO: instead of a for (uint i = ti; i < vertexCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max vertex count, and write 1 vertex/thread
-	if (ti < vertexCount)
+	for (uint i = ti; i < vertexCount; )
 	{
-		uint i = ti;
 		uint vi = meshletData[vertexOffset + i] + meshDraw.vertexOffset;
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
@@ -109,16 +107,20 @@ void main()
 	#if DEBUG
 		color[i] = vec4(mcolor, 1.0);
 	#endif
+
+	#if MESH_MAXVTX <= MESH_WGSIZE
+		break;
+	#else
+		i += MESH_WGSIZE;
+	#endif
 	}
 
 #if CULL
 	barrier();
 #endif
 
-	// TODO: instead of a for (uint i = ti; i < triangleCount; i += MESH_WGSIZE), we take advantage of the fact that our WG size is >= max triangle count, and write 1 triangle/thread
-	if (ti < triangleCount)
+	for (uint i = ti; ti < triangleCount; )
 	{
-		uint i = ti;
 		uint offset = indexOffset * 4 + i * 3;
 		uint a = uint(meshletData8[offset]), b = uint(meshletData8[offset + 1]), c = uint(meshletData8[offset + 2]);
 
@@ -147,6 +149,12 @@ void main()
 		culled = culled && (vertexClip[a].z > 0 && vertexClip[b].z > 0 && vertexClip[c].z > 0);
 
 		gl_MeshPrimitivesEXT[i].gl_CullPrimitiveEXT = culled;
+	#endif
+
+	#if MESH_MAXTRI <= MESH_WGSIZE
+		break;
+	#else
+		i += MESH_WGSIZE;
 	#endif
 	}
 }

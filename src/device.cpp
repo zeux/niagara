@@ -1,6 +1,8 @@
 #include "common.h"
 #include "device.h"
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +13,7 @@
 #endif
 
 // Synchronization validation is disabled by default in Debug since it's rather slow
-#define SYNC_VALIDATION 0
+#define SYNC_VALIDATION CONFIG_SYNCVAL
 
 #ifdef _WIN32
 #include <Windows.h>

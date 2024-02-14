@@ -1,7 +1,4 @@
-#define TASK_WGSIZE 64
-#define MESH_WGSIZE 64
-
-#define TASK_WGLIMIT (1 << 22)
+#include "../config.h"
 
 struct Vertex
 {

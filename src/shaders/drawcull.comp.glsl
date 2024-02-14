@@ -97,7 +97,7 @@ void main()
 	// when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
 	// so that we can correctly render now-visible previously-invisible meshlets. we also pass drawvis[] along to task shader
 	// so that it can *reject* clusters that we *did* draw in the first pass
-	if (visible && (!LATE || cullData.clusterOcclusionEnabled == 1 || drawVisibility[di] == 0))
+	if (visible && (!LATE || (cullData.clusterOcclusionEnabled == 1 && TASK_CULL == 1) || drawVisibility[di] == 0))
 	{
 		// lod distance i = base * pow(step, i)
 		// i = log2(distance / base) / log2(step)

@@ -200,6 +200,8 @@ size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, con
 	// note: we can append meshlet_vertices & meshlet_triangles buffers more or less directly with small changes in Meshlet struct, but for now keep the GPU side layout flexible and separate
 	for (auto& meshlet : meshlets)
 	{
+		meshopt_optimizeMeshlet(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, meshlet.vertex_count);
+
 		size_t dataOffset = result.meshletdata.size();
 
 		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)

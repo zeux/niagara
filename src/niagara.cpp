@@ -806,7 +806,10 @@ int main(int argc, const char** argv)
 		}
 
 		uint32_t imageIndex = 0;
-		VK_CHECK_SWAPCHAIN(vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex));
+		VkResult acquireResult = vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
+		if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
+			continue; // attempting to render to an out-of-date swapchain would break semaphore synchronization
+		VK_CHECK_SWAPCHAIN(acquireResult);
 
 		VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 

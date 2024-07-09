@@ -433,6 +433,11 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+	// TODO: We could support both X11 and Wayland, but that requires some tweaks in swapchain handling
+	glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
+
 	int rc = glfwInit();
 	assert(rc);
 

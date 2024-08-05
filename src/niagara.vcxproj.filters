@@ -170,6 +170,9 @@
     <ClCompile Include="..\extern\glfw\src\null_window.c">
       <Filter>glfw</Filter>
     </ClCompile>
+    <ClCompile Include="..\extern\meshoptimizer\src\quantization.cpp">
+      <Filter>meshoptimizer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="shaders\meshlet.mesh.glsl">

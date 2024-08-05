@@ -249,6 +249,7 @@
     <ClCompile Include="..\extern\meshoptimizer\src\indexgenerator.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\overdrawanalyzer.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\overdrawoptimizer.cpp" />
+    <ClCompile Include="..\extern\meshoptimizer\src\quantization.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\simplifier.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\spatialorder.cpp" />
     <ClCompile Include="..\extern\meshoptimizer\src\stripifier.cpp" />

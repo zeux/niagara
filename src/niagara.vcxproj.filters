@@ -54,6 +54,10 @@
     <ClInclude Include="..\extern\glfw\src\null_platform.h">
       <Filter>glfw</Filter>
     </ClInclude>
+    <ClInclude Include="shaders\math.h">
+      <Filter>shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\extern\glfw\src\context.c">

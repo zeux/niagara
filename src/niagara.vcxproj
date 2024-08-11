@@ -105,7 +105,7 @@
       <Outputs>shaders/%(Filename).spv</Outputs>
     </CustomBuild>
     <CustomBuild>
-      <AdditionalInputs>shaders/*.h</AdditionalInputs>
+      <AdditionalInputs>shaders/*.h;config.h</AdditionalInputs>
       <BuildInParallel>true</BuildInParallel>
     </CustomBuild>
     <CustomBuild />
@@ -133,7 +133,7 @@
       <Outputs>shaders/%(Filename).spv</Outputs>
     </CustomBuild>
     <CustomBuild>
-      <AdditionalInputs>shaders/*.h</AdditionalInputs>
+      <AdditionalInputs>shaders/*.h;config.h</AdditionalInputs>
       <BuildInParallel>true</BuildInParallel>
     </CustomBuild>
     <CustomBuild />
@@ -165,7 +165,7 @@
       <Outputs>shaders/%(Filename).spv</Outputs>
     </CustomBuild>
     <CustomBuild>
-      <AdditionalInputs>shaders/*.h</AdditionalInputs>
+      <AdditionalInputs>shaders/*.h;config.h</AdditionalInputs>
       <BuildInParallel>true</BuildInParallel>
     </CustomBuild>
     <CustomBuild />
@@ -197,7 +197,7 @@
       <Outputs>shaders/%(Filename).spv</Outputs>
     </CustomBuild>
     <CustomBuild>
-      <AdditionalInputs>shaders/*.h</AdditionalInputs>
+      <AdditionalInputs>shaders/*.h;config.h</AdditionalInputs>
       <BuildInParallel>true</BuildInParallel>
     </CustomBuild>
     <CustomBuild />
@@ -214,10 +214,12 @@
     <ClInclude Include="..\extern\meshoptimizer\src\meshoptimizer.h" />
     <ClInclude Include="..\extern\volk\volk.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="config.h" />
     <ClInclude Include="device.h" />
     <ClInclude Include="math.h" />
     <ClInclude Include="resources.h" />
     <ClInclude Include="shaders.h" />
+    <ClInclude Include="shaders\math.h" />
     <ClInclude Include="shaders\mesh.h" />
     <ClInclude Include="swapchain.h" />
   </ItemGroup>

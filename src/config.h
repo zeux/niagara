@@ -8,11 +8,11 @@
 #define TASK_CULL 1
 
 // Should we do triangle frustum and backface culling in mesh shader?
-#define MESH_CULL 1
+#define MESH_CULL 0
 
 // Maximum number of vertices and triangles in a meshlet
 #define MESH_MAXVTX 64
-#define MESH_MAXTRI 64
+#define MESH_MAXTRI 96
 
 // Maximum number of total task shader workgroups; 4M workgroups ~= 256M meshlets ~= 16B triangles if TASK_WGSIZE=64 and MESH_MAXTRI=64
 #define TASK_WGLIMIT (1 << 22)

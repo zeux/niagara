@@ -23,7 +23,7 @@ bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
 bool occlusionEnabled = true;
-bool clusterOcclusionEnabled = true;
+bool clusterOcclusionEnabled = false;
 
 bool debugPyramid = false;
 int debugPyramidLevel = 0;

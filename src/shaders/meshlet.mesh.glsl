@@ -61,7 +61,7 @@ uint hash(uint a)
 }
 
 #if CULL
-shared vec3 vertexClip[64]; // TODO: this is the # of vertices per meshlet and should be tuned in sync with 64 at top of shader
+shared vec3 vertexClip[MESH_MAXVTX];
 #endif
 
 void main()

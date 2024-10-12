@@ -35,7 +35,7 @@ struct DrawCullData
 {
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
-	float lodBase, lodStep; // lod distance i = base * pow(step, i)
+	float lodTarget; // lod target error at z=1
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint drawCount;
@@ -52,6 +52,7 @@ struct MeshLod
 	uint indexCount;
 	uint meshletOffset;
 	uint meshletCount;
+	float error;
 };
 
 struct Mesh

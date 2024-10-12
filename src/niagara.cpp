@@ -141,6 +141,7 @@ struct MeshLod
 	uint32_t indexCount;
 	uint32_t meshletOffset;
 	uint32_t meshletCount;
+	float error;
 };
 
 struct alignas(16) Mesh
@@ -169,7 +170,7 @@ struct alignas(16) DrawCullData
 {
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
-	float lodBase, lodStep; // lod distance i = base * pow(step, i)
+	float lodTarget; // lod target error at z=1
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint32_t drawCount;
@@ -328,6 +329,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	mesh.radius = radius;
 
 	std::vector<uint32_t> lodIndices = indices;
+	float lodError = 0.f;
 
 	while (mesh.lodCount < COUNTOF(mesh.lods))
 	{
@@ -341,10 +343,12 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		lod.meshletOffset = uint32_t(result.meshlets.size());
 		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices)) : 0;
 
+		lod.error = lodError;
+
 		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{
 			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.75);
-			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-2f);
+			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-2f, 0, &lodError);
 			assert(nextIndices <= lodIndices.size());
 
 			// we've reached the error bound
@@ -876,8 +880,7 @@ int main(int argc, const char** argv)
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;
-		cullData.lodBase = 10.f;
-		cullData.lodStep = 1.5f;
+		cullData.lodTarget = (2 / cullData.P11) * (1.f / float(swapchain.height)); // 1px
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
 		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;

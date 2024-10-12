@@ -313,6 +313,13 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 
 	result.vertices.insert(result.vertices.end(), vertices.begin(), vertices.end());
 
+	std::vector<vec3> normals(vertex_count);
+	for (size_t i = 0; i < vertex_count; ++i)
+	{
+		Vertex& v = vertices[i];
+		normals[i] = vec3(v.nx / 127.f - 1.f, v.ny / 127.f - 1.f, v.nz / 127.f - 1.f);
+	}
+
 	vec3 center = vec3(0);
 
 	for (auto& v : vertices)
@@ -331,6 +338,8 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	std::vector<uint32_t> lodIndices = indices;
 	float lodError = 0.f;
 
+	float normalWeights[3] = {1.f, 1.f, 1.f};
+
 	while (mesh.lodCount < COUNTOF(mesh.lods))
 	{
 		MeshLod& lod = mesh.lods[mesh.lodCount++];
@@ -347,8 +356,8 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 
 		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{
-			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.75);
-			size_t nextIndices = meshopt_simplify(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), nextIndicesTarget, 1e-2f, 0, &lodError);
+			size_t nextIndicesTarget = size_t(double(lodIndices.size()) * 0.65);
+			size_t nextIndices = meshopt_simplifyWithAttributes(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), &normals[0].x, sizeof(vec3), normalWeights, 3, NULL, nextIndicesTarget, 1e-1f, 0, &lodError);
 			assert(nextIndices <= lodIndices.size());
 
 			// we've reached the error bound

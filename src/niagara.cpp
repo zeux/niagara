@@ -335,6 +335,8 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 	mesh.center = center;
 	mesh.radius = radius;
 
+	float lodScale = meshopt_simplifyScale(&vertices[0].vx, vertices.size(), sizeof(Vertex));
+
 	std::vector<uint32_t> lodIndices = indices;
 	float lodError = 0.f;
 
@@ -352,7 +354,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		lod.meshletOffset = uint32_t(result.meshlets.size());
 		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices)) : 0;
 
-		lod.error = lodError;
+		lod.error = lodError * lodScale;
 
 		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.14)
 
 project(niagara)
 
+option(USE_WAYLAND "Use Wayland instead of X11" OFF)
+
 file(GLOB_RECURSE GLSL_SOURCE_FILES "src/shaders/*.glsl")
 file(GLOB_RECURSE GLSL_HEADER_FILES "src/shaders/*.h" "src/config.h")
 file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.h" "src/*.cpp")
@@ -17,8 +19,15 @@ target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY
 target_include_directories(niagara PRIVATE extern/fast_obj)
 
 if(UNIX)
-  target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_XLIB_KHR GLFW_EXPOSE_NATIVE_X11)
-  set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_XLIB_KHR")
+  if(USE_WAYLAND)
+    target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_WAYLAND_KHR)
+    target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_WAYLAND)
+    set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WAYLAND_KHR)
+  else()
+    target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+    target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_X11)
+    set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_XLIB_KHR)
+  endif()
 elseif(WIN32)
   target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_WIN32_KHR GLFW_EXPOSE_NATIVE_WIN32)
   target_compile_definitions(niagara PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)

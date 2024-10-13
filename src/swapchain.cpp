@@ -21,6 +21,14 @@ VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 	VkSurfaceKHR surface = 0;
 	VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
 	return surface;
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	VkWaylandSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR };
+	createInfo.display = glfwGetWaylandDisplay();
+	createInfo.surface = glfwGetWaylandWindow(window);
+
+	VkSurfaceKHR surface = 0;
+	VK_CHECK(vkCreateWaylandSurfaceKHR(instance, &createInfo, 0, &surface));
+	return surface;
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
 	VkXlibSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
 	createInfo.dpy = glfwGetX11Display();
@@ -86,15 +94,25 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 	return swapchain;
 }
 
-void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, VkFormat format, VkSwapchainKHR oldSwapchain)
+static VkExtent2D getExtent(const VkSurfaceCapabilitiesKHR& surfaceCaps, GLFWwindow* window)
+{
+	if (surfaceCaps.currentExtent.width != ~0u)
+		return surfaceCaps.currentExtent;
+
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+
+	return { uint32_t(width), uint32_t(height) };
+}
+
+void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format, VkSwapchainKHR oldSwapchain)
 {
 	VkSurfaceCapabilitiesKHR surfaceCaps;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
 
-	uint32_t width = surfaceCaps.currentExtent.width;
-	uint32_t height = surfaceCaps.currentExtent.height;
+	VkExtent2D extent = getExtent(surfaceCaps, window);
 
-	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, width, height, oldSwapchain);
+	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, extent.width, extent.height, oldSwapchain);
 	assert(swapchain);
 
 	uint32_t imageCount = 0;
@@ -105,8 +123,8 @@ void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevic
 
 	result.swapchain = swapchain;
 	result.images = images;
-	result.width = width;
-	result.height = height;
+	result.width = extent.width;
+	result.height = extent.height;
 	result.imageCount = imageCount;
 }
 
@@ -115,23 +133,22 @@ void destroySwapchain(VkDevice device, const Swapchain& swapchain)
 	vkDestroySwapchainKHR(device, swapchain.swapchain, 0);
 }
 
-SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, VkFormat format)
+SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format)
 {
 	VkSurfaceCapabilitiesKHR surfaceCaps;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
 
-	uint32_t newWidth = surfaceCaps.currentExtent.width;
-	uint32_t newHeight = surfaceCaps.currentExtent.height;
+	VkExtent2D extent = getExtent(surfaceCaps, window);
 
-	if (newWidth == 0 || newHeight == 0)
+	if (extent.width == 0 || extent.height == 0)
 		return Swapchain_NotReady;
 
-	if (result.width == newWidth && result.height == newHeight)
+	if (result.width == extent.width && result.height == extent.height)
 		return Swapchain_Ready;
 
 	Swapchain old = result;
 
-	createSwapchain(result, physicalDevice, device, surface, familyIndex, format, old.swapchain);
+	createSwapchain(result, physicalDevice, device, surface, familyIndex, window, format, old.swapchain);
 
 	VK_CHECK(vkDeviceWaitIdle(device));
 
@@ -139,4 +156,3 @@ SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevi
 
 	return Swapchain_Resized;
 }
-

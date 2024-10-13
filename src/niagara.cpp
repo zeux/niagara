@@ -449,8 +449,9 @@ int main(int argc, const char** argv)
 	}
 
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
-	// TODO: We could support both X11 and Wayland, but that requires some tweaks in swapchain handling
 	glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
 #endif
 
 	int rc = glfwInit();
@@ -607,7 +608,7 @@ int main(int argc, const char** argv)
 	}
 
 	Swapchain swapchain;
-	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat);
+	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
 
 	VkQueryPool queryPoolTimestamp = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
 	assert(queryPoolTimestamp);
@@ -789,13 +790,15 @@ int main(int argc, const char** argv)
 
 		glfwPollEvents();
 
-		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, swapchainFormat);
+		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
 
 		if (swapchainStatus == Swapchain_NotReady)
 			continue;
 
 		if (swapchainStatus == Swapchain_Resized || !colorTarget.image)
 		{
+			printf("Swapchain: %dx%d\n", swapchain.width, swapchain.height);
+
 			if (colorTarget.image)
 				destroyImage(colorTarget, device);
 			if (depthTarget.image)

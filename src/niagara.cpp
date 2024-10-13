@@ -798,7 +798,8 @@ int main(int argc, const char** argv)
 	if (profilingSupported)
 	{
 		VkAcquireProfilingLockInfoKHR lockInfo = { VK_STRUCTURE_TYPE_ACQUIRE_PROFILING_LOCK_INFO_KHR };
-		vkAcquireProfilingLockKHR(device, &lockInfo);
+		VkResult res = vkAcquireProfilingLockKHR(device, &lockInfo);
+		printf("Acquire profiling lock: %d\n", res);
 	}
 
 	Image colorTarget = {};

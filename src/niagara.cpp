@@ -440,6 +440,37 @@ uint32_t previousPow2(uint32_t v)
 	return r;
 }
 
+struct pcg32_random_t
+{
+	uint64_t state;
+	uint64_t inc;
+};
+
+#define PCG32_INITIALIZER { 0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL }
+
+uint32_t pcg32_random_r(pcg32_random_t* rng)
+{
+	uint64_t oldstate = rng->state;
+	// Advance internal state
+	rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
+	// Calculate output function (XSH RR), uses old state for max ILP
+	uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+	uint32_t rot = oldstate >> 59u;
+	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+}
+
+pcg32_random_t rngstate = PCG32_INITIALIZER;
+
+double rand01()
+{
+	return pcg32_random_r(&rngstate) / double(1ull << 32);
+}
+
+uint32_t rand32()
+{
+	return pcg32_random_r(&rngstate);
+}
+
 int main(int argc, const char** argv)
 {
 	if (argc < 2)
@@ -699,10 +730,10 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
+	rngstate.state = 0x42;
+
 	uint32_t drawCount = 1000000;
 	std::vector<MeshDraw> draws(drawCount);
-
-	srand(42);
 
 	float sceneRadius = 300;
 	float drawDistance = 200;
@@ -713,17 +744,17 @@ int main(int argc, const char** argv)
 	{
 		MeshDraw& draw = draws[i];
 
-		size_t meshIndex = rand() % geometry.meshes.size();
+		size_t meshIndex = rand32() % geometry.meshes.size();
 		const Mesh& mesh = geometry.meshes[meshIndex];
 
-		draw.position[0] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draw.position[1] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draw.position[2] = (float(rand()) / RAND_MAX) * sceneRadius * 2 - sceneRadius;
-		draw.scale = (float(rand()) / RAND_MAX) + 1;
+		draw.position[0] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+		draw.position[1] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+		draw.position[2] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+		draw.scale = float(rand01()) + 1;
 		draw.scale *= 2;
 
-		vec3 axis = normalize(vec3((float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1, (float(rand()) / RAND_MAX) * 2 - 1));
-		float angle = glm::radians((float(rand()) / RAND_MAX) * 90.f);
+		vec3 axis = normalize(vec3(float(rand01()) * 2 - 1, float(rand01()) * 2 - 1, float(rand01()) * 2 - 1));
+		float angle = glm::radians(float(rand01()) * 90.f);
 
 		draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
 

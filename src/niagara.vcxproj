@@ -301,6 +301,17 @@
       <FileType>Document</FileType>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="shaders\cluster.mesh.glsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
+    <CustomBuild Include="shaders\clustercull.comp.glsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
+    <CustomBuild Include="shaders\clustersubmit.comp.glsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

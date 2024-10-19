@@ -46,6 +46,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 18. Meshlet occlusion culling: https://youtu.be/5sBpo5wKmEM
 19. Optimizing culling: https://youtu.be/1Tj6bZvZMts
 20. Task command submission: https://youtu.be/eYvGruGHhUE
+21. Cluster compute culling: https://youtu.be/zROUBE5pLuI
 
 # Issues
 

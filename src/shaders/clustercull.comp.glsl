@@ -16,7 +16,7 @@ layout(local_size_x = TASK_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 
 layout(push_constant) uniform block
 {
-	Globals globals;
+	CullData cullData;
 };
 
 layout(binding = 0) readonly buffer TaskCommands
@@ -76,7 +76,7 @@ void main()
 	bool visible = valid;
 	bool skip = false;
 
-	if (globals.clusterOcclusionEnabled == 1)
+	if (cullData.clusterOcclusionEnabled == 1)
 	{
 		uint meshletVisibilityBit = meshletVisibility[mvi >> 5] & (1u << (mvi & 31));
 
@@ -94,33 +94,31 @@ void main()
 	// backface cone culling
 	visible = visible && !coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0));
 	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
-	visible = visible && center.z * globals.frustum[1] - abs(center.x) * globals.frustum[0] > -radius;
-	visible = visible && center.z * globals.frustum[3] - abs(center.y) * globals.frustum[2] > -radius;
+	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
+	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
 	// the near/far plane culling uses camera space Z directly
 	// note: because we use an infinite projection matrix, this may cull meshlets that belong to a mesh that straddles the "far" plane; we could optionally remove the far check to be conservative
-	visible = visible && center.z + radius > globals.znear && center.z - radius < globals.zfar;
+	visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
 
-	if (LATE && globals.clusterOcclusionEnabled == 1 && visible)
+	if (LATE && cullData.clusterOcclusionEnabled == 1 && visible)
 	{
-		float P00 = globals.projection[0][0], P11 = globals.projection[1][1];
-
 		vec4 aabb;
-		if (projectSphere(center, radius, globals.znear, P00, P11, aabb))
+		if (projectSphere(center, radius, cullData.znear, cullData.P00, cullData.P11, aabb))
 		{
-			float width = (aabb.z - aabb.x) * globals.pyramidWidth;
-			float height = (aabb.w - aabb.y) * globals.pyramidHeight;
+			float width = (aabb.z - aabb.x) * cullData.pyramidWidth;
+			float height = (aabb.w - aabb.y) * cullData.pyramidHeight;
 
 			float level = floor(log2(max(width, height)));
 
 			// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
 			float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
-			float depthSphere = globals.znear / (center.z - radius);
+			float depthSphere = cullData.znear / (center.z - radius);
 
 			visible = visible && depthSphere > depth;
 		}
 	}
 
-	if (LATE && globals.clusterOcclusionEnabled == 1 && valid)
+	if (LATE && cullData.clusterOcclusionEnabled == 1 && valid)
 	{
 		if (visible)
 			atomicOr(meshletVisibility[mvi >> 5], 1u << (mvi & 31));

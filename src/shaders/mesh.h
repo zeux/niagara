@@ -20,18 +20,7 @@ struct Meshlet
 	uint8_t triangleCount;
 };
 
-struct Globals
-{
-	mat4 projection;
-
-	float screenWidth, screenHeight, znear, zfar; // symmetric projection parameters
-	float frustum[4]; // data for left/right/top/bottom frustum planes
-
-	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
-	int clusterOcclusionEnabled;
-};
-
-struct DrawCullData
+struct CullData
 {
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
@@ -44,6 +33,13 @@ struct DrawCullData
 	int lodEnabled;
 	int occlusionEnabled;
 	int clusterOcclusionEnabled;
+};
+
+struct Globals
+{
+	mat4 projection;
+	CullData cullData;
+	float screenWidth, screenHeight;
 };
 
 struct MeshLod

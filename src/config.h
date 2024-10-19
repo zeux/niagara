@@ -17,6 +17,9 @@
 // Maximum number of total task shader workgroups; 4M workgroups ~= 256M meshlets ~= 16B triangles if TASK_WGSIZE=64 and MESH_MAXTRI=64
 #define TASK_WGLIMIT (1 << 22)
 
+// Maximum number of total visible clusters; 4M meshlets ~= 16MB buffer with cluster indices; TODO is this real?
+#define CLUSTER_LIMIT (1 << 22)
+
 // Should we enable vertical sync during presentation? Worth setting to 0 when doing perf profiling to avoid GPU downclock during idle
 #define CONFIG_VSYNC 1
 

@@ -5,8 +5,6 @@
 
 #extension GL_GOOGLE_include_directive: require
 
-#extension GL_EXT_null_initializer: require
-
 #include "mesh.h"
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;

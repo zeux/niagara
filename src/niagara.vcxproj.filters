@@ -200,9 +200,6 @@
     <CustomBuild Include="shaders\tasksubmit.comp.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>
-    <CustomBuild Include="shaders\cluster.mesh.glsl">
-      <Filter>shaders</Filter>
-    </CustomBuild>
     <CustomBuild Include="shaders\clustercull.comp.glsl">
       <Filter>shaders</Filter>
     </CustomBuild>

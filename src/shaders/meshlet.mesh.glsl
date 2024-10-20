@@ -9,6 +9,8 @@
 #include "mesh.h"
 #include "math.h"
 
+layout (constant_id = 1) const bool TASK = false;
+
 #define DEBUG 0
 #define CULL MESH_CULL
 
@@ -18,6 +20,11 @@ layout(triangles, max_vertices = MESH_MAXVTX, max_primitives = MESH_MAXTRI) out;
 layout(push_constant) uniform block
 {
 	Globals globals;
+};
+
+layout(binding = 0) readonly buffer TaskCommands
+{
+	MeshTaskCommand taskCommands[];
 };
 
 layout(binding = 1) readonly buffer Draws
@@ -45,8 +52,14 @@ layout(binding = 4) readonly buffer Vertices
 	Vertex vertices[];
 };
 
+layout(binding = 5) readonly buffer ClusterIndices
+{
+	uint clusterIndices[];
+};
+
 layout(location = 0) out vec4 color[];
 
+// only usable with task shader (TASK=true)
 taskPayloadSharedEXT MeshTaskPayload payload;
 
 uint hash(uint a)
@@ -67,9 +80,14 @@ shared vec3 vertexClip[MESH_MAXVTX];
 void main()
 {
 	uint ti = gl_LocalInvocationIndex;
-	uint mi = payload.meshletIndices[gl_WorkGroupID.x];
 
-	MeshDraw meshDraw = draws[payload.drawId];
+	// we convert 2D index to 1D index using a fixed *256 factor, see clustersubmit.comp.glsl
+	uint ci = TASK ? payload.clusterIndices[gl_WorkGroupID.x] : clusterIndices[gl_WorkGroupID.x * 256 + gl_WorkGroupID.y];
+
+	MeshTaskCommand	command = taskCommands[ci & 0xffffff];
+	uint mi = command.taskOffset + (ci >> 24);
+
+	MeshDraw meshDraw = draws[command.drawId];
 
 	uint vertexCount = uint(meshlets[mi].vertexCount);
 	uint triangleCount = uint(meshlets[mi].triangleCount);

@@ -302,9 +302,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="shaders\cluster.mesh.glsl">
-      <FileType>Document</FileType>
-    </CustomBuild>
     <CustomBuild Include="shaders\clustercull.comp.glsl">
       <FileType>Document</FileType>
     </CustomBuild>

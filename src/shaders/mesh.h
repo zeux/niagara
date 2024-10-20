@@ -97,6 +97,5 @@ struct MeshTaskCommand
 
 struct MeshTaskPayload
 {
-	uint drawId;
-	uint meshletIndices[TASK_WGSIZE];
+	uint clusterIndices[TASK_WGSIZE];
 };

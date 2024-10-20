@@ -51,7 +51,7 @@ shared int sharedCount;
 void main()
 {
 	// we convert 2D index to 1D index using a fixed *64 factor, see tasksubmit.comp.glsl
-	uint commandId = gl_WorkGroupID.x + gl_WorkGroupID.y * 64;
+	uint commandId = gl_WorkGroupID.x * 64 + gl_WorkGroupID.y;
 	MeshTaskCommand command = taskCommands[commandId];
 	uint drawId = command.drawId;
 	MeshDraw meshDraw = draws[drawId];

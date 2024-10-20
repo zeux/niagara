@@ -27,11 +27,11 @@ void main()
 	uint tid = gl_LocalInvocationID.x;
 	uint count = min(clusterCount, CLUSTER_LIMIT);
 
-	// represent cluster count as 256*X*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~16M clusters
+	// represent cluster count as X*256*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~16M clusters
 	if (tid == 0)
 	{
-		groupCountX = 256;
-		groupCountY = min((count + 255) / 256, 65535);
+		groupCountX = min((count + 255) / 256, 65535);
+		groupCountY = 256;
 		groupCountZ = 1;
 	}
 

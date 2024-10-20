@@ -72,6 +72,13 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 		? VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
 		: VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 
+	// TODO: dynamically select present mode based on supported list
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	VkPresentModeKHR presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_MAILBOX_KHR;
+#else
+	VkPresentModeKHR presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR;
+#endif
+
 	VkSwapchainCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
 	createInfo.surface = surface;
 	createInfo.minImageCount = std::max(2u, surfaceCaps.minImageCount);
@@ -85,7 +92,7 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 	createInfo.pQueueFamilyIndices = &familyIndex;
 	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	createInfo.compositeAlpha = surfaceComposite;
-	createInfo.presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR;
+	createInfo.presentMode = presentMode;
 	createInfo.oldSwapchain = oldSwapchain;
 
 	VkSwapchainKHR swapchain = 0;

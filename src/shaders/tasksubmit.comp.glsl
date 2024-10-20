@@ -29,12 +29,12 @@ void main()
 	uint tid = gl_LocalInvocationID.x;
 	uint count = min(commandCount, TASK_WGLIMIT);
 
-	// represent command count as X*64*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~4M commands
+	// represent command count as 64*X*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~4M commands
 	// note that EXT_mesh_shader doesn't guarantee support for >4M commands anyway, but 4M commands ~= 16B triangles which is surely enough
 	if (tid == 0)
 	{
-		groupCountX = min((count + 63) / 64, 65535);
-		groupCountY = 64;
+		groupCountX = 64;
+		groupCountY = min((count + 63) / 64, 65535);
 		groupCountZ = 1;
 	}
 

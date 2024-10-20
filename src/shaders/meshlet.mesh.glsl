@@ -84,6 +84,12 @@ void main()
 	// we convert 2D index to 1D index using a fixed *256 factor, see clustersubmit.comp.glsl
 	uint ci = TASK ? payload.clusterIndices[gl_WorkGroupID.x] : clusterIndices[gl_WorkGroupID.x * 256 + gl_WorkGroupID.y];
 
+	if (ci == ~0)
+	{
+		SetMeshOutputsEXT(0, 0);
+		return;
+	}
+
 	MeshTaskCommand	command = taskCommands[ci & 0xffffff];
 	uint mi = command.taskOffset + (ci >> 24);
 

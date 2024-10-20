@@ -9,7 +9,7 @@
 
 #include "mesh.h"
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 layout(binding = 0) buffer ClusterCount
 {
@@ -27,19 +27,18 @@ layout(binding = 1) writeonly buffer ClusterIndices
 void main()
 {
 	uint tid = gl_LocalInvocationID.x;
-	uint count = clusterCount;
+	uint count = min(clusterCount, CLUSTER_LIMIT);
 
-	// represent cluster count as X*64*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~4M clusters (???)
+	// represent cluster count as X*256*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~16M clusters
 	if (tid == 0)
 	{
-		// TODO: actually use CLUSTER_LIMIT
-		groupCountX = min((count + 63) / 64, 65535);
-		groupCountY = 64;
+		groupCountX = min((count + 255) / 256, 65535);
+		groupCountY = 256;
 		groupCountZ = 1;
 	}
 
 	// the above may result in reading command data that was never written; as such, pad the excess entries with dummy commands (up to 63)
-	uint boundary = (count + 63) & ~63;
+	uint boundary = (count + 255) & ~255;
 
 	if (count + tid < boundary)
 		clusterIndices[count + tid] = ~0;

@@ -27,7 +27,7 @@ layout(binding = 1) writeonly buffer TaskCommands
 void main()
 {
 	uint tid = gl_LocalInvocationID.x;
-	uint count = commandCount;
+	uint count = min(commandCount, TASK_WGLIMIT);
 
 	// represent command count as X*64*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~4M commands
 	// note that EXT_mesh_shader doesn't guarantee support for >4M commands anyway, but 4M commands ~= 16B triangles which is surely enough

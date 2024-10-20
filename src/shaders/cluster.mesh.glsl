@@ -76,8 +76,8 @@ void main()
 {
 	uint ti = gl_LocalInvocationIndex;
 
-	// we convert 2D index to 1D index using a fixed *64 factor, see tasksubmit.comp.glsl
-	uint ci = clusterIndices[gl_WorkGroupID.x * 64 + gl_WorkGroupID.y];
+	// we convert 2D index to 1D index using a fixed *256 factor, see clustersubmit.comp.glsl
+	uint ci = clusterIndices[gl_WorkGroupID.x * 256 + gl_WorkGroupID.y];
 	MeshTaskCommand	command = taskCommands[ci & 0xffffff];
 	uint mi = command.taskOffset + (ci >> 24);
 

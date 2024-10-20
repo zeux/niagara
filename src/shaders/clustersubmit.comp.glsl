@@ -27,12 +27,14 @@ void main()
 	uint tid = gl_LocalInvocationID.x;
 	uint count = min(clusterCount, CLUSTER_LIMIT);
 
-	// represent cluster count as X*256*1; X has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~16M clusters
+	// represent cluster count as 16*Y*16; Y has a max of 65535 (per EXT_mesh_shader limits), so this allows us to reach ~16M clusters
+	// the reason for an odd layout like this is that normally we'd use a 2D 256*Y layout (to maximize locality of access), but that is slower than Y*256 on 7900
+	// however, Y*256 is really slow on integrated RDNA2; 16*Y*16 seems to provide a reasonable balance between the two
 	if (tid == 0)
 	{
-		groupCountX = min((count + 255) / 256, 65535);
-		groupCountY = 256;
-		groupCountZ = 1;
+		groupCountX = 16;
+		groupCountY = min((count + 255) / 256, 65535);
+		groupCountZ = 16;
 	}
 
 	// the above may result in reading command data that was never written; as such, pad the excess entries with dummy commands (up to 63)

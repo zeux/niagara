@@ -81,8 +81,8 @@ void main()
 {
 	uint ti = gl_LocalInvocationIndex;
 
-	// we convert 2D index to 1D index using a fixed *256 factor, see clustersubmit.comp.glsl
-	uint ci = TASK ? payload.clusterIndices[gl_WorkGroupID.x] : clusterIndices[gl_WorkGroupID.x * 256 + gl_WorkGroupID.y];
+	// we convert 3D index to 1D index using a fixed *256 factor, see clustersubmit.comp.glsl
+	uint ci = TASK ? payload.clusterIndices[gl_WorkGroupID.x] : clusterIndices[gl_WorkGroupID.x + gl_WorkGroupID.y * 256 + gl_WorkGroupID.z * 16];
 
 	if (ci == ~0)
 	{

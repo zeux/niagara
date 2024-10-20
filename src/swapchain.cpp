@@ -101,25 +101,15 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 	return swapchain;
 }
 
-static VkExtent2D getExtent(const VkSurfaceCapabilitiesKHR& surfaceCaps, GLFWwindow* window)
-{
-	if (surfaceCaps.currentExtent.width != ~0u)
-		return surfaceCaps.currentExtent;
-
-	int width = 0, height = 0;
-	glfwGetFramebufferSize(window, &width, &height);
-
-	return { uint32_t(width), uint32_t(height) };
-}
-
 void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format, VkSwapchainKHR oldSwapchain)
 {
 	VkSurfaceCapabilitiesKHR surfaceCaps;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
 
-	VkExtent2D extent = getExtent(surfaceCaps, window);
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
 
-	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, extent.width, extent.height, oldSwapchain);
+	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, width, height, oldSwapchain);
 	assert(swapchain);
 
 	uint32_t imageCount = 0;
@@ -130,8 +120,8 @@ void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevic
 
 	result.swapchain = swapchain;
 	result.images = images;
-	result.width = extent.width;
-	result.height = extent.height;
+	result.width = width;
+	result.height = height;
 	result.imageCount = imageCount;
 }
 
@@ -142,15 +132,13 @@ void destroySwapchain(VkDevice device, const Swapchain& swapchain)
 
 SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format)
 {
-	VkSurfaceCapabilitiesKHR surfaceCaps;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
 
-	VkExtent2D extent = getExtent(surfaceCaps, window);
-
-	if (extent.width == 0 || extent.height == 0)
+	if (width == 0 || height == 0)
 		return Swapchain_NotReady;
 
-	if (result.width == extent.width && result.height == extent.height)
+	if (result.width == width && result.height == height)
 		return Swapchain_Ready;
 
 	Swapchain old = result;

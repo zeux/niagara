@@ -47,6 +47,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 19. Optimizing culling: https://youtu.be/1Tj6bZvZMts
 20. Task command submission: https://youtu.be/eYvGruGHhUE
 21. Cluster compute culling: https://youtu.be/zROUBE5pLuI
+22. Loading glTF scenes: https://youtu.be/9OF6k57orXo
 
 # Issues
 

@@ -65,6 +65,7 @@ void main()
 	Mesh mesh = meshes[meshIndex];
 
 	vec3 center = rotateQuat(mesh.center, draws[di].orientation) * draws[di].scale + draws[di].position;
+	center = (cullData.view * vec4(center, 1)).xyz;
 	float radius = mesh.radius * draws[di].scale;
 
 	bool visible = true;

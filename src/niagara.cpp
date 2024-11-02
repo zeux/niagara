@@ -159,6 +159,8 @@ struct Geometry
 
 struct alignas(16) CullData
 {
+	mat4 view;
+
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 	float lodTarget; // lod target error at z=1
@@ -182,6 +184,13 @@ struct alignas(16) Globals
 struct alignas(16) DepthReduceData
 {
 	vec2 imageSize;
+};
+
+struct Camera
+{
+	vec3 position;
+	quat orientation;
+	float fovY;
 };
 
 size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
@@ -442,7 +451,7 @@ void decomposeTransform(float translation[3], float rotation[4], float scale[3],
 	rotation[qc ^ 3] = qs * (r12 + qs3 * r21);
 }
 
-bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, const char* path, bool buildMeshlets)
+bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera, const char* path, bool buildMeshlets)
 {
 	cgltf_options options = {};
 	cgltf_data* data = NULL;
@@ -558,7 +567,26 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, const char* pat
 				draws.push_back(draw);
 			}
 		}
+
+		if (node->camera)
+		{
+			float matrix[16];
+			cgltf_node_transform_world(node, matrix);
+
+			float translation[3];
+			float rotation[4];
+			float scale[3];
+			decomposeTransform(translation, rotation, scale, matrix);
+
+			assert(node->camera->type == cgltf_camera_type_perspective);
+
+			camera.position = vec3(translation[0], translation[1], translation[2]);
+			camera.orientation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
+			camera.fovY = node->camera->data.perspective.yfov;
+		}
 	}
+
+	printf("Loaded %s: %d meshes, %d draws\n", path, int(geometry.meshes.size()), int(draws.size()));
 
 	cgltf_free(data);
 	return true;
@@ -897,6 +925,11 @@ int main(int argc, const char** argv)
 	Geometry geometry;
 	std::vector<MeshDraw> draws;
 
+	Camera camera;
+	camera.position = { 0.0f, 0.0f, 0.0f };
+	camera.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+	camera.fovY = glm::radians(70.f);
+
 	bool sceneMode = false;
 
 	if (argc == 2)
@@ -904,7 +937,7 @@ int main(int argc, const char** argv)
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
-			if (!loadScene(geometry, draws, argv[1], meshShadingSupported))
+			if (!loadScene(geometry, draws, camera, argv[1], meshShadingSupported))
 			{
 				printf("Error: scene %s failed to load\n", argv[1]);
 				return 1;
@@ -1154,8 +1187,13 @@ int main(int argc, const char** argv)
 			mvbCleared = true;
 		}
 
+		mat4 view = glm::mat4_cast(camera.orientation);
+		view[3] = vec4(camera.position, 1.0f);
+		view = inverse(view);
+		view = glm::scale(glm::identity<glm::mat4>(), vec3(1, 1, -1)) * view;
+
 		float znear = 0.5f;
-		mat4 projection = perspectiveProjection(glm::radians(70.f), float(swapchain.width) / float(swapchain.height), znear);
+		mat4 projection = perspectiveProjection(camera.fovY, float(swapchain.width) / float(swapchain.height), znear);
 
 		mat4 projectionT = transpose(projection);
 
@@ -1163,6 +1201,7 @@ int main(int argc, const char** argv)
 		vec4 frustumY = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
 
 		CullData cullData = {};
+		cullData.view = view;
 		cullData.P00 = projection[0][0];
 		cullData.P11 = projection[1][1];
 		cullData.znear = znear;

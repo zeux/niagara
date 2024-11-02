@@ -8,6 +8,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/ext/quaternion_float.hpp>
 #include <glm/ext/quaternion_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 using glm::vec2;
 using glm::vec3;

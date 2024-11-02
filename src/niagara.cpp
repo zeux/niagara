@@ -17,6 +17,7 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #include <fast_obj.h>
+#include <cgltf.h>
 #include <meshoptimizer.h>
 
 bool meshShadingEnabled = true;
@@ -283,25 +284,10 @@ bool loadObj(std::vector<Vertex>& vertices, const char* path)
 	return true;
 }
 
-bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
+void loadMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets)
 {
-	std::vector<Vertex> triangle_vertices;
-	if (!loadObj(triangle_vertices, path))
-		return false;
-
-	size_t index_count = triangle_vertices.size();
-
-	std::vector<uint32_t> remap(index_count);
-	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, triangle_vertices.data(), index_count, sizeof(Vertex));
-
-	std::vector<Vertex> vertices(vertex_count);
-	std::vector<uint32_t> indices(index_count);
-
-	meshopt_remapVertexBuffer(vertices.data(), triangle_vertices.data(), index_count, sizeof(Vertex), remap.data());
-	meshopt_remapIndexBuffer(indices.data(), 0, index_count, remap.data());
-
-	meshopt_optimizeVertexCache(indices.data(), indices.data(), index_count, vertex_count);
-	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), index_count, vertices.data(), vertex_count, sizeof(Vertex));
+	meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertices.size());
+	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
 
 	Mesh mesh = {};
 
@@ -310,8 +296,8 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 
 	result.vertices.insert(result.vertices.end(), vertices.begin(), vertices.end());
 
-	std::vector<vec3> normals(vertex_count);
-	for (size_t i = 0; i < vertex_count; ++i)
+	std::vector<vec3> normals(vertices.size());
+	for (size_t i = 0; i < vertices.size(); ++i)
 	{
 		Vertex& v = vertices[i];
 		normals[i] = vec3(v.nx / 127.f - 1.f, v.ny / 127.f - 1.f, v.nz / 127.f - 1.f);
@@ -364,7 +350,7 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 				break;
 
 			lodIndices.resize(nextIndices);
-			meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertex_count);
+			meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size());
 		}
 	}
 
@@ -373,7 +359,208 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 		result.meshlets.push_back(Meshlet());
 
 	result.meshes.push_back(mesh);
+}
 
+bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
+{
+	std::vector<Vertex> triangle_vertices;
+	if (!loadObj(triangle_vertices, path))
+		return false;
+
+	size_t index_count = triangle_vertices.size();
+
+	std::vector<uint32_t> remap(index_count);
+	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, triangle_vertices.data(), index_count, sizeof(Vertex));
+
+	std::vector<Vertex> vertices(vertex_count);
+	std::vector<uint32_t> indices(index_count);
+
+	meshopt_remapVertexBuffer(vertices.data(), triangle_vertices.data(), index_count, sizeof(Vertex), remap.data());
+	meshopt_remapIndexBuffer(indices.data(), 0, index_count, remap.data());
+
+	loadMesh(result, vertices, indices, buildMeshlets);
+	return true;
+}
+
+// TODO: add to cgltf?
+const cgltf_accessor* findAccessor(const cgltf_primitive* prim,  cgltf_attribute_type type, cgltf_int index = 0)
+{
+	for (size_t i = 0; i < prim->attributes_count; ++i)
+	{
+		const cgltf_attribute& attr = prim->attributes[i];
+		if (attr.type == type && attr.index == index)
+			return attr.data;
+	}
+
+	return NULL;
+}
+
+void decomposeTransform(float translation[3], float rotation[4], float scale[3], const float* transform)
+{
+	float m[4][4] = {};
+	memcpy(m, transform, 16 * sizeof(float));
+
+	// extract translation from last row
+	translation[0] = m[3][0];
+	translation[1] = m[3][1];
+	translation[2] = m[3][2];
+
+	// compute determinant to determine handedness
+	float det =
+	    m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+	    m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+	    m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+	float sign = (det < 0.f) ? -1.f : 1.f;
+
+	// recover scale from axis lengths
+	scale[0] = sqrtf(m[0][0] * m[0][0] + m[0][1] * m[0][1] + m[0][2] * m[0][2]) * sign;
+	scale[1] = sqrtf(m[1][0] * m[1][0] + m[1][1] * m[1][1] + m[1][2] * m[1][2]) * sign;
+	scale[2] = sqrtf(m[2][0] * m[2][0] + m[2][1] * m[2][1] + m[2][2] * m[2][2]) * sign;
+
+	// normalize axes to get a pure rotation matrix
+	float rsx = (scale[0] == 0.f) ? 0.f : 1.f / scale[0];
+	float rsy = (scale[1] == 0.f) ? 0.f : 1.f / scale[1];
+	float rsz = (scale[2] == 0.f) ? 0.f : 1.f / scale[2];
+
+	float r00 = m[0][0] * rsx, r10 = m[1][0] * rsy, r20 = m[2][0] * rsz;
+	float r01 = m[0][1] * rsx, r11 = m[1][1] * rsy, r21 = m[2][1] * rsz;
+	float r02 = m[0][2] * rsx, r12 = m[1][2] * rsy, r22 = m[2][2] * rsz;
+
+	// "branchless" version of Mike Day's matrix to quaternion conversion
+	int qc = r22 < 0 ? (r00 > r11 ? 0 : 1) : (r00 < -r11 ? 2 : 3);
+	float qs1 = qc & 2 ? -1.f : 1.f;
+	float qs2 = qc & 1 ? -1.f : 1.f;
+	float qs3 = (qc - 1) & 2 ? -1.f : 1.f;
+
+	float qt = 1.f - qs3 * r00 - qs2 * r11 - qs1 * r22;
+	float qs = 0.5f / sqrtf(qt);
+
+	rotation[qc ^ 0] = qs * qt;
+	rotation[qc ^ 1] = qs * (r01 + qs1 * r10);
+	rotation[qc ^ 2] = qs * (r20 + qs2 * r02);
+	rotation[qc ^ 3] = qs * (r12 + qs3 * r21);
+}
+
+bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, const char* path, bool buildMeshlets)
+{
+	cgltf_options options = {};
+	cgltf_data* data = NULL;
+	cgltf_result res = cgltf_parse_file(&options, path, &data);
+	if (res != cgltf_result_success)
+		return false;
+
+	res = cgltf_load_buffers(&options, data, path);
+	if (res != cgltf_result_success)
+	{
+		cgltf_free(data);
+		return false;
+	}
+
+	res = cgltf_validate(data);
+	if (res != cgltf_result_success)
+	{
+		cgltf_free(data);
+		return false;
+	}
+
+	std::vector<std::pair<unsigned int, unsigned int>> primitives;
+
+	for (size_t i = 0; i < data->meshes_count; ++i)
+	{
+		const cgltf_mesh& mesh = data->meshes[i];
+
+		primitives.push_back(std::make_pair(unsigned(geometry.meshes.size()), mesh.primitives_count));
+
+		for (size_t pi = 0; pi < mesh.primitives_count; ++pi)
+		{
+			const cgltf_primitive& prim = mesh.primitives[pi];
+			assert(prim.type == cgltf_primitive_type_triangles);
+			assert(prim.indices);
+
+			size_t vertexCount = prim.attributes[0].data->count;
+			std::vector<Vertex> vertices(vertexCount);
+
+			std::vector<float> scratch(vertexCount * 4);
+
+			if (const cgltf_accessor* pos = findAccessor(&prim, cgltf_attribute_type_position))
+			{
+				assert(cgltf_num_components(pos->type) == 3);
+				cgltf_accessor_unpack_floats(pos, scratch.data(), vertexCount * 3);
+
+				for (size_t j = 0; j < vertexCount; ++j)
+				{
+					vertices[j].vx = scratch[j * 3 + 0];
+					vertices[j].vy = scratch[j * 3 + 1];
+					vertices[j].vz = scratch[j * 3 + 2];
+				}
+			}
+
+			if (const cgltf_accessor* nrm = findAccessor(&prim, cgltf_attribute_type_normal))
+			{
+				assert(cgltf_num_components(nrm->type) == 3);
+				cgltf_accessor_unpack_floats(nrm, scratch.data(), vertexCount * 3);
+
+				for (size_t j = 0; j < vertexCount; ++j)
+				{
+					vertices[j].nx = uint8_t(scratch[j * 3 + 0] * 127.f + 127.5f);
+					vertices[j].ny = uint8_t(scratch[j * 3 + 1] * 127.f + 127.5f);
+					vertices[j].nz = uint8_t(scratch[j * 3 + 2] * 127.f + 127.5f);
+				}
+			}
+
+			if (const cgltf_accessor* tex = findAccessor(&prim, cgltf_attribute_type_texcoord))
+			{
+				assert(cgltf_num_components(tex->type) == 2);
+				cgltf_accessor_unpack_floats(tex, scratch.data(), vertexCount * 2);
+
+				for (size_t j = 0; j < vertexCount; ++j)
+				{
+					vertices[j].tu = meshopt_quantizeHalf(scratch[j * 2 + 0]);
+					vertices[j].tv = meshopt_quantizeHalf(scratch[j * 2 + 1]);
+				}
+			}
+
+			std::vector<uint32_t> indices(prim.indices->count);
+			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());
+
+			loadMesh(geometry, vertices, indices, buildMeshlets);
+		}
+	}
+
+	for (size_t i = 0; i < data->nodes_count; ++i)
+	{
+		const cgltf_node* node = &data->nodes[i];
+
+		if (node->mesh)
+		{
+			float matrix[16];
+			cgltf_node_transform_world(node, matrix);
+
+			float translation[3];
+			float rotation[4];
+			float scale[3];
+			decomposeTransform(translation, rotation, scale, matrix);
+
+			// TODO: better warnings for non-uniform or negative scale
+
+			std::pair<unsigned int, unsigned int> range = primitives[cgltf_mesh_index(data, node->mesh)];
+
+			for (unsigned int j = 0; j < range.second; ++j)
+			{
+				MeshDraw draw = {};
+				draw.position = vec3(translation[0], translation[1], translation[2]);
+				draw.scale = std::max(scale[0], std::max(scale[1], scale[2]));
+				draw.orientation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
+				draw.meshIndex = range.first + j;
+				draw.vertexOffset = geometry.meshes[range.first + j].vertexOffset;
+
+				draws.push_back(draw);
+			}
+		}
+	}
+
+	cgltf_free(data);
 	return true;
 }
 
@@ -708,11 +895,32 @@ int main(int argc, const char** argv)
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
 
 	Geometry geometry;
+	std::vector<MeshDraw> draws;
 
-	for (int i = 1; i < argc; ++i)
+	bool sceneMode = false;
+
+	if (argc == 2)
 	{
-		if (!loadMesh(geometry, argv[i], meshShadingSupported))
-			printf("Error: mesh %s failed to load\n", argv[i]);
+		const char* ext = strrchr(argv[1], '.');
+		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
+		{
+			if (!loadScene(geometry, draws, argv[1], meshShadingSupported))
+			{
+				printf("Error: scene %s failed to load\n", argv[1]);
+				return 1;
+			}
+
+			sceneMode = true;
+		}
+	}
+
+	if (!sceneMode)
+	{
+		for (int i = 1; i < argc; ++i)
+		{
+			if (!loadMesh(geometry, argv[i], meshShadingSupported))
+				printf("Error: mesh %s failed to load\n", argv[i]);
+		}
 	}
 
 	if (geometry.meshes.empty())
@@ -720,6 +928,58 @@ int main(int argc, const char** argv)
 		printf("Error: no meshes loaded!\n");
 		return 1;
 	}
+
+	if (draws.empty())
+	{
+		rngstate.state = 0x42;
+
+		uint32_t drawCount = 1000000;
+		draws.resize(drawCount);
+
+		float sceneRadius = 300;
+
+		for (uint32_t i = 0; i < drawCount; ++i)
+		{
+			MeshDraw& draw = draws[i];
+
+			size_t meshIndex = rand32() % geometry.meshes.size();
+			const Mesh& mesh = geometry.meshes[meshIndex];
+
+			draw.position[0] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+			draw.position[1] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+			draw.position[2] = float(rand01()) * sceneRadius * 2 - sceneRadius;
+			draw.scale = float(rand01()) + 1;
+			draw.scale *= 2;
+
+			vec3 axis = normalize(vec3(float(rand01()) * 2 - 1, float(rand01()) * 2 - 1, float(rand01()) * 2 - 1));
+			float angle = glm::radians(float(rand01()) * 90.f);
+
+			draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
+
+			draw.meshIndex = uint32_t(meshIndex);
+			draw.vertexOffset = mesh.vertexOffset;
+		}
+	}
+
+	float drawDistance = 200;
+
+	uint32_t meshletVisibilityCount = 0;
+
+	for (size_t i = 0; i < draws.size(); ++i)
+	{
+		MeshDraw& draw = draws[i];
+		const Mesh& mesh = geometry.meshes[draw.meshIndex];
+
+		draw.meshletVisibilityOffset = meshletVisibilityCount;
+
+		uint32_t meshletCount = 0;
+		for (uint32_t i = 0; i < mesh.lodCount; ++i)
+			meshletCount = std::max(meshletCount, mesh.lods[i].meshletCount);
+
+		meshletVisibilityCount += meshletCount;
+	}
+
+	uint32_t meshletVisibilityBytes = (meshletVisibilityCount + 31) / 32 * sizeof(uint32_t);
 
 	Buffer scratch = {};
 	createBuffer(scratch, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -751,47 +1011,6 @@ int main(int argc, const char** argv)
 		uploadBuffer(device, commandPool, commandBuffer, queue, mlb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
 		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
-
-	rngstate.state = 0x42;
-
-	uint32_t drawCount = 1000000;
-	std::vector<MeshDraw> draws(drawCount);
-
-	float sceneRadius = 300;
-	float drawDistance = 200;
-
-	uint32_t meshletVisibilityCount = 0;
-
-	for (uint32_t i = 0; i < drawCount; ++i)
-	{
-		MeshDraw& draw = draws[i];
-
-		size_t meshIndex = rand32() % geometry.meshes.size();
-		const Mesh& mesh = geometry.meshes[meshIndex];
-
-		draw.position[0] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-		draw.position[1] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-		draw.position[2] = float(rand01()) * sceneRadius * 2 - sceneRadius;
-		draw.scale = float(rand01()) + 1;
-		draw.scale *= 2;
-
-		vec3 axis = normalize(vec3(float(rand01()) * 2 - 1, float(rand01()) * 2 - 1, float(rand01()) * 2 - 1));
-		float angle = glm::radians(float(rand01()) * 90.f);
-
-		draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
-
-		draw.meshIndex = uint32_t(meshIndex);
-		draw.vertexOffset = mesh.vertexOffset;
-		draw.meshletVisibilityOffset = meshletVisibilityCount;
-
-		uint32_t meshletCount = 0;
-		for (uint32_t i = 0; i < mesh.lodCount; ++i)
-			meshletCount = std::max(meshletCount, mesh.lods[i].meshletCount);
-
-		meshletVisibilityCount += meshletCount;
-	}
-
-	uint32_t meshletVisibilityBytes = (meshletVisibilityCount + 31) / 32 * sizeof(uint32_t);
 
 	Buffer db = {};
 	createBuffer(db, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -912,7 +1131,7 @@ int main(int argc, const char** argv)
 		if (!dvbCleared)
 		{
 			// TODO: this is stupidly redundant
-			vkCmdFillBuffer(commandBuffer, dvb.buffer, 0, sizeof(uint32_t) * drawCount, 0);
+			vkCmdFillBuffer(commandBuffer, dvb.buffer, 0, sizeof(uint32_t) * draws.size(), 0);
 
 			VkBufferMemoryBarrier2 fillBarrier = bufferBarrier(dvb.buffer,
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -952,7 +1171,7 @@ int main(int argc, const char** argv)
 		cullData.frustum[1] = frustumX.z;
 		cullData.frustum[2] = frustumY.y;
 		cullData.frustum[3] = frustumY.z;
-		cullData.drawCount = drawCount;
+		cullData.drawCount = draws.size();
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;
@@ -1411,7 +1630,7 @@ int main(int argc, const char** argv)
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
 		double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
-		double drawsPerSec = double(drawCount) / double(frameGpuAvg * 1e-3);
+		double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
 
 		char title[512];
 		snprintf(title, sizeof(title), "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, render: %.2f ms, pyramid: %.2f ms, cull late: %.2f, render late: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, task shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",

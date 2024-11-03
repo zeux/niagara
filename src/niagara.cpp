@@ -11,8 +11,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <vector>
 #include <algorithm>
+#include <memory>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -460,19 +461,15 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 	if (res != cgltf_result_success)
 		return false;
 
+	std::unique_ptr<cgltf_data, void(*)(cgltf_data*)> dataPtr(data, &cgltf_free);
+
 	res = cgltf_load_buffers(&options, data, path);
 	if (res != cgltf_result_success)
-	{
-		cgltf_free(data);
 		return false;
-	}
 
 	res = cgltf_validate(data);
 	if (res != cgltf_result_success)
-	{
-		cgltf_free(data);
 		return false;
-	}
 
 	std::vector<std::pair<unsigned int, unsigned int>> primitives;
 
@@ -589,7 +586,6 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 
 	printf("Loaded %s: %d meshes, %d draws, %d vertices\n", path, int(geometry.meshes.size()), int(draws.size()), int(geometry.vertices.size()));
 
-	cgltf_free(data);
 	return true;
 }
 

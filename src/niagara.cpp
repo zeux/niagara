@@ -1169,7 +1169,7 @@ int main(int argc, const char** argv)
 		cullData.frustum[1] = frustumX.z;
 		cullData.frustum[2] = frustumY.y;
 		cullData.frustum[3] = frustumY.z;
-		cullData.drawCount = draws.size();
+		cullData.drawCount = uint32_t(draws.size());
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;

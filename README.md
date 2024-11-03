@@ -7,7 +7,7 @@ The code will be written on stream.
 
 # Requirements
 
-The renderer was originally written using Visual Studio and targeted Windows desktops with modern Vulkan drivers. Since then the development platform has switched to Linux, but you can still build and run it on Windows.
+The renderer was originally written using Visual Studio and targeted Windows desktops with modern Vulkan drivers. Since then the development platform has switched to Linux, but you can still build and run it on Windows - via CMake.
 
 # Building
 
@@ -15,14 +15,13 @@ To build and run the project, clone this repository using --recursive flag:
 
 	git clone https://github.com/zeux/niagara.git --recursive
 
-Make sure you have Vulkan SDK installed; open the Visual Studio project in niagara/src and build it. Alternatively, you can use CMake to generate build files on Windows or Linux.
+Make sure you have Vulkan SDK installed; open the folder niagara in Visual Studio (as a CMake project) and build it. On Linux, you can use CMake with your build generator of choice.
 
-To run the program, command line should contain arguments with paths to .obj files; you can use kitten.obj from data/ folder for testing.
-On lower-end GPUs you might want to change `drawCount` in `niagara.cpp` to be a value smaller than 1M.
+To run the program, command line should contain arguments with paths to .obj files or a .gltf scene; you can use kitten.obj from data/ folder for testing.
 
 # Stream
 
-The development of this project has streamed on YouTube on weekends in October and November 2018; the project is currently on hold.
+The development of this project is streamed on YouTube, on Saturdays at 11 AM PST with a somewhat irregular schedule.
 
 Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
 

@@ -293,8 +293,16 @@ bool loadObj(std::vector<Vertex>& vertices, const char* path)
 	return true;
 }
 
-void loadMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets)
+void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets)
 {
+	std::vector<uint32_t> remap(indices.size());
+	size_t uniqueVertices = meshopt_generateVertexRemap(remap.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
+
+	meshopt_remapVertexBuffer(vertices.data(), vertices.data(), vertices.size(), sizeof(Vertex), remap.data());
+	meshopt_remapIndexBuffer(indices.data(), indices.data(), indices.size(), remap.data());
+
+	vertices.resize(uniqueVertices);
+
 	meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertices.size());
 	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
 
@@ -372,22 +380,15 @@ void loadMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint3
 
 bool loadMesh(Geometry& result, const char* path, bool buildMeshlets)
 {
-	std::vector<Vertex> triangle_vertices;
-	if (!loadObj(triangle_vertices, path))
+	std::vector<Vertex> vertices;
+	if (!loadObj(vertices, path))
 		return false;
 
-	size_t index_count = triangle_vertices.size();
+	std::vector<uint32_t> indices(vertices.size());
+	for (size_t i = 0; i < indices.size(); ++i)
+		indices[i] = uint32_t(i);
 
-	std::vector<uint32_t> remap(index_count);
-	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, triangle_vertices.data(), index_count, sizeof(Vertex));
-
-	std::vector<Vertex> vertices(vertex_count);
-	std::vector<uint32_t> indices(index_count);
-
-	meshopt_remapVertexBuffer(vertices.data(), triangle_vertices.data(), index_count, sizeof(Vertex), remap.data());
-	meshopt_remapIndexBuffer(indices.data(), 0, index_count, remap.data());
-
-	loadMesh(result, vertices, indices, buildMeshlets);
+	appendMesh(result, vertices, indices, buildMeshlets);
 	return true;
 }
 
@@ -533,7 +534,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 			std::vector<uint32_t> indices(prim.indices->count);
 			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());
 
-			loadMesh(geometry, vertices, indices, buildMeshlets);
+			appendMesh(geometry, vertices, indices, buildMeshlets);
 		}
 	}
 
@@ -586,7 +587,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 		}
 	}
 
-	printf("Loaded %s: %d meshes, %d draws\n", path, int(geometry.meshes.size()), int(draws.size()));
+	printf("Loaded %s: %d meshes, %d draws, %d vertices\n", path, int(geometry.meshes.size()), int(draws.size()), int(geometry.vertices.size()));
 
 	cgltf_free(data);
 	return true;

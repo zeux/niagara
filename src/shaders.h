@@ -32,7 +32,7 @@ using Constants = std::initializer_list<int>;
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, const VkPipelineRenderingCreateInfo& renderingInfo, Shaders shaders, VkPipelineLayout layout, Constants constants = {});
 VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache, const Shader& shader, VkPipelineLayout layout, Constants constants = {});
 
-Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, bool pushDescriptorsSupported);
+Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize);
 void destroyProgram(VkDevice device, const Program& program);
 
 inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)

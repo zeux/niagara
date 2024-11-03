@@ -229,7 +229,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool pushDescriptorsSupported, bool meshShadingSupported, bool profilingSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -241,16 +241,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	std::vector<const char*> extensions =
 	{
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 	};
-
-	if (pushDescriptorsSupported)
-		extensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
 
 	if (meshShadingSupported)
 		extensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
-
-	if (profilingSupported)
-		extensions.push_back(VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;

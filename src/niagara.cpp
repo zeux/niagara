@@ -729,16 +729,10 @@ int main(int argc, const char** argv)
 	std::vector<VkExtensionProperties> extensions(extensionCount);
 	VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice, 0, &extensionCount, extensions.data()));
 
-	bool pushDescriptorsSupported = false;
 	bool meshShadingSupported = false;
-	bool profilingSupported = false;
 
 	for (auto& ext : extensions)
-	{
-		pushDescriptorsSupported = pushDescriptorsSupported || strcmp(ext.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0;
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
-		profilingSupported = profilingSupported || strcmp(ext.extensionName, VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME) == 0;
-	}
 
 	meshShadingEnabled = meshShadingSupported;
 
@@ -749,7 +743,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, pushDescriptorsSupported, meshShadingSupported, profilingSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -833,33 +827,33 @@ int main(int argc, const char** argv)
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, sizeof(CullData), pushDescriptorsSupported);
+	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, sizeof(CullData));
 	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ false });
 	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ false });
 	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ true });
 	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ true });
 
-	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &tasksubmitCS }, 0, pushDescriptorsSupported);
+	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &tasksubmitCS }, 0);
 	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, tasksubmitCS, tasksubmitProgram.layout);
 
-	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustersubmitCS }, 0, pushDescriptorsSupported);
+	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustersubmitCS }, 0);
 	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, clustersubmitCS, clustersubmitProgram.layout);
 
-	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustercullCS }, sizeof(CullData), pushDescriptorsSupported);
+	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustercullCS }, sizeof(CullData));
 	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ false });
 	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ true });
 
-	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData), pushDescriptorsSupported);
+	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData));
 	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
 
-	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals), pushDescriptorsSupported);
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals));
 
 	Program meshtaskProgram = {};
 	Program clusterProgram = {};
 	if (meshShadingSupported)
 	{
-		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(Globals), pushDescriptorsSupported);
-		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals), pushDescriptorsSupported);
+		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(Globals));
+		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals));
 	}
 
 	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshVS, &meshFS }, meshProgram.layout);
@@ -895,30 +889,6 @@ int main(int argc, const char** argv)
 
 	VkCommandBuffer commandBuffer = 0;
 	VK_CHECK(vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer));
-
-	VkDescriptorPool descriptorPool = 0;
-	if (!pushDescriptorsSupported)
-	{
-		uint32_t descriptorCount = 128;
-
-		VkDescriptorPoolSize poolSizes[] =
-		{
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, descriptorCount },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount },
-			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorCount },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorCount },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorCount },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorCount },
-		};
-
-		VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-
-		poolInfo.maxSets = descriptorCount;
-		poolInfo.poolSizeCount = COUNTOF(poolSizes);
-		poolInfo.pPoolSizes = poolSizes;
-
-		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, 0, &descriptorPool));
-	}
 
 	VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
@@ -1078,13 +1048,6 @@ int main(int argc, const char** argv)
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
 
-	if (profilingSupported)
-	{
-		VkAcquireProfilingLockInfoKHR lockInfo = { VK_STRUCTURE_TYPE_ACQUIRE_PROFILING_LOCK_INFO_KHR };
-		VkResult res = vkAcquireProfilingLockKHR(device, &lockInfo);
-		printf("Acquire profiling lock: %d\n", res);
-	}
-
 	Image colorTarget = {};
 	Image depthTarget = {};
 
@@ -1150,9 +1113,6 @@ int main(int argc, const char** argv)
 		VK_CHECK_SWAPCHAIN(acquireResult);
 
 		VK_CHECK(vkResetCommandPool(device, commandPool, 0));
-
-		if (descriptorPool)
-			VK_CHECK(vkResetDescriptorPool(device, descriptorPool, 0));
 
 		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1240,29 +1200,6 @@ int main(int argc, const char** argv)
 			vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 		};
 
-		auto pushDescriptors = [&](const Program& program, const DescriptorInfo* descriptors)
-		{
-			if (pushDescriptorsSupported)
-			{
-				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, program.updateTemplate, program.layout, 0, descriptors);
-			}
-			else
-			{
-				VkDescriptorSetAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-
-				allocateInfo.descriptorPool = descriptorPool;
-				allocateInfo.descriptorSetCount = 1;
-				allocateInfo.pSetLayouts = &program.setLayout;
-
-				VkDescriptorSet set = 0;
-				VK_CHECK(vkAllocateDescriptorSets(device, &allocateInfo, &set));
-
-				vkUpdateDescriptorSetWithTemplate(device, set, program.updateTemplate, descriptors);
-
-				vkCmdBindDescriptorSets(commandBuffer, program.bindPoint, program.layout, 0, 1, &set, 0, 0);
-			}
-		};
-
 		auto cull = [&](VkPipeline pipeline, uint32_t timestamp, const char* phase, bool late)
 		{
 			uint32_t rasterizationStage =
@@ -1303,8 +1240,7 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
 				DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
-				pushDescriptors(drawcullProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
 				vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
 				vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
@@ -1321,8 +1257,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, tasksubmitPipeline);
 
 				DescriptorInfo descriptors[] = { dccb.buffer, dcb.buffer };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, tasksubmitProgram.updateTemplate, tasksubmitProgram.layout, 0, descriptors);
-				pushDescriptors(tasksubmitProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, tasksubmitProgram.updateTemplate, tasksubmitProgram.layout, 0, descriptors);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
 			}
@@ -1372,8 +1307,7 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mvb.buffer, pyramidDesc, cib.buffer, ccb.buffer };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramMS.updateTemplate, meshProgramMS.layout, 0, descriptors);
-				pushDescriptors(clustercullProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clustercullProgram.updateTemplate, clustercullProgram.layout, 0, descriptors);
 
 				vkCmdPushConstants(commandBuffer, clustercullProgram.layout, clustercullProgram.pushConstantStages, 0, sizeof(cullData), &cullData);
 				vkCmdDispatchIndirect(commandBuffer, dccb.buffer, 4);
@@ -1387,8 +1321,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clustersubmitPipeline);
 
 				DescriptorInfo descriptors2[] = { ccb.buffer, cib.buffer };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, tasksubmitProgram.updateTemplate, tasksubmitProgram.layout, 0, descriptors);
-				pushDescriptors(clustersubmitProgram, descriptors2);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clustersubmitProgram.updateTemplate, clustersubmitProgram.layout, 0, descriptors2);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
 
@@ -1440,8 +1373,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgramMS.updateTemplate, clusterProgramMS.layout, 0, descriptors);
-				pushDescriptors(clusterProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
 
 				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
@@ -1452,8 +1384,7 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgramMS.updateTemplate, meshProgramMS.layout, 0, descriptors);
-				pushDescriptors(meshtaskProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshtaskProgram.updateTemplate, meshtaskProgram.layout, 0, descriptors);
 
 				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
@@ -1463,8 +1394,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
-				pushDescriptors(meshProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
 
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -1505,8 +1435,7 @@ int main(int argc, const char** argv)
 					: DescriptorInfo(depthSampler, depthPyramidMips[i - 1], VK_IMAGE_LAYOUT_GENERAL);
 
 				DescriptorInfo descriptors[] = { { depthPyramidMips[i], VK_IMAGE_LAYOUT_GENERAL }, sourceDepth };
-				// vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, depthreduceProgram.updateTemplate, depthreduceProgram.layout, 0, descriptors);
-				pushDescriptors(depthreduceProgram, descriptors);
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, depthreduceProgram.updateTemplate, depthreduceProgram.layout, 0, descriptors);
 
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);
@@ -1721,9 +1650,6 @@ int main(int argc, const char** argv)
 	destroyBuffer(scratch, device);
 
 	vkDestroyCommandPool(device, commandPool, 0);
-
-	if (descriptorPool)
-		vkDestroyDescriptorPool(device, descriptorPool, 0);
 
 	vkDestroyQueryPool(device, queryPoolTimestamp, 0);
 	vkDestroyQueryPool(device, queryPoolPipeline, 0);

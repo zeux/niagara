@@ -268,7 +268,7 @@ static uint32_t gatherResources(Shaders shaders, VkDescriptorType(&resourceTypes
 	return resourceMask;
 }
 
-static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders, bool pushDescriptorsSupported)
+static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 {
 	std::vector<VkDescriptorSetLayoutBinding> setBindings;
 
@@ -292,7 +292,7 @@ static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders, b
 		}
 
 	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	setCreateInfo.flags = pushDescriptorsSupported ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR : 0;
+	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
 	setCreateInfo.bindingCount = uint32_t(setBindings.size());
 	setCreateInfo.pBindings = setBindings.data();
 
@@ -325,7 +325,7 @@ static VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLay
 	return layout;
 }
 
-static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, VkDescriptorSetLayout setLayout, Shaders shaders, bool pushDescriptorsSupported)
+static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, Shaders shaders)
 {
 	std::vector<VkDescriptorUpdateTemplateEntry> entries;
 
@@ -351,8 +351,7 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 	createInfo.descriptorUpdateEntryCount = uint32_t(entries.size());
 	createInfo.pDescriptorUpdateEntries = entries.data();
 
-	createInfo.templateType = pushDescriptorsSupported ? VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR : VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET;
-	createInfo.descriptorSetLayout = pushDescriptorsSupported ? 0 : setLayout;
+	createInfo.templateType = VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR;
 	createInfo.pipelineBindPoint = bindPoint;
 	createInfo.pipelineLayout = layout;
 
@@ -509,7 +508,7 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 	return pipeline;
 }
 
-Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, bool pushDescriptorsSupported)
+Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize)
 {
 	VkShaderStageFlags pushConstantStages = 0;
 	for (const Shader* shader : shaders)
@@ -520,13 +519,13 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 
 	program.bindPoint = bindPoint;
 
-	program.setLayout = createSetLayout(device, shaders, pushDescriptorsSupported);
+	program.setLayout = createSetLayout(device, shaders);
 	assert(program.setLayout);
 
 	program.layout = createPipelineLayout(device, program.setLayout, pushConstantStages, pushConstantSize);
 	assert(program.layout);
 
-	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, program.setLayout, shaders, pushDescriptorsSupported);
+	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders);
 	assert(program.updateTemplate);
 
 	program.pushConstantStages = pushConstantStages;

@@ -477,13 +477,13 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 	{
 		const cgltf_mesh& mesh = data->meshes[i];
 
-		primitives.push_back(std::make_pair(unsigned(geometry.meshes.size()), mesh.primitives_count));
+		size_t meshOffset = geometry.meshes.size();
 
 		for (size_t pi = 0; pi < mesh.primitives_count; ++pi)
 		{
 			const cgltf_primitive& prim = mesh.primitives[pi];
-			assert(prim.type == cgltf_primitive_type_triangles);
-			assert(prim.indices);
+			if (prim.type != cgltf_primitive_type_triangles || !prim.indices)
+				continue;
 
 			size_t vertexCount = prim.attributes[0].data->count;
 			std::vector<Vertex> vertices(vertexCount);
@@ -533,6 +533,8 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 
 			appendMesh(geometry, vertices, indices, buildMeshlets);
 		}
+
+		primitives.push_back(std::make_pair(unsigned(meshOffset), unsigned(geometry.meshes.size() - meshOffset)));
 	}
 
 	for (size_t i = 0; i < data->nodes_count; ++i)

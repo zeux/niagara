@@ -366,15 +366,25 @@ void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uin
 
 		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{
+			// note: we're using the same value for all LODs; if this changes, we need to remove/change 95% exit criteria below
+			const float maxError = 1e-1f;
+			const unsigned int options = 0;
+
 			size_t nextIndicesTarget = (size_t(double(lodIndices.size()) * 0.65) / 3) * 3;
-			size_t nextIndices = meshopt_simplifyWithAttributes(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), &normals[0].x, sizeof(vec3), normalWeights, 3, NULL, nextIndicesTarget, 1e-1f, 0, &lodError);
+			float nextError = 0.f;
+			size_t nextIndices = meshopt_simplifyWithAttributes(lodIndices.data(), lodIndices.data(), lodIndices.size(), &vertices[0].vx, vertices.size(), sizeof(Vertex), &normals[0].x, sizeof(vec3), normalWeights, 3, NULL, nextIndicesTarget, maxError, options, &nextError);
 			assert(nextIndices <= lodIndices.size());
 
 			// we've reached the error bound
 			if (nextIndices == lodIndices.size() || nextIndices == 0)
 				break;
 
+			// while we could keep this LOD, it's too close to the last one (and it can't go below that due to constant error bound above)
+			if (nextIndices >= size_t(double(lodIndices.size()) * 0.95))
+				break;
+
 			lodIndices.resize(nextIndices);
+			lodError = std::max(lodError, nextError); // important! since we start from last LOD, we need to accumulate the error
 
 			if (fast)
 				meshopt_optimizeVertexCacheFifo(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size(), 16);

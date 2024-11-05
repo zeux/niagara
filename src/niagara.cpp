@@ -415,19 +415,6 @@ bool loadMesh(Geometry& result, const char* path, bool buildMeshlets, bool fast 
 	return true;
 }
 
-// TODO: add to cgltf?
-const cgltf_accessor* findAccessor(const cgltf_primitive* prim,  cgltf_attribute_type type, cgltf_int index = 0)
-{
-	for (size_t i = 0; i < prim->attributes_count; ++i)
-	{
-		const cgltf_attribute& attr = prim->attributes[i];
-		if (attr.type == type && attr.index == index)
-			return attr.data;
-	}
-
-	return NULL;
-}
-
 void decomposeTransform(float translation[3], float rotation[4], float scale[3], const float* transform)
 {
 	float m[4][4] = {};
@@ -512,7 +499,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 
 			std::vector<float> scratch(vertexCount * 4);
 
-			if (const cgltf_accessor* pos = findAccessor(&prim, cgltf_attribute_type_position))
+			if (const cgltf_accessor* pos = cgltf_find_accessor(&prim, cgltf_attribute_type_position, 0))
 			{
 				assert(cgltf_num_components(pos->type) == 3);
 				cgltf_accessor_unpack_floats(pos, scratch.data(), vertexCount * 3);
@@ -525,7 +512,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 				}
 			}
 
-			if (const cgltf_accessor* nrm = findAccessor(&prim, cgltf_attribute_type_normal))
+			if (const cgltf_accessor* nrm = cgltf_find_accessor(&prim, cgltf_attribute_type_normal, 0))
 			{
 				assert(cgltf_num_components(nrm->type) == 3);
 				cgltf_accessor_unpack_floats(nrm, scratch.data(), vertexCount * 3);
@@ -538,7 +525,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 				}
 			}
 
-			if (const cgltf_accessor* tex = findAccessor(&prim, cgltf_attribute_type_texcoord))
+			if (const cgltf_accessor* tex = cgltf_find_accessor(&prim, cgltf_attribute_type_texcoord, 0))
 			{
 				assert(cgltf_num_components(tex->type) == 2);
 				cgltf_accessor_unpack_floats(tex, scratch.data(), vertexCount * 2);

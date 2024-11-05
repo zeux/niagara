@@ -30,6 +30,7 @@ bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
+int debugLodStep = 0;
 
 #define SHADER_PATH "src/shaders/"
 
@@ -661,6 +662,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugPyramidLevel = key - GLFW_KEY_0;
 		}
+		else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+		{
+			debugLodStep = key - GLFW_KEY_0;
+		}
 	}
 }
 
@@ -1208,7 +1213,7 @@ int main(int argc, const char** argv)
 		cullData.cullingEnabled = cullingEnabled;
 		cullData.lodEnabled = lodEnabled;
 		cullData.occlusionEnabled = occlusionEnabled;
-		cullData.lodTarget = (2 / cullData.P11) * (1.f / float(swapchain.height)); // 1px
+		cullData.lodTarget = (2 / cullData.P11) * (1.f / float(swapchain.height)) * (1 << debugLodStep); // 1px
 		cullData.pyramidWidth = float(depthPyramidWidth);
 		cullData.pyramidHeight = float(depthPyramidHeight);
 		cullData.clusterOcclusionEnabled = occlusionEnabled && clusterOcclusionEnabled && meshShadingSupported && meshShadingEnabled;

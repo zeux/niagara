@@ -464,6 +464,8 @@ void decomposeTransform(float translation[3], float rotation[4], float scale[3],
 
 bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera, const char* path, bool buildMeshlets, bool fast = false)
 {
+	double timer = glfwGetTime();
+
 	cgltf_options options = {};
 	cgltf_data* data = NULL;
 	cgltf_result res = cgltf_parse_file(&options, path, &data);
@@ -595,7 +597,9 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, Camera& camera,
 		}
 	}
 
-	printf("Loaded %s: %d meshes, %d draws, %d vertices\n", path, int(geometry.meshes.size()), int(draws.size()), int(geometry.vertices.size()));
+	printf("Loaded %s: %d meshes, %d draws, %d vertices in %.2f sec\n",
+		path, int(geometry.meshes.size()), int(draws.size()), int(geometry.vertices.size()),
+		glfwGetTime() - timer);
 
 	if (buildMeshlets)
 	{

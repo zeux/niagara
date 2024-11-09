@@ -197,9 +197,9 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 	for (auto& id : ids)
 	{
-		if (id.opcode == SpvOpVariable && (id.storageClass == SpvStorageClassUniform || id.storageClass == SpvStorageClassUniformConstant || id.storageClass == SpvStorageClassStorageBuffer))
+		// set 0 is reserved for push descriptors
+		if (id.opcode == SpvOpVariable && (id.storageClass == SpvStorageClassUniform || id.storageClass == SpvStorageClassUniformConstant || id.storageClass == SpvStorageClassStorageBuffer) && id.set == 0)
 		{
-			assert(id.set == 0);
 			assert(id.binding < 32);
 			assert(ids[id.typeId].opcode == SpvOpTypePointer);
 
@@ -210,6 +210,11 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 			shader.resourceTypes[id.binding] = resourceType;
 			shader.resourceMask |= 1 << id.binding;
+		}
+
+		if (id.opcode == SpvOpVariable && id.storageClass == SpvStorageClassUniformConstant && id.set == 1)
+		{
+			shader.usesDescriptorArray = true;
 		}
 
 		if (id.opcode == SpvOpVariable && id.storageClass == SpvStorageClassPushConstant)
@@ -302,11 +307,45 @@ static VkDescriptorSetLayout createSetLayout(VkDevice device, Shaders shaders)
 	return setLayout;
 }
 
-static VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout setLayout, VkShaderStageFlags pushConstantStages, size_t pushConstantSize)
+static VkDescriptorSetLayout createSetArrayLayout(VkDevice device, Shaders shaders)
 {
+	VkDescriptorSetLayoutBinding binding = {};
+	binding.binding = 0;
+	binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding.descriptorCount = 65536;
+	binding.stageFlags = 0;
+
+	for (const Shader* shader : shaders)
+		if (shader->usesDescriptorArray)
+			binding.stageFlags |= shader->stage;
+
+	if (binding.stageFlags == 0)
+		return nullptr;
+
+	// TODO: what the heck is up with VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
+	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+	setBindingFlags.bindingCount = 1;
+	setBindingFlags.pBindingFlags = &bindingFlags;
+
+	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	setCreateInfo.pNext = &setBindingFlags;
+	setCreateInfo.bindingCount = 1;
+	setCreateInfo.pBindings = &binding;
+
+	VkDescriptorSetLayout setLayout = 0;
+	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
+
+	return setLayout;
+}
+
+static VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout setLayout, VkDescriptorSetLayout arrayLayout, VkShaderStageFlags pushConstantStages, size_t pushConstantSize)
+{
+	VkDescriptorSetLayout layouts[2] = { setLayout, arrayLayout };
+
 	VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-	createInfo.setLayoutCount = 1;
-	createInfo.pSetLayouts = &setLayout;
+	createInfo.setLayoutCount = arrayLayout ? 2 : 1;
+	createInfo.pSetLayouts = layouts;
 
 	VkPushConstantRange pushConstantRange = {};
 
@@ -522,8 +561,13 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 	program.setLayout = createSetLayout(device, shaders);
 	assert(program.setLayout);
 
-	program.layout = createPipelineLayout(device, program.setLayout, pushConstantStages, pushConstantSize);
+	VkDescriptorSetLayout arrayLayout = createSetArrayLayout(device, shaders);
+
+	program.layout = createPipelineLayout(device, program.setLayout, arrayLayout, pushConstantStages, pushConstantSize);
 	assert(program.layout);
+
+	if (arrayLayout)
+		vkDestroyDescriptorSetLayout(device, arrayLayout, 0);
 
 	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders);
 	assert(program.updateTemplate);

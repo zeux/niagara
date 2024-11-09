@@ -31,6 +31,7 @@ layout(binding = 2) readonly buffer Vertices
 };
 
 layout(location = 0) out vec4 color;
+layout(location = 1) out vec2 uv;
 
 void main()
 {
@@ -42,6 +43,7 @@ void main()
 	vec2 texcoord = vec2(vertices[gl_VertexIndex].tu, vertices[gl_VertexIndex].tv);
 
 	normal = rotateQuat(normal, meshDraw.orientation);
+	uv = texcoord;
 
 	gl_Position = globals.projection * (globals.cullData.view * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1));
 

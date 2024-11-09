@@ -830,6 +830,9 @@ int main(int argc, const char** argv)
 	VkQueue queue = 0;
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
 
+	VkSampler textureSampler = createSampler(device, VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT);
+	assert(textureSampler);
+
 	VkSampler depthSampler = createSampler(device, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
 
@@ -994,6 +997,59 @@ int main(int argc, const char** argv)
 	}
 
 	printf("Loaded %d textures in %.2f sec\n", int(images.size()), glfwGetTime() - imageTimer);
+
+	const uint32_t kDescriptorCount = 65536;
+	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kDescriptorCount };
+	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+	poolInfo.maxSets = kDescriptorCount;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+
+	VkDescriptorPool textureSetPool = nullptr;
+	VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, 0, &textureSetPool));
+
+	VkDescriptorSetLayoutBinding setBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kDescriptorCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+	setBindingFlags.bindingCount = 1;
+	setBindingFlags.pBindingFlags = &bindingFlags;
+
+	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	setCreateInfo.pNext = &setBindingFlags;
+	setCreateInfo.bindingCount = 1;
+	setCreateInfo.pBindings = &setBinding;
+
+	VkDescriptorSetLayout setLayout = 0;
+	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
+
+	VkDescriptorSetAllocateInfo setAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+	setAllocateInfo.descriptorPool = textureSetPool;
+	setAllocateInfo.descriptorSetCount = 1;
+	setAllocateInfo.pSetLayouts = &setLayout;
+
+	VkDescriptorSet textureSet = 0;
+	VK_CHECK(vkAllocateDescriptorSets(device, &setAllocateInfo, &textureSet));
+
+	for (size_t i = 0; i < texturePaths.size(); ++i)
+	{
+		VkDescriptorImageInfo imageInfo = {};
+		imageInfo.sampler = textureSampler;
+		imageInfo.imageView = images[i].imageView;
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkWriteDescriptorSet write = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+		write.dstSet = textureSet;
+		write.dstBinding = 0;
+		write.dstArrayElement = i;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.pImageInfo = &imageInfo;
+
+		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+	}
+
+	vkDestroyDescriptorSetLayout(device, setLayout, 0);
 
 	if (!sceneMode)
 	{
@@ -1452,6 +1508,8 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
 
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet, 0, nullptr);
+
 				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
 			}
@@ -1463,6 +1521,8 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshtaskProgram.updateTemplate, meshtaskProgram.layout, 0, descriptors);
 
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet, 0, nullptr);
+
 				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
 			}
@@ -1472,6 +1532,8 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
+
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet, 0, nullptr);
 
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -1693,6 +1755,8 @@ int main(int argc, const char** argv)
 
 	VK_CHECK(vkDeviceWaitIdle(device));
 
+	vkDestroyDescriptorPool(device, textureSetPool, 0);
+
 	for (Image& image: images)
 		destroyImage(image, device);
 
@@ -1783,6 +1847,7 @@ int main(int argc, const char** argv)
 		vkDestroyShaderModule(device, meshletMS.module, 0);
 	}
 
+	vkDestroySampler(device, textureSampler, 0);
 	vkDestroySampler(device, depthSampler, 0);
 
 	vkDestroyFence(device, frameFence, 0);

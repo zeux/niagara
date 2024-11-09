@@ -312,7 +312,7 @@ static VkDescriptorSetLayout createSetArrayLayout(VkDevice device, Shaders shade
 	VkDescriptorSetLayoutBinding binding = {};
 	binding.binding = 0;
 	binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding.descriptorCount = 65536;
+	binding.descriptorCount = 1024 * 1024;
 	binding.stageFlags = 0;
 
 	for (const Shader* shader : shaders)
@@ -322,8 +322,7 @@ static VkDescriptorSetLayout createSetArrayLayout(VkDevice device, Shaders shade
 	if (binding.stageFlags == 0)
 		return nullptr;
 
-	// TODO: what the heck is up with VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
-	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
 	setBindingFlags.bindingCount = 1;
 	setBindingFlags.pBindingFlags = &bindingFlags;

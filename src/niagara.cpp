@@ -1032,10 +1032,12 @@ int main(int argc, const char** argv)
 
 	printf("Loaded %d textures in %.2f sec\n", int(images.size()), glfwGetTime() - imageTimer);
 
-	const uint32_t kDescriptorCount = 65536;
-	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kDescriptorCount };
+	const uint32_t kDescriptorCount = 1024*1024;
+	const uint32_t kActiveDescriptorCount = texturePaths.size() + 1;
+
+	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kActiveDescriptorCount };
 	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-	poolInfo.maxSets = kDescriptorCount;
+	poolInfo.maxSets = 1;
 	poolInfo.poolSizeCount = 1;
 	poolInfo.pPoolSizes = &poolSize;
 
@@ -1044,7 +1046,7 @@ int main(int argc, const char** argv)
 
 	VkDescriptorSetLayoutBinding setBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kDescriptorCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |  VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
 	setBindingFlags.bindingCount = 1;
 	setBindingFlags.pBindingFlags = &bindingFlags;
@@ -1057,7 +1059,14 @@ int main(int argc, const char** argv)
 	VkDescriptorSetLayout setLayout = 0;
 	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
 
+	uint32_t descriptorCount = kActiveDescriptorCount;
+
+	VkDescriptorSetVariableDescriptorCountAllocateInfo setAllocateCountInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
+	setAllocateCountInfo.descriptorSetCount = 1;
+	setAllocateCountInfo.pDescriptorCounts = &descriptorCount;
+
 	VkDescriptorSetAllocateInfo setAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+	setAllocateInfo.pNext = &setAllocateCountInfo;
 	setAllocateInfo.descriptorPool = textureSetPool;
 	setAllocateInfo.descriptorSetCount = 1;
 	setAllocateInfo.pSetLayouts = &setLayout;

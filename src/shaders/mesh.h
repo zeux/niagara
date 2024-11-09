@@ -4,6 +4,7 @@ struct Vertex
 {
 	float vx, vy, vz;
 	uint8_t nx, ny, nz, nw;
+	uint8_t tx, ty, tz, tw;
 	float16_t tu, tv;
 };
 
@@ -74,6 +75,9 @@ struct MeshDraw
 	uint meshIndex;
 	uint vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
 	uint meshletVisibilityOffset;
+
+	int albedoTexture;
+	int normalTexture;
 };
 
 struct MeshDrawCommand

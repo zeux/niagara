@@ -31,4 +31,4 @@ void destroyImage(const Image& image, VkDevice device);
 
 uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 
-VkSampler createSampler(VkDevice device, VkSamplerReductionModeEXT reductionMode);
+VkSampler createSampler(VkDevice device, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT);

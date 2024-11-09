@@ -229,16 +229,16 @@ uint32_t getImageMipLevels(uint32_t width, uint32_t height)
 	return result;
 }
 
-VkSampler createSampler(VkDevice device, VkSamplerReductionModeEXT reductionMode)
+VkSampler createSampler(VkDevice device, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode)
 {
 	VkSamplerCreateInfo createInfo = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
 
 	createInfo.magFilter = VK_FILTER_LINEAR;
 	createInfo.minFilter = VK_FILTER_LINEAR;
-	createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	createInfo.mipmapMode = mipmapMode;
+	createInfo.addressModeU = addressMode;
+	createInfo.addressModeV = addressMode;
+	createInfo.addressModeW = addressMode;
 	createInfo.minLod = 0;
 	createInfo.maxLod = 16.f;
 

@@ -24,6 +24,8 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 void uploadBuffer(VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const Buffer& buffer, const Buffer& scratch, const void* data, size_t size);
 void destroyBuffer(const Buffer& buffer, VkDevice device);
 
+VkDeviceAddress getBufferAddress(const Buffer& buffer, VkDevice device);
+
 VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount);
 
 void createImage(Image& result, VkDevice device, const VkPhysicalDeviceMemoryProperties& memoryProperties, uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageUsageFlags usage);

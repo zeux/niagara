@@ -229,7 +229,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -246,6 +246,13 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	if (meshShadingSupported)
 		extensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+
+	if (raytracingSupported)
+	{
+		extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+		extensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+		extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+	}
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;
@@ -267,6 +274,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features12.samplerFilterMinmax = true;
 	features12.scalarBlockLayout = true;
 
+	if (raytracingSupported)
+		features12.bufferDeviceAddress = true;
+
 	features12.descriptorIndexing = true;
 	features12.shaderSampledImageArrayNonUniformIndexing = true;
 	features12.descriptorBindingSampledImageUpdateAfterBind = true;
@@ -285,6 +295,14 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	featuresMesh.taskShader = true;
 	featuresMesh.meshShader = true;
 
+	// This will only be used if raytracingSupported=true (see below)
+	VkPhysicalDeviceRayQueryFeaturesKHR featuresRayQueries = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
+	featuresRayQueries.rayQuery = true;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresRayTracing = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	featuresRayTracing.accelerationStructure = true;
+	featuresRayTracing.pNext = &featuresRayQueries;
+
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
 	createInfo.pQueueCreateInfos = &queueInfo;
@@ -299,6 +317,14 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	if (meshShadingSupported)
 		features13.pNext = &featuresMesh;
+
+	if (raytracingSupported)
+	{
+		if (meshShadingSupported)
+			featuresMesh.pNext = &featuresRayTracing;
+		else
+			features13.pNext = &featuresRayTracing;
+	}
 
 	VkDevice device = 0;
 	VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));

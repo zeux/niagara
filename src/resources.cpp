@@ -141,7 +141,7 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 	vkFreeMemory(device, buffer.memory, 0);
 }
 
-uint64_t getBufferAddress(const Buffer& buffer, VkDevice device)
+VkDeviceAddress getBufferAddress(const Buffer& buffer, VkDevice device)
 {
 	VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
 	info.buffer = buffer.buffer;

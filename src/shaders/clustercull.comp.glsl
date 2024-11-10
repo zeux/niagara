@@ -80,7 +80,7 @@ void main()
 	bool visible = valid;
 	bool skip = false;
 
-	if (cullData.clusterOcclusionEnabled == 1)
+	if (cullData.clusterOcclusionEnabled == 1 && cullData.postPass == 0)
 	{
 		uint meshletVisibilityBit = meshletVisibility[mvi >> 5] & (1u << (mvi & 31));
 

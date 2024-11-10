@@ -57,16 +57,21 @@ void main()
 	if (di >= cullData.drawCount)
 		return;
 
+	MeshDraw drawData = draws[di];
+
+	if (drawData.postPass != cullData.postPass)
+		return;
+
 	// TODO: when occlusion culling is off, can we make sure everything is processed with LATE=false?
 	if (!LATE && drawVisibility[di] == 0)
 		return;
 
-	uint meshIndex = draws[di].meshIndex;
+	uint meshIndex = drawData.meshIndex;
 	Mesh mesh = meshes[meshIndex];
 
-	vec3 center = rotateQuat(mesh.center, draws[di].orientation) * draws[di].scale + draws[di].position;
+	vec3 center = rotateQuat(mesh.center, drawData.orientation) * drawData.scale + drawData.position;
 	center = (cullData.view * vec4(center, 1)).xyz;
-	float radius = mesh.radius * draws[di].scale;
+	float radius = mesh.radius * drawData.scale;
 
 	bool visible = true;
 	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
@@ -101,14 +106,14 @@ void main()
 	// when meshlet occlusion culling is enabled, we actually *do* need to append the draw command if vis[]==1 in LATE pass,
 	// so that we can correctly render now-visible previously-invisible meshlets. we also pass drawvis[] along to task shader
 	// so that it can *reject* clusters that we *did* draw in the first pass
-	if (visible && (!LATE || (cullData.clusterOcclusionEnabled == 1 && TASK_CULL == 1) || drawVisibility[di] == 0))
+	if (visible && (!LATE || (cullData.clusterOcclusionEnabled == 1 && TASK_CULL == 1) || drawVisibility[di] == 0 || cullData.postPass != 0))
 	{
 		uint lodIndex = 0;
 
 		if (cullData.lodEnabled == 1)
 		{
 			float distance = max(length(center) - radius, 0);
-			float threshold = distance * cullData.lodTarget / draws[di].scale;
+			float threshold = distance * cullData.lodTarget / drawData.scale;
 
 			for (uint i = 1; i < mesh.lodCount; ++i)
 				if (mesh.lods[i].error < threshold)
@@ -123,7 +128,7 @@ void main()
 			uint dci = atomicAdd(commandCount, taskGroups);
 
 			uint lateDrawVisibility = drawVisibility[di];
-			uint meshletVisibilityOffset = draws[di].meshletVisibilityOffset;
+			uint meshletVisibilityOffset = drawData.meshletVisibilityOffset;
 
 			// drop draw calls on overflow; this limits us to ~4M visible draws or ~32B visible triangles, whichever is larger
 			if (dci + taskGroups <= TASK_WGLIMIT)

@@ -7,6 +7,8 @@
 
 #include "mesh.h"
 
+layout (constant_id = 2) const int POST = 0;
+
 #define DEBUG 0
 
 layout(binding = 1) readonly buffer Draws
@@ -58,8 +60,8 @@ void main()
 
 	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);
 
-	// TODO: requires pass filtering for performance
-	// if (albedo.a < 0.5) discard;
+	if (POST > 0 && albedo.a < 0.5)
+		discard;
 
 #if DEBUG
 	uint mhash = hash(drawId);

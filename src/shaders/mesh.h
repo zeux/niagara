@@ -36,6 +36,8 @@ struct CullData
 	int lodEnabled;
 	int occlusionEnabled;
 	int clusterOcclusionEnabled;
+
+	uint postPass;
 };
 
 struct Globals
@@ -75,6 +77,7 @@ struct MeshDraw
 	uint meshIndex;
 	uint vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
 	uint meshletVisibilityOffset;
+	uint postPass;
 
 	int albedoTexture;
 	int normalTexture;

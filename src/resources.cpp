@@ -241,6 +241,8 @@ VkSampler createSampler(VkDevice device, VkSamplerMipmapMode mipmapMode, VkSampl
 	createInfo.addressModeW = addressMode;
 	createInfo.minLod = 0;
 	createInfo.maxLod = 16.f;
+	createInfo.anisotropyEnable = mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	createInfo.maxAnisotropy = mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR ? 4.f : 1.f;
 
 	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
 

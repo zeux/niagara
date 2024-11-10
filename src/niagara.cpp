@@ -109,6 +109,8 @@ struct alignas(16) MeshDraw
 
 	int albedoTexture;
 	int normalTexture;
+	int specularTexture;
+	int emissiveTexture;
 };
 
 struct MeshDrawCommand
@@ -614,6 +616,14 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 				draw.normalTexture =
 					material && material->normal_texture.texture
 					? 1 + cgltf_texture_index(data, material->normal_texture.texture)
+					: 0;
+				draw.specularTexture =
+					material && material->pbr_specular_glossiness.specular_glossiness_texture.texture
+					? 1 + cgltf_texture_index(data, material->pbr_specular_glossiness.specular_glossiness_texture.texture)
+					: 0;
+				draw.emissiveTexture =
+					material && material->emissive_texture.texture
+					? 1 + cgltf_texture_index(data, material->emissive_texture.texture)
 					: 0;
 
 				draws.push_back(draw);

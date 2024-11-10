@@ -46,13 +46,17 @@ void main()
 	if (meshDraw.normalTexture > 0)
 		nmap = texture(textures[nonuniformEXT(meshDraw.normalTexture)], uv) * 2 - 1;
 
+	vec3 emissive = vec3(0.0f);
+	if (meshDraw.emissiveTexture > 0)
+		emissive = texture(textures[nonuniformEXT(meshDraw.emissiveTexture)], uv).rgb;
+
 	vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
 
-	vec3 nrm = normalize(nmap.x * tangent.xyz + nmap.y * bitangent + nmap.z * normal);
+	vec3 nrm = normalize(nmap.r * tangent.xyz + nmap.g * bitangent + nmap.b * normal);
 
 	float ndotl = max(dot(nrm, normalize(vec3(-1, 1, -1))), 0.0);
 
-	outputColor = albedo * sqrt(ndotl + 0.05);
+	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);
 
 	// outputColor = vec4(nrm * 0.5 + 0.5, 1.0);
 	// outputColor = vec4(normal * 0.5 + 0.5, 1.0);

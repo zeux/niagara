@@ -78,6 +78,8 @@ struct MeshDraw
 
 	int albedoTexture;
 	int normalTexture;
+	int specularTexture;
+	int emissiveTexture;
 };
 
 struct MeshDrawCommand

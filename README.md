@@ -48,6 +48,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 21. Cluster compute culling: https://youtu.be/zROUBE5pLuI
 22. Loading glTF scenes: https://youtu.be/9OF6k57orXo
 23. Bindless textures: https://youtu.be/n9nqSEyXMeA
+24. Tracing rays: https://youtu.be/N1OVfBEcyb8
 
 # Issues
 

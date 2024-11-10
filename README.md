@@ -122,5 +122,5 @@ https://github.com/KhronosGroup/SPIRV-Tools/issues/3653
 * ✔️ Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used \
 https://github.com/KhronosGroup/glslang/issues/3103
 
-* Incomplete mip data is encoded for non-power-of-two textures \
+* ✔️ Incomplete mip data is encoded for non-power-of-two textures \
 https://github.com/wolfpld/etcpak/pull/43

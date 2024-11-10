@@ -18,6 +18,11 @@ layout (constant_id = 2) const int POST = 0;
 layout(binding = 7) uniform accelerationStructureEXT tlas;
 #endif
 
+layout(push_constant) uniform block
+{
+	Globals globals;
+};
+
 layout(binding = 1) readonly buffer Draws
 {
 	MeshDraw draws[];
@@ -64,16 +69,14 @@ void main()
 
 	vec3 nrm = normalize(nmap.r * tangent.xyz + nmap.g * bitangent + nmap.b * normal);
 
-	vec3 sunDirection = normalize(vec3(-1, 1, -1));
-
-	float ndotl = max(dot(nrm, sunDirection), 0.0);
+	float ndotl = max(dot(nrm, globals.sunDirection), 0.0);
 
 #if RAYTRACE
 	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, wpos, 1e-2f, sunDirection, 100);
+	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, wpos, 1e-2f, globals.sunDirection, 100);
 	rayQueryProceedEXT(rq);
 
-	ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.1;
+	ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.05;
 #endif
 
 	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);

@@ -190,6 +190,7 @@ struct alignas(16) CullData
 struct alignas(16) Globals
 {
 	mat4 projection;
+	vec3 sunDirection;
 	CullData cullData;
 	float screenWidth, screenHeight;
 };
@@ -475,7 +476,7 @@ void decomposeTransform(float translation[3], float rotation[4], float scale[3],
 	rotation[qc ^ 3] = qs * (r12 + qs3 * r21);
 }
 
-bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, const char* path, bool buildMeshlets, bool fast = false)
+bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false)
 {
 	double timer = glfwGetTime();
 
@@ -651,6 +652,14 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 			camera.position = vec3(translation[0], translation[1], translation[2]);
 			camera.orientation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
 			camera.fovY = node->camera->data.perspective.yfov;
+		}
+
+		if (node->light && node->light->type == cgltf_light_type_directional)
+		{
+			float matrix[16];
+			cgltf_node_transform_world(node, matrix);
+
+			sunDirection = vec3(matrix[8], matrix[9], matrix[10]);
 		}
 	}
 
@@ -1238,6 +1247,8 @@ int main(int argc, const char** argv)
 	camera.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
 	camera.fovY = glm::radians(70.f);
 
+	vec3 sunDirection = normalize(vec3(1.0f, 1.0f, 1.0f));
+
 	bool sceneMode = false;
 	bool fastMode = getenv("FAST") && atoi(getenv("FAST"));
 
@@ -1246,7 +1257,7 @@ int main(int argc, const char** argv)
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
-			if (!loadScene(geometry, draws, texturePaths, camera, argv[1], meshShadingSupported, fastMode))
+			if (!loadScene(geometry, draws, texturePaths, camera, sunDirection, argv[1], meshShadingSupported, fastMode))
 			{
 				printf("Error: scene %s failed to load\n", argv[1]);
 				return 1;
@@ -1573,6 +1584,7 @@ int main(int argc, const char** argv)
 
 		Globals globals = {};
 		globals.projection = projection;
+		globals.sunDirection = sunDirection;
 		globals.cullData = cullData;
 		globals.screenWidth = float(swapchain.width);
 		globals.screenHeight = float(swapchain.height);

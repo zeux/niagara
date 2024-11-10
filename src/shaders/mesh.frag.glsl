@@ -42,9 +42,9 @@ void main()
 	if (meshDraw.albedoTexture > 0)
 		albedo = texture(textures[nonuniformEXT(meshDraw.albedoTexture)], uv);
 
-	vec4 nmap = vec4(0, 0, 1, 0);
+	vec3 nmap = vec3(0, 0, 1);
 	if (meshDraw.normalTexture > 0)
-		nmap = texture(textures[nonuniformEXT(meshDraw.normalTexture)], uv) * 2 - 1;
+		nmap = texture(textures[nonuniformEXT(meshDraw.normalTexture)], uv).rgb * 2 - 1;
 
 	vec3 emissive = vec3(0.0f);
 	if (meshDraw.emissiveTexture > 0)
@@ -58,9 +58,8 @@ void main()
 
 	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);
 
-	// outputColor = vec4(nrm * 0.5 + 0.5, 1.0);
-	// outputColor = vec4(normal * 0.5 + 0.5, 1.0);
-	// outputColor = albedo;
+	// TODO: requires pass filtering for performance
+	// if (albedo.a < 0.5) discard;
 
 #if DEBUG
 	uint mhash = hash(drawId);

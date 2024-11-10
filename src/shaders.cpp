@@ -60,6 +60,8 @@ static VkDescriptorType getDescriptorType(SpvOp op)
 		return VK_DESCRIPTOR_TYPE_SAMPLER;
 	case SpvOpTypeSampledImage:
 		return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	case 0: // TODO: HUGE HACK FOR RT
+		return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	default:
 		assert(!"Unknown resource type");
 		return VkDescriptorType(0);

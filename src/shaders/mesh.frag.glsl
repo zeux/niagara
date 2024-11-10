@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 #extension GL_EXT_shader_16bit_storage: require
 #extension GL_EXT_shader_8bit_storage: require
@@ -9,7 +9,14 @@
 
 layout (constant_id = 2) const int POST = 0;
 
+#define RAYTRACE 0
 #define DEBUG 0
+
+#if RAYTRACE
+#extension GL_EXT_ray_query: require
+
+layout(binding = 7) uniform accelerationStructureEXT tlas;
+#endif
 
 layout(binding = 1) readonly buffer Draws
 {
@@ -22,6 +29,7 @@ layout(location = 0) in flat uint drawId;
 layout(location = 1) in vec2 uv;
 layout(location = 2) in vec3 normal;
 layout(location = 3) in vec4 tangent;
+layout(location = 4) in vec3 wpos;
 
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 
@@ -56,7 +64,17 @@ void main()
 
 	vec3 nrm = normalize(nmap.r * tangent.xyz + nmap.g * bitangent + nmap.b * normal);
 
-	float ndotl = max(dot(nrm, normalize(vec3(-1, 1, -1))), 0.0);
+	vec3 sunDirection = normalize(vec3(-1, 1, -1));
+
+	float ndotl = max(dot(nrm, sunDirection), 0.0);
+
+#if RAYTRACE
+	rayQueryEXT rq;
+	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, wpos, 1e-2f, sunDirection, 100);
+	rayQueryProceedEXT(rq);
+
+	ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.1;
+#endif
 
 	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);
 

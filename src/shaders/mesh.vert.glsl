@@ -34,6 +34,7 @@ layout(location = 0) out flat uint out_drawId;
 layout(location = 1) out vec2 out_uv;
 layout(location = 2) out vec3 out_normal;
 layout(location = 3) out vec4 out_tangent;
+layout(location = 4) out vec3 out_wpos;
 
 void main()
 {
@@ -49,9 +50,12 @@ void main()
 	normal = rotateQuat(normal, meshDraw.orientation);
 	tangent.xyz = rotateQuat(tangent.xyz, meshDraw.orientation);
 
-	gl_Position = globals.projection * (globals.cullData.view * vec4(rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position, 1));
+	vec3 wpos = rotateQuat(position, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
+
+	gl_Position = globals.projection * (globals.cullData.view * vec4(wpos, 1));
 	out_drawId = drawId;
 	out_uv = texcoord;
 	out_normal = normal;
 	out_tangent = tangent;
+	out_wpos = wpos;
 }

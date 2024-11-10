@@ -72,11 +72,14 @@ void main()
 	float ndotl = max(dot(nrm, globals.sunDirection), 0.0);
 
 #if RAYTRACE
-	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, wpos, 1e-2f, globals.sunDirection, 100);
-	rayQueryProceedEXT(rq);
+	if (globals.shadowsEnabled == 1)
+	{
+		rayQueryEXT rq;
+		rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, /* cullMask= */ 1, wpos, 1e-2f, globals.sunDirection, 100);
+		rayQueryProceedEXT(rq);
 
-	ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.05;
+		ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.05;
+	}
 #endif
 
 	outputColor = vec4(albedo.rgb * sqrt(ndotl + 0.05) + emissive, albedo.a);

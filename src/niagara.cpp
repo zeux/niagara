@@ -29,6 +29,7 @@ bool lodEnabled = true;
 bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
+bool shadowsEnabled = true;
 
 bool debugPyramid = false;
 int debugPyramidLevel = 0;
@@ -191,6 +192,7 @@ struct alignas(16) Globals
 {
 	mat4 projection;
 	vec3 sunDirection;
+	int shadowsEnabled;
 	CullData cullData;
 	float screenWidth, screenHeight;
 };
@@ -849,7 +851,7 @@ VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const 
 		instance.transform.matrix[1][3] = draw.position.y;
 		instance.transform.matrix[2][3] = draw.position.z;
 		instance.instanceCustomIndex = i;
-		instance.mask = 0xFF;
+		instance.mask = 1 << draw.postPass;
 		instance.accelerationStructureReference = blasAddresses[draw.meshIndex];
 
 		memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(instances.data) + i, &instance, sizeof(VkAccelerationStructureInstanceKHR));
@@ -950,6 +952,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		if (key == GLFW_KEY_T)
 		{
 			taskShadingEnabled = !taskShadingEnabled;
+		}
+		if (key == GLFW_KEY_S)
+		{
+			shadowsEnabled = !shadowsEnabled;
 		}
 		if (debugPyramid && (key >= GLFW_KEY_0 && key <= GLFW_KEY_9))
 		{
@@ -1585,6 +1591,7 @@ int main(int argc, const char** argv)
 		Globals globals = {};
 		globals.projection = projection;
 		globals.sunDirection = sunDirection;
+		globals.shadowsEnabled = shadowsEnabled;
 		globals.cullData = cullData;
 		globals.screenWidth = float(swapchain.width);
 		globals.screenHeight = float(swapchain.height);

@@ -47,6 +47,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 20. Task command submission: https://youtu.be/eYvGruGHhUE
 21. Cluster compute culling: https://youtu.be/zROUBE5pLuI
 22. Loading glTF scenes: https://youtu.be/9OF6k57orXo
+23. Bindless textures: https://youtu.be/n9nqSEyXMeA
 
 # Issues
 
@@ -115,8 +116,11 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1530
 * ✔️ Missing validation: push descriptor updates don't trigger image layout mismatch errors \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/1862
 
-* ✔️ A valid interface block in mesh/task shader is considered invalid
+* ✔️ A valid interface block in mesh/task shader is considered invalid \
 https://github.com/KhronosGroup/SPIRV-Tools/issues/3653
 
-* ✔️ Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used
+* ✔️ Usage of any fields of gl_MeshPrimitivesEXT is enabling capability FragmentShadingRateKHR even if gl_PrimitiveShadingRateEXT is not used \
 https://github.com/KhronosGroup/glslang/issues/3103
+
+* Incomplete mip data is encoded for non-power-of-two textures \
+https://github.com/wolfpld/etcpak/pull/43

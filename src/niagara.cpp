@@ -916,6 +916,8 @@ int main(int argc, const char** argv)
 		assert(rcs);
 	}
 
+	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
+
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
@@ -938,14 +940,14 @@ int main(int argc, const char** argv)
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData));
 	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
 
-	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals));
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals), textureSetLayout);
 
 	Program meshtaskProgram = {};
 	Program clusterProgram = {};
 	if (meshShadingSupported)
 	{
-		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(Globals));
-		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals));
+		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(Globals), textureSetLayout);
+		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals), textureSetLayout);
 	}
 
 	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshVS, &meshFS }, meshProgram.layout);
@@ -1032,47 +1034,8 @@ int main(int argc, const char** argv)
 
 	printf("Loaded %d textures in %.2f sec\n", int(images.size()), glfwGetTime() - imageTimer);
 
-	const uint32_t kDescriptorCount = 1024*1024;
-	const uint32_t kActiveDescriptorCount = texturePaths.size() + 1;
-
-	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kActiveDescriptorCount };
-	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-	poolInfo.maxSets = 1;
-	poolInfo.poolSizeCount = 1;
-	poolInfo.pPoolSizes = &poolSize;
-
-	VkDescriptorPool textureSetPool = nullptr;
-	VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, 0, &textureSetPool));
-
-	VkDescriptorSetLayoutBinding setBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kDescriptorCount, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-
-	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |  VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
-	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
-	setBindingFlags.bindingCount = 1;
-	setBindingFlags.pBindingFlags = &bindingFlags;
-
-	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	setCreateInfo.pNext = &setBindingFlags;
-	setCreateInfo.bindingCount = 1;
-	setCreateInfo.pBindings = &setBinding;
-
-	VkDescriptorSetLayout setLayout = 0;
-	VK_CHECK(vkCreateDescriptorSetLayout(device, &setCreateInfo, 0, &setLayout));
-
-	uint32_t descriptorCount = kActiveDescriptorCount;
-
-	VkDescriptorSetVariableDescriptorCountAllocateInfo setAllocateCountInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
-	setAllocateCountInfo.descriptorSetCount = 1;
-	setAllocateCountInfo.pDescriptorCounts = &descriptorCount;
-
-	VkDescriptorSetAllocateInfo setAllocateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-	setAllocateInfo.pNext = &setAllocateCountInfo;
-	setAllocateInfo.descriptorPool = textureSetPool;
-	setAllocateInfo.descriptorSetCount = 1;
-	setAllocateInfo.pSetLayouts = &setLayout;
-
-	VkDescriptorSet textureSet = 0;
-	VK_CHECK(vkAllocateDescriptorSets(device, &setAllocateInfo, &textureSet));
+	uint32_t descriptorCount = texturePaths.size() + 1;
+	std::pair<VkDescriptorPool, VkDescriptorSet> textureSet = createDescriptorArray(device, textureSetLayout, descriptorCount);
 
 	for (size_t i = 0; i < texturePaths.size(); ++i)
 	{
@@ -1082,7 +1045,7 @@ int main(int argc, const char** argv)
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet write = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-		write.dstSet = textureSet;
+		write.dstSet = textureSet.second;
 		write.dstBinding = 0;
 		write.dstArrayElement = i + 1;
 		write.descriptorCount = 1;
@@ -1091,8 +1054,6 @@ int main(int argc, const char** argv)
 
 		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
 	}
-
-	vkDestroyDescriptorSetLayout(device, setLayout, 0);
 
 	if (!sceneMode)
 	{
@@ -1551,7 +1512,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet, 0, nullptr);
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
@@ -1564,7 +1525,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshtaskProgram.updateTemplate, meshtaskProgram.layout, 0, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet, 0, nullptr);
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &globals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
@@ -1576,7 +1537,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet, 0, nullptr);
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -1798,7 +1759,7 @@ int main(int argc, const char** argv)
 
 	VK_CHECK(vkDeviceWaitIdle(device));
 
-	vkDestroyDescriptorPool(device, textureSetPool, 0);
+	vkDestroyDescriptorPool(device, textureSet.first, 0);
 
 	for (Image& image: images)
 		destroyImage(image, device);
@@ -1874,6 +1835,8 @@ int main(int argc, const char** argv)
 		vkDestroyPipeline(device, clusterPipeline, 0);
 		destroyProgram(device, clusterProgram);
 	}
+
+	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroyShaderModule(device, drawcullCS.module, 0);
 	vkDestroyShaderModule(device, tasksubmitCS.module, 0);

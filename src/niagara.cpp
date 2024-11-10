@@ -491,6 +491,9 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 		return false;
 
 	std::vector<std::pair<unsigned int, unsigned int>> primitives;
+	std::vector<cgltf_material*> primitiveMaterials;
+
+	size_t firstMeshOffset = geometry.meshes.size();
 
 	for (size_t i = 0; i < data->meshes_count; ++i)
 	{
@@ -565,10 +568,13 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());
 
 			appendMesh(geometry, vertices, indices, buildMeshlets, fast);
+			primitiveMaterials.push_back(prim.material);
 		}
 
 		primitives.push_back(std::make_pair(unsigned(meshOffset), unsigned(geometry.meshes.size() - meshOffset)));
 	}
+
+	assert(primitiveMaterials.size() + firstMeshOffset == geometry.meshes.size());
 
 	for (size_t i = 0; i < data->nodes_count; ++i)
 	{
@@ -597,8 +603,7 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 				draw.meshIndex = range.first + j;
 				draw.vertexOffset = geometry.meshes[range.first + j].vertexOffset;
 
-				// TODO: incorrect if range.second diverges from mesh prim count
-				cgltf_material* material = node->mesh->primitives[j].material;
+				cgltf_material* material = primitiveMaterials[range.first + j - firstMeshOffset];
 
 				draw.albedoTexture =
 					material && material->pbr_metallic_roughness.base_color_texture.texture

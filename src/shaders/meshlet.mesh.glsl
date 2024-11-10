@@ -139,7 +139,7 @@ void main()
 	#endif
 
 	#if DEBUG
-		color[i] = vec4(mcolor, 1.0);
+		out_normal[i] = mcolor;
 	#endif
 
 	#if MESH_MAXVTX <= MESH_WGSIZE

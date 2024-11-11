@@ -299,9 +299,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceRayQueryFeaturesKHR featuresRayQueries = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
 	featuresRayQueries.rayQuery = true;
 
-	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresRayTracing = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
-	featuresRayTracing.accelerationStructure = true;
-	featuresRayTracing.pNext = &featuresRayQueries;
+	// This will only be used if raytracingSupported=true (see below)
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresAccelerationStructure = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	featuresAccelerationStructure.accelerationStructure = true;
 
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
@@ -315,15 +315,21 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features11.pNext = &features12;
 	features12.pNext = &features13;
 
+	void** ppNext = &features13.pNext;
+
 	if (meshShadingSupported)
-		features13.pNext = &featuresMesh;
+	{
+		*ppNext = &featuresMesh;
+		ppNext = &featuresMesh.pNext;
+	}
 
 	if (raytracingSupported)
 	{
-		if (meshShadingSupported)
-			featuresMesh.pNext = &featuresRayTracing;
-		else
-			features13.pNext = &featuresRayTracing;
+		*ppNext = &featuresRayQueries;
+		ppNext = &featuresRayQueries.pNext;
+
+		*ppNext = &featuresAccelerationStructure;
+		ppNext = &featuresAccelerationStructure.pNext;
 	}
 
 	VkDevice device = 0;

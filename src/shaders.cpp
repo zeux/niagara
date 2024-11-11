@@ -60,7 +60,7 @@ static VkDescriptorType getDescriptorType(SpvOp op)
 		return VK_DESCRIPTOR_TYPE_SAMPLER;
 	case SpvOpTypeSampledImage:
 		return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	case 0: // TODO: HUGE HACK FOR RT
+	case SpvOpTypeAccelerationStructureKHR:
 		return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	default:
 		assert(!"Unknown resource type");
@@ -147,6 +147,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 		case SpvOpTypeImage:
 		case SpvOpTypeSampler:
 		case SpvOpTypeSampledImage:
+		case SpvOpTypeAccelerationStructureKHR:
 		{
 			assert(wordCount >= 2);
 

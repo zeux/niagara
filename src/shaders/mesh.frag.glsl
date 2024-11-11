@@ -74,8 +74,10 @@ void main()
 #if RAYTRACE
 	if (globals.shadowsEnabled == 1)
 	{
+		uint rayflags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT;
+
 		rayQueryEXT rq;
-		rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, /* cullMask= */ 1, wpos, 1e-2f, globals.sunDirection, 100);
+		rayQueryInitializeEXT(rq, tlas, rayflags, /* cullMask= */ 1, wpos, 1e-2, globals.sunDirection, 1e3);
 		rayQueryProceedEXT(rq);
 
 		ndotl *= (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.05;

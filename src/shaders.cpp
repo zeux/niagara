@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 
+#include <string>
 #include <vector>
 
 #ifdef __linux__
@@ -372,9 +373,17 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 	return updateTemplate;
 }
 
-bool loadShader(Shader& shader, VkDevice device, const char* path)
+bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path)
 {
-	FILE* file = fopen(path, "rb");
+	std::string spath = base;
+	std::string::size_type pos = spath.find_last_of("/\\");
+	if (pos == std::string::npos)
+		spath = "";
+	else
+		spath = spath.substr(0, pos + 1);
+	spath += path;
+
+	FILE* file = fopen(spath.c_str(), "rb");
 	if (!file)
 		return false;
 

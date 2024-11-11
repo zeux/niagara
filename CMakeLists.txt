@@ -63,13 +63,13 @@ else()
 endif()
 
 # Thanks to: https://gist.github.com/evilactually/a0d191701cb48f157b05be7f74d79396
-set(SPIRV_OUTPUT_DIR "${PROJECT_BINARY_DIR}/src/shaders/")
+set(SPIRV_OUTPUT_DIR "${PROJECT_BINARY_DIR}/spirv/")
 foreach(GLSL ${GLSL_SOURCE_FILES})
   get_filename_component(STEM ${GLSL} NAME_WLE)
   set(SPIRV "${SPIRV_OUTPUT_DIR}${STEM}.spv")
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/src/shaders/"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_OUTPUT_DIR}"
     COMMAND ${GLSL_VALIDATOR} -V --target-env vulkan1.3 --quiet ${GLSL} -o ${SPIRV}
     DEPENDS ${GLSL} ${GLSL_HEADER_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})

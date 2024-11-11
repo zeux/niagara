@@ -35,8 +35,6 @@ bool debugPyramid = false;
 int debugPyramidLevel = 0;
 int debugLodStep = 0;
 
-#define SHADER_PATH "src/shaders/"
-
 VkSemaphore createSemaphore(VkDevice device)
 {
 	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -1218,41 +1216,41 @@ int main(int argc, const char** argv)
 	bool rcs = false;
 
 	Shader drawcullCS = {};
-	rcs = loadShader(drawcullCS, device, SHADER_PATH "drawcull.comp.spv");
+	rcs = loadShader(drawcullCS, device, argv[0], "spirv/drawcull.comp.spv");
 	assert(rcs);
 
 	Shader depthreduceCS = {};
-	rcs = loadShader(depthreduceCS, device, SHADER_PATH "depthreduce.comp.spv");
+	rcs = loadShader(depthreduceCS, device, argv[0], "spirv/depthreduce.comp.spv");
 	assert(rcs);
 
 	Shader tasksubmitCS = {};
-	rcs = loadShader(tasksubmitCS, device, SHADER_PATH "tasksubmit.comp.spv");
+	rcs = loadShader(tasksubmitCS, device, argv[0], "spirv/tasksubmit.comp.spv");
 	assert(rcs);
 
 	Shader clustersubmitCS = {};
-	rcs = loadShader(clustersubmitCS, device, SHADER_PATH "clustersubmit.comp.spv");
+	rcs = loadShader(clustersubmitCS, device, argv[0], "spirv/clustersubmit.comp.spv");
 	assert(rcs);
 
 	Shader clustercullCS = {};
-	rcs = loadShader(clustercullCS, device, SHADER_PATH "clustercull.comp.spv");
+	rcs = loadShader(clustercullCS, device, argv[0], "spirv/clustercull.comp.spv");
 	assert(rcs);
 
 	Shader meshVS = {};
-	rcs = loadShader(meshVS, device, SHADER_PATH "mesh.vert.spv");
+	rcs = loadShader(meshVS, device, argv[0], "spirv/mesh.vert.spv");
 	assert(rcs);
 
 	Shader meshFS = {};
-	rcs = loadShader(meshFS, device, SHADER_PATH "mesh.frag.spv");
+	rcs = loadShader(meshFS, device, argv[0], "spirv/mesh.frag.spv");
 	assert(rcs);
 
 	Shader meshletMS = {};
 	Shader meshletTS = {};
 	if (meshShadingSupported)
 	{
-		rcs = loadShader(meshletMS, device, SHADER_PATH "meshlet.mesh.spv");
+		rcs = loadShader(meshletMS, device, argv[0], "spirv/meshlet.mesh.spv");
 		assert(rcs);
 
-		rcs = loadShader(meshletTS, device, SHADER_PATH "meshlet.task.spv");
+		rcs = loadShader(meshletTS, device, argv[0], "spirv/meshlet.task.spv");
 		assert(rcs);
 	}
 

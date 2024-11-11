@@ -25,7 +25,7 @@ struct Program
 	VkShaderStageFlags pushConstantStages;
 };
 
-bool loadShader(Shader& shader, VkDevice device, const char* path);
+bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path);
 
 using Shaders = std::initializer_list<const Shader*>;
 using Constants = std::initializer_list<int>;

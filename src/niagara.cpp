@@ -715,13 +715,14 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 	std::vector<VkAccelerationStructureBuildGeometryInfoKHR> buildInfos(meshes.size());
 
 	const size_t kAlignment = 256; // required by spec for acceleration structures, could be smaller for scratch but it's a small waste
+	const size_t kDefaultScratch = 32 * 1024 * 1024; // 32 MB scratch by default
 
 	size_t totalAccelerationSize = 0;
-	size_t totalScratchSize = 0;
+	size_t maxScratchSize = 0;
 
 	std::vector<size_t> accelerationOffsets(meshes.size());
 	std::vector<size_t> accelerationSizes(meshes.size());
-	std::vector<size_t> scratchOffsets(meshes.size());
+	std::vector<size_t> scratchSizes(meshes.size());
 
 	VkDeviceAddress vbAddress = getBufferAddress(vb, device);
 	VkDeviceAddress ibAddress = getBufferAddress(ib, device);
@@ -760,20 +761,21 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 
 		accelerationOffsets[i] = totalAccelerationSize;
 		accelerationSizes[i] = sizeInfo.accelerationStructureSize;
-		scratchOffsets[i] = totalScratchSize;
+		scratchSizes[i] = sizeInfo.buildScratchSize;
 
 		totalAccelerationSize = (totalAccelerationSize + sizeInfo.accelerationStructureSize + kAlignment - 1) & ~(kAlignment - 1);
-		totalScratchSize = (totalScratchSize + sizeInfo.buildScratchSize + kAlignment - 1) & ~(kAlignment - 1);
-	}
 
-	printf("BLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(totalAccelerationSize) / 1e6, double(totalScratchSize) / 1e6);
+		maxScratchSize = std::max(maxScratchSize, sizeInfo.buildScratchSize);
+	}
 
 	createBuffer(blasBuffer, device, memoryProperties, totalAccelerationSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	Buffer scratch;
-	createBuffer(scratch, device, memoryProperties, totalScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	Buffer scratchBuffer;
+	createBuffer(scratchBuffer, device, memoryProperties, std::max(kDefaultScratch, maxScratchSize), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	VkDeviceAddress scratchAddress = getBufferAddress(scratch, device);
+	printf("BLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB (max %.2f MB)\n", double(totalAccelerationSize) / 1e6, double(scratchBuffer.size) / 1e6, double(maxScratchSize) / 1e6);
+
+	VkDeviceAddress scratchAddress = getBufferAddress(scratchBuffer, device);
 
 	blas.resize(meshes.size());
 
@@ -789,12 +791,6 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		accelerationInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 
 		VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &blas[i]));
-
-		buildInfos[i].dstAccelerationStructure = blas[i];
-		buildInfos[i].scratchData.deviceAddress = scratchAddress + scratchOffsets[i];
-
-		buildRanges[i].primitiveCount = primitiveCounts[i];
-		buildRangePtrs[i] = &buildRanges[i];
 	}
 
 	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
@@ -804,7 +800,33 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-	vkCmdBuildAccelerationStructuresKHR(commandBuffer, meshes.size(), buildInfos.data(), buildRangePtrs.data());
+	VkBufferMemoryBarrier2 scratchBarrier = bufferBarrier(scratchBuffer.buffer,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+
+	for (size_t start = 0; start < meshes.size(); )
+	{
+		size_t scratchOffset = 0;
+
+		// aggregate the range that fits into allocated scratch
+		size_t i = start;
+		while (i < meshes.size() && scratchOffset + scratchSizes[i] <= scratchBuffer.size)
+		{
+			buildInfos[i].scratchData.deviceAddress = scratchAddress + scratchOffset;
+			buildInfos[i].dstAccelerationStructure = blas[i];
+			buildRanges[i].primitiveCount = primitiveCounts[i];
+			buildRangePtrs[i] = &buildRanges[i];
+
+			scratchOffset = (scratchOffset + scratchSizes[i] + kAlignment - 1) & ~(kAlignment - 1);
+			++i;
+		}
+		assert(i > start); // guaranteed as scratchBuffer.size >= maxScratchSize
+
+		vkCmdBuildAccelerationStructuresKHR(commandBuffer, i - start, &buildInfos[start], &buildRangePtrs[start]);
+		start = i;
+
+		pipelineBarrier(commandBuffer, 0, 1, &scratchBarrier, 0, nullptr);
+	}
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
@@ -815,7 +837,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 	VK_CHECK(vkDeviceWaitIdle(device));
 
-	destroyBuffer(scratch, device);
+	destroyBuffer(scratchBuffer, device);
 }
 
 void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
@@ -1540,6 +1562,7 @@ int main(int argc, const char** argv)
 	if (raytracingSupported)
 	{
 		buildBLAS(device, geometry.meshes, vb, ib, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+
 		if (!fastMode)
 			compactBLAS(device, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
 

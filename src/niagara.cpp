@@ -30,9 +30,6 @@ bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadowsEnabled = true;
-
-bool debugPyramid = false;
-int debugPyramidLevel = 0;
 int debugLodStep = 0;
 
 VkSemaphore createSemaphore(VkDevice device)
@@ -1054,10 +1051,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			lodEnabled = !lodEnabled;
 		}
-		if (key == GLFW_KEY_P)
-		{
-			debugPyramid = !debugPyramid;
-		}
 		if (key == GLFW_KEY_T)
 		{
 			taskShadingEnabled = !taskShadingEnabled;
@@ -1066,11 +1059,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			shadowsEnabled = !shadowsEnabled;
 		}
-		if (debugPyramid && (key >= GLFW_KEY_0 && key <= GLFW_KEY_9))
-		{
-			debugPyramidLevel = key - GLFW_KEY_0;
-		}
-		else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+		if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
 		{
 			debugLodStep = key - GLFW_KEY_0;
 		}
@@ -1224,10 +1213,13 @@ int main(int argc, const char** argv)
 	VkQueue queue = 0;
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
 
-	VkSampler textureSampler = createSampler(device, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	VkSampler textureSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 	assert(textureSampler);
 
-	VkSampler depthSampler = createSampler(device, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
+	VkSampler readSampler = createSampler(device,VK_FILTER_NEAREST, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+	assert(readSampler);
+
+	VkSampler depthSampler = createSampler(device,VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
 
 	VkPipelineRenderingCreateInfo renderingInfo = { VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
@@ -1275,6 +1267,10 @@ int main(int argc, const char** argv)
 		rcs = loadShader(meshletTS, device, argv[0], "spirv/meshlet.task.spv");
 		assert(rcs);
 	}
+
+	Shader blitCS = {};
+	rcs = loadShader(blitCS, device, argv[0], "spirv/blit.comp.spv");
+	assert(rcs);
 
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
@@ -1326,6 +1322,9 @@ int main(int argc, const char** argv)
 		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 		assert(meshtaskPipeline && meshtasklatePipeline && clusterPipeline);
 	}
+
+	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &blitCS }, sizeof(vec4));
+	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, blitCS, blitProgram.layout);
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -1578,6 +1577,8 @@ int main(int argc, const char** argv)
 	uint32_t depthPyramidHeight = 0;
 	uint32_t depthPyramidLevels = 0;
 
+	std::vector<VkImageView> swapchainImageViews(swapchain.imageCount);
+
 	double frameCpuAvg = 0;
 	double frameGpuAvg = 0;
 
@@ -1610,7 +1611,7 @@ int main(int argc, const char** argv)
 				destroyImage(depthPyramid, device);
 			}
 
-			createImage(colorTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, swapchainFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+			createImage(colorTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, swapchainFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			createImage(depthTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 			// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
@@ -1624,6 +1625,14 @@ int main(int argc, const char** argv)
 			{
 				depthPyramidMips[i] = createImageView(device, depthPyramid.image, VK_FORMAT_R32_SFLOAT, i, 1);
 				assert(depthPyramidMips[i]);
+			}
+
+			for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+			{
+				if (swapchainImageViews[i])
+					vkDestroyImageView(device, swapchainImageViews[i], 0);
+
+				swapchainImageViews[i] = createImageView(device, swapchain.images[i], swapchainFormat, 0,  1);
 			}
 		}
 
@@ -2044,50 +2053,28 @@ int main(int argc, const char** argv)
 		{
 			imageBarrier(colorTarget.image,
 				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL),
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
 			imageBarrier(swapchain.images[imageIndex],
-				VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL),
-			imageBarrier(depthPyramid.image,
-				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL),
+				0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
 		};
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(copyBarriers), copyBarriers);
 
-		if (debugPyramid)
 		{
-			uint32_t levelWidth = std::max(1u, depthPyramidWidth >> debugPyramidLevel);
-			uint32_t levelHeight = std::max(1u, depthPyramidHeight >> debugPyramidLevel);
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blitPipeline);
 
-			VkImageBlit blitRegion = {};
-			blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blitRegion.srcSubresource.mipLevel = debugPyramidLevel;
-			blitRegion.srcSubresource.layerCount = 1;
-			blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			blitRegion.dstSubresource.layerCount = 1;
-			blitRegion.srcOffsets[0] = { 0, 0, 0 };
-			blitRegion.srcOffsets[1] = { int32_t(levelWidth), int32_t(levelHeight), 1 };
-			blitRegion.dstOffsets[0] = { 0, 0, 0 };
-			blitRegion.dstOffsets[1] = { int32_t(swapchain.width), int32_t(swapchain.height), 1 };
+			DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, colorTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, blitProgram.updateTemplate, blitProgram.layout, 0, descriptors);
 
-			vkCmdBlitImage(commandBuffer, depthPyramid.image, VK_IMAGE_LAYOUT_GENERAL, swapchain.images[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blitRegion, VK_FILTER_NEAREST);
-		}
-		else
-		{
-			VkImageCopy copyRegion = {};
-			copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			copyRegion.srcSubresource.layerCount = 1;
-			copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			copyRegion.dstSubresource.layerCount = 1;
-			copyRegion.extent = { swapchain.width, swapchain.height, 1 };
-
-			vkCmdCopyImage(commandBuffer, colorTarget.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapchain.images[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+			vec4 blitData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
+			vkCmdPushConstants(commandBuffer, blitProgram.layout, blitProgram.pushConstantStages, 0, sizeof(blitData), &blitData);
+			vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, blitCS.localSizeX), getGroupCount(swapchain.height, blitCS.localSizeY), 1);
 		}
 
 		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+			0, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &presentBarrier);
 
@@ -2177,6 +2164,10 @@ int main(int argc, const char** argv)
 		destroyImage(depthPyramid, device);
 	}
 
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+		if (swapchainImageViews[i])
+			vkDestroyImageView(device, swapchainImageViews[i], 0);
+
 	destroyBuffer(mb, device);
 
 	destroyBuffer(db, device);
@@ -2249,9 +2240,13 @@ int main(int argc, const char** argv)
 		destroyProgram(device, clusterProgram);
 	}
 
+	vkDestroyPipeline(device, blitPipeline, 0);
+	destroyProgram(device, blitProgram);
+
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroyShaderModule(device, drawcullCS.module, 0);
+	vkDestroyShaderModule(device, blitCS.module, 0);
 	vkDestroyShaderModule(device, tasksubmitCS.module, 0);
 	vkDestroyShaderModule(device, clustersubmitCS.module, 0);
 	vkDestroyShaderModule(device, clustercullCS.module, 0);
@@ -2267,6 +2262,7 @@ int main(int argc, const char** argv)
 	}
 
 	vkDestroySampler(device, textureSampler, 0);
+	vkDestroySampler(device, readSampler, 0);
 	vkDestroySampler(device, depthSampler, 0);
 
 	vkDestroyFence(device, frameFence, 0);

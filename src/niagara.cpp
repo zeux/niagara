@@ -742,7 +742,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		geo.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		geo.geometry.triangles.vertexData.deviceAddress = vbAddress + mesh.vertexOffset * sizeof(Vertex);
 		geo.geometry.triangles.vertexStride = sizeof(Vertex);
-		geo.geometry.triangles.maxVertex = mesh.vertexCount;
+		geo.geometry.triangles.maxVertex = mesh.vertexCount - 1;
 		geo.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		geo.geometry.triangles.indexData.deviceAddress = ibAddress + mesh.lods[0].indexOffset * sizeof(uint32_t);
 

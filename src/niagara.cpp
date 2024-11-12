@@ -1312,12 +1312,14 @@ int main(int argc, const char** argv)
 
 	VkPipeline meshtaskPipeline = 0;
 	VkPipeline meshtasklatePipeline = 0;
+	VkPipeline meshtaskpostPipeline = 0;
 	VkPipeline clusterPipeline = 0;
 	VkPipeline clusterpostPipeline = 0;
 	if (meshShadingSupported)
 	{
 		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
 		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
 		clusterPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
 		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 		assert(meshtaskPipeline && meshtasklatePipeline && clusterPipeline);
@@ -1923,7 +1925,7 @@ int main(int argc, const char** argv)
 			}
 			else if (taskSubmit)
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, late ? meshtasklatePipeline : meshtaskPipeline);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? meshtaskpostPipeline : late ? meshtasklatePipeline : meshtaskPipeline);
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc, tlas };
@@ -2233,6 +2235,7 @@ int main(int argc, const char** argv)
 	{
 		vkDestroyPipeline(device, meshtaskPipeline, 0);
 		vkDestroyPipeline(device, meshtasklatePipeline, 0);
+		vkDestroyPipeline(device, meshtaskpostPipeline, 0);
 		destroyProgram(device, meshtaskProgram);
 
 		vkDestroyPipeline(device, clusterPipeline, 0);

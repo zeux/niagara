@@ -19,6 +19,8 @@ Make sure you have Vulkan SDK installed; open the folder niagara in Visual Studi
 
 To run the program, command line should contain arguments with paths to .obj files or a .gltf scene; you can use kitten.obj from data/ folder for testing.
 
+To use Amazon Lumberyard Bistro scene, clone https://github.com/zeux/niagara_bistro and specify path to bistro.gltf instead.
+
 # Stream
 
 The development of this project is streamed on YouTube, on Saturdays at 11 AM PST with a somewhat irregular schedule.

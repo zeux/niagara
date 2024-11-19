@@ -87,6 +87,10 @@ VkInstance createInstance()
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 		VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
 #endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+		VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+		VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+#endif
 #ifndef NDEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
 #endif
@@ -94,6 +98,10 @@ VkInstance createInstance()
 
 	createInfo.ppEnabledExtensionNames = extensions;
 	createInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
+
+#ifdef VK_USE_PLATFORM_METAL_EXT
+	createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
 
 	VkInstance instance = 0;
 	VK_CHECK(vkCreateInstance(&createInfo, 0, &instance));

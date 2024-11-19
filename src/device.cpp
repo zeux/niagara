@@ -45,9 +45,8 @@ VkInstance createInstance()
 	createInfo.pApplicationInfo = &appInfo;
 
 #if KHR_VALIDATION || SYNC_VALIDATION
-	const char* debugLayers[] =
-	{
-		"VK_LAYER_KHRONOS_validation"
+	const char* debugLayers[] = {
+		"VK_LAYER_KHRONOS_validation",
 	};
 
 	if (isLayerSupported("VK_LAYER_KHRONOS_validation"))
@@ -62,8 +61,7 @@ VkInstance createInstance()
 	}
 
 #if SYNC_VALIDATION
-	VkValidationFeatureEnableEXT enabledValidationFeatures[] =
-	{
+	VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
 		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
 	};
 
@@ -75,8 +73,7 @@ VkInstance createInstance()
 #endif
 #endif
 
-	const char* extensions[] =
-	{
+	const char* extensions[] = {
 		VK_KHR_SURFACE_EXTENSION_NAME,
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
@@ -117,11 +114,11 @@ static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDe
 		return VK_FALSE;
 
 	const char* type =
-		(flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
-		? "ERROR"
-		: (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT)
-			? "WARNING"
-			: "INFO";
+	    (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
+	        ? "ERROR"
+	    : (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT)
+	        ? "WARNING"
+	        : "INFO";
 
 	char message[4096];
 	snprintf(message, COUNTOF(message), "%s: %s\n", type, pMessage);
@@ -246,8 +243,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	queueInfo.queueCount = 1;
 	queueInfo.pQueuePriorities = queuePriorities;
 
-	std::vector<const char*> extensions =
-	{
+	std::vector<const char*> extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 	};

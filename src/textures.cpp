@@ -9,41 +9,41 @@
 
 struct DDS_PIXELFORMAT
 {
-  unsigned int dwSize;
-  unsigned int dwFlags;
-  unsigned int dwFourCC;
-  unsigned int dwRGBBitCount;
-  unsigned int dwRBitMask;
-  unsigned int dwGBitMask;
-  unsigned int dwBBitMask;
-  unsigned int dwABitMask;
+	unsigned int dwSize;
+	unsigned int dwFlags;
+	unsigned int dwFourCC;
+	unsigned int dwRGBBitCount;
+	unsigned int dwRBitMask;
+	unsigned int dwGBitMask;
+	unsigned int dwBBitMask;
+	unsigned int dwABitMask;
 };
 
 struct DDS_HEADER
 {
-  unsigned int dwSize;
-  unsigned int dwFlags;
-  unsigned int dwHeight;
-  unsigned int dwWidth;
-  unsigned int dwPitchOrLinearSize;
-  unsigned int dwDepth;
-  unsigned int dwMipMapCount;
-  unsigned int dwReserved1[11];
-  DDS_PIXELFORMAT ddspf;
-  unsigned int dwCaps;
-  unsigned int dwCaps2;
-  unsigned int dwCaps3;
-  unsigned int dwCaps4;
-  unsigned int dwReserved2;
+	unsigned int dwSize;
+	unsigned int dwFlags;
+	unsigned int dwHeight;
+	unsigned int dwWidth;
+	unsigned int dwPitchOrLinearSize;
+	unsigned int dwDepth;
+	unsigned int dwMipMapCount;
+	unsigned int dwReserved1[11];
+	DDS_PIXELFORMAT ddspf;
+	unsigned int dwCaps;
+	unsigned int dwCaps2;
+	unsigned int dwCaps3;
+	unsigned int dwCaps4;
+	unsigned int dwReserved2;
 };
 
 struct DDS_HEADER_DXT10
 {
-  unsigned int dxgiFormat;
-  unsigned int resourceDimension;
-  unsigned int miscFlag;
-  unsigned int arraySize;
-  unsigned int miscFlags2;
+	unsigned int dxgiFormat;
+	unsigned int resourceDimension;
+	unsigned int miscFlag;
+	unsigned int arraySize;
+	unsigned int miscFlags2;
 };
 
 const unsigned int DDSCAPS2_CUBEMAP = 0x200;
@@ -77,11 +77,11 @@ static unsigned int fourCC(const char (&str)[5])
 static VkFormat getFormat(const DDS_HEADER& header, const DDS_HEADER_DXT10& header10)
 {
 	if (header.ddspf.dwFourCC == fourCC("DXT1"))
-	    return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+		return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
 	if (header.ddspf.dwFourCC == fourCC("DXT3"))
-	    return VK_FORMAT_BC2_UNORM_BLOCK;
+		return VK_FORMAT_BC2_UNORM_BLOCK;
 	if (header.ddspf.dwFourCC == fourCC("DXT5"))
-	    return VK_FORMAT_BC3_UNORM_BLOCK;
+		return VK_FORMAT_BC3_UNORM_BLOCK;
 
 	if (header.ddspf.dwFourCC == fourCC("DX10"))
 	{
@@ -107,7 +107,7 @@ static VkFormat getFormat(const DDS_HEADER& header, const DDS_HEADER_DXT10& head
 		case DXGI_FORMAT_BC6H_UF16:
 			return VK_FORMAT_BC6H_UFLOAT_BLOCK;
 		case DXGI_FORMAT_BC6H_SF16:
-		    return VK_FORMAT_BC6H_SFLOAT_BLOCK;
+			return VK_FORMAT_BC6H_SFLOAT_BLOCK;
 		case DXGI_FORMAT_BC7_UNORM:
 		case DXGI_FORMAT_BC7_UNORM_SRGB:
 			return VK_FORMAT_BC7_UNORM_BLOCK;
@@ -138,7 +138,7 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 	if (!file)
 		return false;
 
-	std::unique_ptr<FILE, int(*)(FILE*)> filePtr(file, fclose);
+	std::unique_ptr<FILE, int (*)(FILE*)> filePtr(file, fclose);
 
 	unsigned int magic = 0;
 	if (fread(&magic, sizeof(magic), 1, file) != 1 || magic != fourCC("DDS "))
@@ -166,7 +166,7 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 		return false;
 
 	unsigned int blockSize =
-		(format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK || format == VK_FORMAT_BC4_SNORM_BLOCK || format == VK_FORMAT_BC4_UNORM_BLOCK) ? 8 : 16;
+	    (format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK || format == VK_FORMAT_BC4_SNORM_BLOCK || format == VK_FORMAT_BC4_UNORM_BLOCK) ? 8 : 16;
 	size_t imageSize = getImageSizeBC(header.dwWidth, header.dwHeight, header.dwMipMapCount, blockSize);
 
 	if (scratch.size < imageSize)
@@ -193,8 +193,8 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 	VkImageMemoryBarrier2 preBarrier = imageBarrier(image.image,
-		0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	    0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+	    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &preBarrier);
 
 	size_t bufferOffset = 0;
@@ -202,7 +202,14 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 
 	for (unsigned int i = 0; i < header.dwMipMapCount; ++i)
 	{
-		VkBufferImageCopy region = { bufferOffset, 0, 0, { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1, }, { 0, 0, 0 }, { mipWidth, mipHeight, 1 } };
+		VkBufferImageCopy region = {
+			bufferOffset,
+			0,
+			0,
+			{ VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1 },
+			{ 0, 0, 0 },
+			{ mipWidth, mipHeight, 1 },
+		};
 		vkCmdCopyBufferToImage(commandBuffer, scratch.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
 		bufferOffset += ((mipWidth + 3) / 4) * ((mipHeight + 3) / 4) * blockSize;
@@ -214,8 +221,8 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 	assert(bufferOffset == imageSize);
 
 	VkImageMemoryBarrier2 postBarrier = imageBarrier(image.image,
-		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &postBarrier);
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));

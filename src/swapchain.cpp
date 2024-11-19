@@ -71,13 +71,13 @@ VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfac
 static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR surfaceCaps, uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height, VkSwapchainKHR oldSwapchain)
 {
 	VkCompositeAlphaFlagBitsKHR surfaceComposite =
-		(surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
-		? VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
-		: (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
-		? VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
-		: (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
-		? VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
-		: VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+	    (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+	        ? VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+	    : (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+	        ? VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
+	    : (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
+	        ? VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
+	        : VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 
 	// TODO: dynamically select present mode based on supported list
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)

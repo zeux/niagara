@@ -96,7 +96,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 		{
 			assert(wordCount >= 2);
 			shader.stage = getShaderStage(SpvExecutionModel(insn[1]));
-		} break;
+		}
+		break;
 		case SpvOpExecutionMode:
 		{
 			assert(wordCount >= 3);
@@ -111,7 +112,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				shader.localSizeZ = insn[5];
 				break;
 			}
-		} break;
+		}
+		break;
 		case SpvOpExecutionModeId:
 		{
 			assert(wordCount >= 3);
@@ -126,7 +128,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				localSizeIdZ = int(insn[5]);
 				break;
 			}
-		} break;
+		}
+		break;
 		case SpvOpDecorate:
 		{
 			assert(wordCount >= 3);
@@ -145,7 +148,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 				ids[id].binding = insn[3];
 				break;
 			}
-		} break;
+		}
+		break;
 		case SpvOpTypeStruct:
 		case SpvOpTypeImage:
 		case SpvOpTypeSampler:
@@ -159,7 +163,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 			assert(ids[id].opcode == 0);
 			ids[id].opcode = opcode;
-		} break;
+		}
+		break;
 		case SpvOpTypePointer:
 		{
 			assert(wordCount == 4);
@@ -171,7 +176,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			ids[id].opcode = opcode;
 			ids[id].typeId = insn[3];
 			ids[id].storageClass = insn[2];
-		} break;
+		}
+		break;
 		case SpvOpConstant:
 		{
 			assert(wordCount >= 4); // we currently only correctly handle 32-bit integer constants
@@ -183,7 +189,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			ids[id].opcode = opcode;
 			ids[id].typeId = insn[1];
 			ids[id].constant = insn[3]; // note: this is the value, not the id of the constant
-		} break;
+		}
+		break;
 		case SpvOpVariable:
 		{
 			assert(wordCount >= 4);
@@ -195,7 +202,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			ids[id].opcode = opcode;
 			ids[id].typeId = insn[1];
 			ids[id].storageClass = insn[3];
-		} break;
+		}
+		break;
 		}
 
 		assert(insn + wordCount <= code + codeSize);
@@ -254,7 +262,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 	}
 }
 
-static uint32_t gatherResources(Shaders shaders, VkDescriptorType(&resourceTypes)[32])
+static uint32_t gatherResources(Shaders shaders, VkDescriptorType (&resourceTypes)[32])
 {
 	uint32_t resourceMask = 0;
 

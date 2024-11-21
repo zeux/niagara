@@ -579,15 +579,16 @@ void destroyProgram(VkDevice device, const Program& program)
 VkDescriptorSetLayout createDescriptorArrayLayout(VkDevice device)
 {
 	VkShaderStageFlags stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	VkDescriptorSetLayoutBinding setBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, DESCRIPTOR_LIMIT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding setBinding = { 0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, DESCRIPTOR_LIMIT, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+	VkDescriptorBindingFlags bindingFlags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
 	VkDescriptorSetLayoutBindingFlagsCreateInfo setBindingFlags = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
 	setBindingFlags.bindingCount = 1;
 	setBindingFlags.pBindingFlags = &bindingFlags;
 
 	VkDescriptorSetLayoutCreateInfo setCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 	setCreateInfo.pNext = &setBindingFlags;
+	setCreateInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 	setCreateInfo.bindingCount = 1;
 	setCreateInfo.pBindings = &setBinding;
 
@@ -599,8 +600,9 @@ VkDescriptorSetLayout createDescriptorArrayLayout(VkDevice device)
 
 std::pair<VkDescriptorPool, VkDescriptorSet> createDescriptorArray(VkDevice device, VkDescriptorSetLayout layout, uint32_t descriptorCount)
 {
-	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptorCount };
+	VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorCount };
 	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
 	poolInfo.maxSets = 1;
 	poolInfo.poolSizeCount = 1;
 	poolInfo.pPoolSizes = &poolSize;

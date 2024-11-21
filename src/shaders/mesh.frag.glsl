@@ -36,7 +36,11 @@ layout(location = 2) in vec3 normal;
 layout(location = 3) in vec4 tangent;
 layout(location = 4) in vec3 wpos;
 
-layout(binding = 0, set = 1) uniform sampler2D textures[];
+layout(binding = 8) uniform sampler textureSampler;
+
+layout(binding = 0, set = 1) uniform texture2D textures[];
+
+#define SAMP(id) sampler2D(textures[nonuniformEXT(id)], textureSampler)
 
 uint hash(uint a)
 {
@@ -55,15 +59,15 @@ void main()
 
 	vec4 albedo = vec4(0.5f, 0.5f, 0.5f, 1);
 	if (meshDraw.albedoTexture > 0)
-		albedo = texture(textures[nonuniformEXT(meshDraw.albedoTexture)], uv);
+		albedo = texture(SAMP(meshDraw.albedoTexture), uv);
 
 	vec3 nmap = vec3(0, 0, 1);
 	if (meshDraw.normalTexture > 0)
-		nmap = texture(textures[nonuniformEXT(meshDraw.normalTexture)], uv).rgb * 2 - 1;
+		nmap = texture(SAMP(meshDraw.normalTexture), uv).rgb * 2 - 1;
 
 	vec3 emissive = vec3(0.0f);
 	if (meshDraw.emissiveTexture > 0)
-		emissive = texture(textures[nonuniformEXT(meshDraw.emissiveTexture)], uv).rgb;
+		emissive = texture(SAMP(meshDraw.emissiveTexture), uv).rgb;
 
 	vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
 

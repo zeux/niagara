@@ -69,6 +69,13 @@ struct DescriptorInfo
 		image.imageLayout = imageLayout;
 	}
 
+	DescriptorInfo(VkSampler sampler)
+	{
+		image.sampler = sampler;
+		image.imageView = VK_NULL_HANDLE;
+		image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	}
+
 	DescriptorInfo(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
 	{
 		image.sampler = sampler;

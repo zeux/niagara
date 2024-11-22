@@ -9,6 +9,9 @@
 
 #include <time.h>
 
+#include <algorithm>
+#include <memory>
+
 static size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices, bool fast = false)
 {
 	const size_t max_vertices = MESH_MAXVTX;

@@ -213,10 +213,6 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 		}
 	}
 
-	// pad meshlets to 64 to allow shaders to over-read when running task shaders
-	while (result.meshlets.size() % 64)
-		result.meshlets.push_back(Meshlet());
-
 	result.meshes.push_back(mesh);
 }
 
@@ -281,6 +277,64 @@ static void decomposeTransform(float translation[3], float rotation[4], float sc
 	rotation[qc ^ 3] = qs * (r12 + qs3 * r21);
 }
 
+static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& prim)
+{
+	size_t vertexCount = vertices.size();
+	std::vector<float> scratch(vertexCount * 4);
+
+	if (const cgltf_accessor* pos = cgltf_find_accessor(&prim, cgltf_attribute_type_position, 0))
+	{
+		assert(cgltf_num_components(pos->type) == 3);
+		cgltf_accessor_unpack_floats(pos, scratch.data(), vertexCount * 3);
+
+		for (size_t j = 0; j < vertexCount; ++j)
+		{
+			vertices[j].vx = scratch[j * 3 + 0];
+			vertices[j].vy = scratch[j * 3 + 1];
+			vertices[j].vz = scratch[j * 3 + 2];
+		}
+	}
+
+	if (const cgltf_accessor* nrm = cgltf_find_accessor(&prim, cgltf_attribute_type_normal, 0))
+	{
+		assert(cgltf_num_components(nrm->type) == 3);
+		cgltf_accessor_unpack_floats(nrm, scratch.data(), vertexCount * 3);
+
+		for (size_t j = 0; j < vertexCount; ++j)
+		{
+			vertices[j].nx = uint8_t(scratch[j * 3 + 0] * 127.f + 127.5f);
+			vertices[j].ny = uint8_t(scratch[j * 3 + 1] * 127.f + 127.5f);
+			vertices[j].nz = uint8_t(scratch[j * 3 + 2] * 127.f + 127.5f);
+		}
+	}
+
+	if (const cgltf_accessor* tan = cgltf_find_accessor(&prim, cgltf_attribute_type_tangent, 0))
+	{
+		assert(cgltf_num_components(tan->type) == 4);
+		cgltf_accessor_unpack_floats(tan, scratch.data(), vertexCount * 4);
+
+		for (size_t j = 0; j < vertexCount; ++j)
+		{
+			vertices[j].tx = uint8_t(scratch[j * 4 + 0] * 127.f + 127.5f);
+			vertices[j].ty = uint8_t(scratch[j * 4 + 1] * 127.f + 127.5f);
+			vertices[j].tz = uint8_t(scratch[j * 4 + 2] * 127.f + 127.5f);
+			vertices[j].tw = uint8_t(scratch[j * 4 + 3] * 127.f + 127.5f);
+		}
+	}
+
+	if (const cgltf_accessor* tex = cgltf_find_accessor(&prim, cgltf_attribute_type_texcoord, 0))
+	{
+		assert(cgltf_num_components(tex->type) == 2);
+		cgltf_accessor_unpack_floats(tex, scratch.data(), vertexCount * 2);
+
+		for (size_t j = 0; j < vertexCount; ++j)
+		{
+			vertices[j].tu = meshopt_quantizeHalf(scratch[j * 2 + 0]);
+			vertices[j].tv = meshopt_quantizeHalf(scratch[j * 2 + 1]);
+		}
+	}
+}
+
 bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast)
 {
 	clock_t timer = clock();
@@ -318,62 +372,8 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 			if (prim.type != cgltf_primitive_type_triangles || !prim.indices)
 				continue;
 
-			size_t vertexCount = prim.attributes[0].data->count;
-			std::vector<Vertex> vertices(vertexCount);
-
-			std::vector<float> scratch(vertexCount * 4);
-
-			if (const cgltf_accessor* pos = cgltf_find_accessor(&prim, cgltf_attribute_type_position, 0))
-			{
-				assert(cgltf_num_components(pos->type) == 3);
-				cgltf_accessor_unpack_floats(pos, scratch.data(), vertexCount * 3);
-
-				for (size_t j = 0; j < vertexCount; ++j)
-				{
-					vertices[j].vx = scratch[j * 3 + 0];
-					vertices[j].vy = scratch[j * 3 + 1];
-					vertices[j].vz = scratch[j * 3 + 2];
-				}
-			}
-
-			if (const cgltf_accessor* nrm = cgltf_find_accessor(&prim, cgltf_attribute_type_normal, 0))
-			{
-				assert(cgltf_num_components(nrm->type) == 3);
-				cgltf_accessor_unpack_floats(nrm, scratch.data(), vertexCount * 3);
-
-				for (size_t j = 0; j < vertexCount; ++j)
-				{
-					vertices[j].nx = uint8_t(scratch[j * 3 + 0] * 127.f + 127.5f);
-					vertices[j].ny = uint8_t(scratch[j * 3 + 1] * 127.f + 127.5f);
-					vertices[j].nz = uint8_t(scratch[j * 3 + 2] * 127.f + 127.5f);
-				}
-			}
-
-			if (const cgltf_accessor* tan = cgltf_find_accessor(&prim, cgltf_attribute_type_tangent, 0))
-			{
-				assert(cgltf_num_components(tan->type) == 4);
-				cgltf_accessor_unpack_floats(tan, scratch.data(), vertexCount * 4);
-
-				for (size_t j = 0; j < vertexCount; ++j)
-				{
-					vertices[j].tx = uint8_t(scratch[j * 4 + 0] * 127.f + 127.5f);
-					vertices[j].ty = uint8_t(scratch[j * 4 + 1] * 127.f + 127.5f);
-					vertices[j].tz = uint8_t(scratch[j * 4 + 2] * 127.f + 127.5f);
-					vertices[j].tw = uint8_t(scratch[j * 4 + 3] * 127.f + 127.5f);
-				}
-			}
-
-			if (const cgltf_accessor* tex = cgltf_find_accessor(&prim, cgltf_attribute_type_texcoord, 0))
-			{
-				assert(cgltf_num_components(tex->type) == 2);
-				cgltf_accessor_unpack_floats(tex, scratch.data(), vertexCount * 2);
-
-				for (size_t j = 0; j < vertexCount; ++j)
-				{
-					vertices[j].tu = meshopt_quantizeHalf(scratch[j * 2 + 0]);
-					vertices[j].tv = meshopt_quantizeHalf(scratch[j * 2 + 1]);
-				}
-			}
+			std::vector<Vertex> vertices(prim.attributes[0].data->count);
+			loadVertices(vertices, prim);
 
 			std::vector<uint32_t> indices(prim.indices->count);
 			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());

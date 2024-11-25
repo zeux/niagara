@@ -1,0 +1,31 @@
+name: build
+
+on:
+    push:
+        paths-ignore:
+            - "*.md"
+    pull_request:
+
+jobs:
+    build:
+        name: ubuntu
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  submodules: true
+            - uses: actions/checkout@v4
+              with:
+                  repository: KhronosGroup/Vulkan-Headers
+                  ref: main
+                  path: Vulkan-Headers
+            - name: move sdk
+              run: mv Vulkan-Headers ~/Vulkan-Headers
+            - name: install deps
+              run: |
+                  sudo apt install -y spirv-headers glslang-tools ninja-build
+                  sudo apt install -y xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+            - name: cmake
+              run: cmake . -G Ninja -D VULKAN_HEADERS_INSTALL_DIR=~/Vulkan-Headers
+            - name: build
+              run: ninja

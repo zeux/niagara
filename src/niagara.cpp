@@ -251,7 +251,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		}
 		assert(i > start); // guaranteed as scratchBuffer.size >= maxScratchSize
 
-		vkCmdBuildAccelerationStructuresKHR(commandBuffer, i - start, &buildInfos[start], &buildRangePtrs[start]);
+		vkCmdBuildAccelerationStructuresKHR(commandBuffer, uint32_t(i - start), &buildInfos[start], &buildRangePtrs[start]);
 		start = i;
 
 		pipelineBarrier(commandBuffer, 0, 1, &scratchBarrier, 0, nullptr);
@@ -568,7 +568,7 @@ int main(int argc, const char** argv)
 	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
 
-	const size_t gbufferCount = 2;
+	static const size_t gbufferCount = 2;
 	const VkFormat gbufferFormats[gbufferCount] = {
 		VK_FORMAT_R8G8B8A8_UNORM,
 		VK_FORMAT_A2B10G10R10_UNORM_PACK32,
@@ -762,7 +762,7 @@ int main(int argc, const char** argv)
 
 	printf("Loaded %d textures in %.2f sec\n", int(images.size()), glfwGetTime() - imageTimer);
 
-	uint32_t descriptorCount = texturePaths.size() + 1;
+	uint32_t descriptorCount = uint32_t(texturePaths.size() + 1);
 	std::pair<VkDescriptorPool, VkDescriptorSet> textureSet = createDescriptorArray(device, textureSetLayout, descriptorCount);
 
 	for (size_t i = 0; i < texturePaths.size(); ++i)
@@ -774,7 +774,7 @@ int main(int argc, const char** argv)
 		VkWriteDescriptorSet write = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 		write.dstSet = textureSet.second;
 		write.dstBinding = 0;
-		write.dstArrayElement = i + 1;
+		write.dstArrayElement = uint32_t(i + 1);
 		write.descriptorCount = 1;
 		write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		write.pImageInfo = &imageInfo;

@@ -419,21 +419,21 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 
 				draw.albedoTexture =
 				    material && material->pbr_metallic_roughness.base_color_texture.texture
-				        ? 1 + cgltf_texture_index(data, material->pbr_metallic_roughness.base_color_texture.texture)
+				        ? 1 + int(cgltf_texture_index(data, material->pbr_metallic_roughness.base_color_texture.texture))
 				    : material && material->pbr_specular_glossiness.diffuse_texture.texture
-				        ? 1 + cgltf_texture_index(data, material->pbr_specular_glossiness.diffuse_texture.texture)
+				        ? 1 + int(cgltf_texture_index(data, material->pbr_specular_glossiness.diffuse_texture.texture))
 				        : 0;
 				draw.normalTexture =
 				    material && material->normal_texture.texture
-				        ? 1 + cgltf_texture_index(data, material->normal_texture.texture)
+				        ? 1 + int(cgltf_texture_index(data, material->normal_texture.texture))
 				        : 0;
 				draw.specularTexture =
 				    material && material->pbr_specular_glossiness.specular_glossiness_texture.texture
-				        ? 1 + cgltf_texture_index(data, material->pbr_specular_glossiness.specular_glossiness_texture.texture)
+				        ? 1 + int(cgltf_texture_index(data, material->pbr_specular_glossiness.specular_glossiness_texture.texture))
 				        : 0;
 				draw.emissiveTexture =
 				    material && material->emissive_texture.texture
-				        ? 1 + cgltf_texture_index(data, material->emissive_texture.texture)
+				        ? 1 + int(cgltf_texture_index(data, material->emissive_texture.texture))
 				        : 0;
 
 				if (material && material->alpha_mode != cgltf_alpha_mode_opaque)

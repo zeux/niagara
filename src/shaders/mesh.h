@@ -25,9 +25,9 @@ struct CullData
 {
 	mat4 view;
 
-	float P00, P11, znear, zfar; // symmetric projection parameters
-	float frustum[4]; // data for left/right/top/bottom frustum planes
-	float lodTarget; // lod target error at z=1
+	float P00, P11, znear, zfar;       // symmetric projection parameters
+	float frustum[4];                  // data for left/right/top/bottom frustum planes
+	float lodTarget;                   // lod target error at z=1
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint drawCount;
@@ -43,8 +43,6 @@ struct CullData
 struct Globals
 {
 	mat4 projection;
-	vec3 sunDirection;
-	int shadowsEnabled;
 	CullData cullData;
 	float screenWidth, screenHeight;
 };

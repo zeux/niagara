@@ -26,7 +26,7 @@ bool lodEnabled = true;
 bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
-bool shadowsEnabled = true;
+bool shadingEnabled = true;
 int debugLodStep = 0;
 
 VkSemaphore createSemaphore(VkDevice device)
@@ -115,14 +115,22 @@ struct alignas(16) CullData
 struct alignas(16) Globals
 {
 	mat4 projection;
-	vec3 sunDirection;
-	int shadowsEnabled;
 	CullData cullData;
 	float screenWidth, screenHeight;
 };
 
 struct alignas(16) DepthReduceData
 {
+	vec2 imageSize;
+};
+
+struct alignas(16) ShadeData
+{
+	vec3 sunDirection;
+	float padding;
+
+	mat4 inverseViewProjection;
+
 	vec2 imageSize;
 };
 
@@ -392,7 +400,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		}
 		if (key == GLFW_KEY_S)
 		{
-			shadowsEnabled = !shadowsEnabled;
+			shadingEnabled = !shadingEnabled;
 		}
 		if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
 		{
@@ -560,10 +568,16 @@ int main(int argc, const char** argv)
 	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
 
-	VkPipelineRenderingCreateInfo renderingInfo = { VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachmentFormats = &swapchainFormat;
-	renderingInfo.depthAttachmentFormat = depthFormat;
+	const size_t gbufferCount = 2;
+	const VkFormat gbufferFormats[gbufferCount] = {
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+	};
+
+	VkPipelineRenderingCreateInfo gbufferInfo = { VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+	gbufferInfo.colorAttachmentCount = gbufferCount;
+	gbufferInfo.pColorAttachmentFormats = gbufferFormats;
+	gbufferInfo.depthAttachmentFormat = depthFormat;
 
 	bool rcs = false;
 
@@ -610,6 +624,13 @@ int main(int argc, const char** argv)
 	rcs = loadShader(blitCS, device, argv[0], "spirv/blit.comp.spv");
 	assert(rcs);
 
+	Shader shadeCS = {};
+	if (raytracingSupported)
+	{
+		rcs = loadShader(shadeCS, device, argv[0], "spirv/shade.comp.spv");
+		assert(rcs);
+	}
+
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
 	// TODO: this is critical for performance!
@@ -644,8 +665,8 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals), textureSetLayout);
 	}
 
-	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshVS, &meshFS }, meshProgram.layout);
-	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshVS, &meshFS }, meshProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshVS, &meshFS }, meshProgram.layout);
+	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshVS, &meshFS }, meshProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 	assert(meshPipeline);
 
 	VkPipeline meshtaskPipeline = 0;
@@ -655,16 +676,19 @@ int main(int argc, const char** argv)
 	VkPipeline clusterpostPipeline = 0;
 	if (meshShadingSupported)
 	{
-		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
-		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
-		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
-		clusterPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
-		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, renderingInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
+		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
+		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
+		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 		assert(meshtaskPipeline && meshtasklatePipeline && clusterPipeline);
 	}
 
 	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &blitCS }, sizeof(vec4));
 	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, blitCS, blitProgram.layout);
+
+	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shadeCS }, sizeof(ShadeData));
+	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shadeCS, shadeProgram.layout);
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -908,7 +932,7 @@ int main(int argc, const char** argv)
 		tlas = buildTLAS(device, tlasBuffer, draws, blas, commandPool, commandBuffer, queue, memoryProperties);
 	}
 
-	Image colorTarget = {};
+	Image gbufferTargets[gbufferCount] = {};
 	Image depthTarget = {};
 
 	Image depthPyramid = {};
@@ -935,12 +959,13 @@ int main(int argc, const char** argv)
 		if (swapchainStatus == Swapchain_NotReady)
 			continue;
 
-		if (swapchainStatus == Swapchain_Resized || !colorTarget.image)
+		if (swapchainStatus == Swapchain_Resized || !depthTarget.image)
 		{
 			printf("Swapchain: %dx%d\n", swapchain.width, swapchain.height);
 
-			if (colorTarget.image)
-				destroyImage(colorTarget, device);
+			for (Image& image : gbufferTargets)
+				if (image.image)
+					destroyImage(image, device);
 			if (depthTarget.image)
 				destroyImage(depthTarget, device);
 
@@ -951,7 +976,8 @@ int main(int argc, const char** argv)
 				destroyImage(depthPyramid, device);
 			}
 
-			createImage(colorTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, swapchainFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+			for (uint32_t i = 0; i < gbufferCount; ++i)
+				createImage(gbufferTargets[i], device, memoryProperties, swapchain.width, swapchain.height, 1, gbufferFormats[i], VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			createImage(depthTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 			// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
@@ -1052,8 +1078,6 @@ int main(int argc, const char** argv)
 
 		Globals globals = {};
 		globals.projection = projection;
-		globals.sunDirection = sunDirection;
-		globals.shadowsEnabled = shadowsEnabled;
 		globals.cullData = cullData;
 		globals.screenWidth = float(swapchain.width);
 		globals.screenHeight = float(swapchain.height);
@@ -1212,12 +1236,16 @@ int main(int argc, const char** argv)
 				pipelineBarrier(commandBuffer, 0, COUNTOF(cullBarriers), cullBarriers, 0, nullptr);
 			}
 
-			VkRenderingAttachmentInfo colorAttachment = { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-			colorAttachment.imageView = colorTarget.imageView;
-			colorAttachment.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-			colorAttachment.loadOp = late ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachment.clearValue.color = colorClear;
+			VkRenderingAttachmentInfo gbufferAttachments[gbufferCount] = {};
+			for (uint32_t i = 0; i < gbufferCount; ++i)
+			{
+				gbufferAttachments[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+				gbufferAttachments[i].imageView = gbufferTargets[i].imageView;
+				gbufferAttachments[i].imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+				gbufferAttachments[i].loadOp = late ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+				gbufferAttachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+				gbufferAttachments[i].clearValue.color = colorClear;
+			}
 
 			VkRenderingAttachmentInfo depthAttachment = { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 			depthAttachment.imageView = depthTarget.imageView;
@@ -1230,8 +1258,8 @@ int main(int argc, const char** argv)
 			passInfo.renderArea.extent.width = swapchain.width;
 			passInfo.renderArea.extent.height = swapchain.height;
 			passInfo.layerCount = 1;
-			passInfo.colorAttachmentCount = 1;
-			passInfo.pColorAttachments = &colorAttachment;
+			passInfo.colorAttachmentCount = gbufferCount;
+			passInfo.pColorAttachments = gbufferAttachments;
 			passInfo.pDepthAttachment = &depthAttachment;
 
 			vkCmdBeginRendering(commandBuffer, &passInfo);
@@ -1249,7 +1277,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? clusterpostPipeline : clusterPipeline);
 
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer, DescriptorInfo(), tlas, textureSampler };
+				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer, DescriptorInfo(), textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1263,7 +1291,7 @@ int main(int argc, const char** argv)
 				                                                                                                              : meshtaskPipeline);
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc, tlas, textureSampler };
+				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc, textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshtaskProgram.updateTemplate, meshtaskProgram.layout, 0, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1275,7 +1303,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? meshpostPipeline : meshPipeline);
 
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), tlas, textureSampler };
+				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1346,15 +1374,16 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, 5);
 		};
 
-		VkImageMemoryBarrier2 renderBeginBarriers[] = {
-			imageBarrier(colorTarget.image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL),
+		VkImageMemoryBarrier2 renderBeginBarriers[gbufferCount + 1] = {
 			imageBarrier(depthTarget.image,
 			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
 			    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
 			    VK_IMAGE_ASPECT_DEPTH_BIT),
 		};
+		for (uint32_t i = 0; i < gbufferCount; ++i)
+			renderBeginBarriers[i + 1] = imageBarrier(gbufferTargets[i].image,
+			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+			    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL);
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(renderBeginBarriers), renderBeginBarriers);
 
@@ -1384,27 +1413,57 @@ int main(int argc, const char** argv)
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
 		render(/* late= */ true, colorClear, depthClear, 2, 14, "post render", /* postPass= */ 1);
 
-		VkImageMemoryBarrier2 blitBarriers[] = {
-			imageBarrier(colorTarget.image,
-			    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL),
+		VkImageMemoryBarrier2 blitBarriers[2 + gbufferCount] = {
 			// note: even though the source image has previous state as undef, we need to specify COMPUTE_SHADER to synchronize with submitStageMask below
 			imageBarrier(swapchain.images[imageIndex],
 			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
 			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
+			imageBarrier(depthTarget.image,
+			    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			    VK_IMAGE_ASPECT_DEPTH_BIT)
 		};
+
+		for (uint32_t i = 0; i < gbufferCount; ++i)
+			blitBarriers[i + 2] = imageBarrier(gbufferTargets[i].image,
+			    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(blitBarriers), blitBarriers);
 
 		{
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blitPipeline);
+			uint32_t timestamp = 16;
 
-			DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, colorTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
-			vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, blitProgram.updateTemplate, blitProgram.layout, 0, descriptors);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
-			vec4 blitData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
-			vkCmdPushConstants(commandBuffer, blitProgram.layout, blitProgram.pushConstantStages, 0, sizeof(blitData), &blitData);
-			vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, blitCS.localSizeX), getGroupCount(swapchain.height, blitCS.localSizeY), 1);
+			if (raytracingSupported && shadingEnabled)
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
+
+				DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, gbufferTargets[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, tlas };
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadeProgram.updateTemplate, shadeProgram.layout, 0, descriptors);
+
+				ShadeData shadeData = {};
+				shadeData.sunDirection = sunDirection;
+				shadeData.inverseViewProjection = inverse(projection * view);
+				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+
+				vkCmdPushConstants(commandBuffer, shadeProgram.layout, shadeProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
+				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeCS.localSizeX), getGroupCount(swapchain.height, shadeCS.localSizeY), 1);
+			}
+			else
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blitPipeline);
+
+				DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, blitProgram.updateTemplate, blitProgram.layout, 0, descriptors);
+
+				vec4 blitData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
+				vkCmdPushConstants(commandBuffer, blitProgram.layout, blitProgram.pushConstantStages, 0, sizeof(blitData), &blitData);
+				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, blitCS.localSizeX), getGroupCount(swapchain.height, blitCS.localSizeY), 1);
+			}
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		}
 
 		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
@@ -1442,7 +1501,7 @@ int main(int argc, const char** argv)
 		VK_CHECK(vkWaitForFences(device, 1, &frameFence, VK_TRUE, ~0ull));
 		VK_CHECK(vkResetFences(device, 1, &frameFence));
 
-		uint64_t timestampResults[12] = {};
+		uint64_t timestampResults[18] = {};
 		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
 
 		uint64_t pipelineResults[3] = {};
@@ -1455,9 +1514,13 @@ int main(int argc, const char** argv)
 		double cullGpuTime = double(timestampResults[3] - timestampResults[2]) * props.limits.timestampPeriod * 1e-6;
 		double pyramidGpuTime = double(timestampResults[5] - timestampResults[4]) * props.limits.timestampPeriod * 1e-6;
 		double culllateGpuTime = double(timestampResults[7] - timestampResults[6]) * props.limits.timestampPeriod * 1e-6;
+		double cullpostGpuTime = double(timestampResults[13] - timestampResults[12]) * props.limits.timestampPeriod * 1e-6;
 
 		double renderGpuTime = double(timestampResults[9] - timestampResults[8]) * props.limits.timestampPeriod * 1e-6;
 		double renderlateGpuTime = double(timestampResults[11] - timestampResults[10]) * props.limits.timestampPeriod * 1e-6;
+		double renderpostGpuTime = double(timestampResults[15] - timestampResults[14]) * props.limits.timestampPeriod * 1e-6;
+
+		double finalGpuTime = double(timestampResults[17] - timestampResults[16]) * props.limits.timestampPeriod * 1e-6;
 
 		double frameCpuEnd = glfwGetTime() * 1000;
 
@@ -1468,9 +1531,12 @@ int main(int argc, const char** argv)
 		double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
 
 		char title[512];
-		snprintf(title, sizeof(title), "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, render: %.2f ms, pyramid: %.2f ms, cull late: %.2f, render late: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, task shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",
+		snprintf(title, sizeof(title), "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, task shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",
 		    frameCpuAvg, frameGpuAvg,
-		    cullGpuTime, renderGpuTime, pyramidGpuTime, culllateGpuTime, renderlateGpuTime,
+		    cullGpuTime + culllateGpuTime + cullpostGpuTime,
+		    pyramidGpuTime,
+		    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
+		    finalGpuTime,
 		    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6,
 		    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 		    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF", clusterOcclusionEnabled ? "ON" : "OFF");
@@ -1487,8 +1553,9 @@ int main(int argc, const char** argv)
 	for (Image& image : images)
 		destroyImage(image, device);
 
-	if (colorTarget.image)
-		destroyImage(colorTarget, device);
+	for (Image& image : gbufferTargets)
+		if (image.image)
+			destroyImage(image, device);
 	if (depthTarget.image)
 		destroyImage(depthTarget, device);
 
@@ -1579,10 +1646,14 @@ int main(int argc, const char** argv)
 	vkDestroyPipeline(device, blitPipeline, 0);
 	destroyProgram(device, blitProgram);
 
+	vkDestroyPipeline(device, shadePipeline, 0);
+	destroyProgram(device, shadeProgram);
+
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroyShaderModule(device, drawcullCS.module, 0);
 	vkDestroyShaderModule(device, blitCS.module, 0);
+	vkDestroyShaderModule(device, shadeCS.module, 0);
 	vkDestroyShaderModule(device, tasksubmitCS.module, 0);
 	vkDestroyShaderModule(device, clustersubmitCS.module, 0);
 	vkDestroyShaderModule(device, clustercullCS.module, 0);

@@ -490,12 +490,14 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER;
 	createInfo.pDepthStencilState = &depthStencilState;
 
-	VkPipelineColorBlendAttachmentState colorAttachmentState = {};
-	colorAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState colorAttachmentStates[8] = {};
+	assert(renderingInfo.colorAttachmentCount <= COUNTOF(colorAttachmentStates));
+	for (uint32_t i = 0; i < renderingInfo.colorAttachmentCount; ++i)
+		colorAttachmentStates[i].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 	VkPipelineColorBlendStateCreateInfo colorBlendState = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
-	colorBlendState.attachmentCount = 1;
-	colorBlendState.pAttachments = &colorAttachmentState;
+	colorBlendState.attachmentCount = renderingInfo.colorAttachmentCount;
+	colorBlendState.pAttachments = colorAttachmentStates;
 	createInfo.pColorBlendState = &colorBlendState;
 
 	VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };

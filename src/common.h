@@ -1,6 +1,8 @@
 #pragma once
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <volk.h>
 
@@ -11,6 +13,17 @@
 	{ \
 		VkResult result_ = call; \
 		assert(result_ == VK_SUCCESS); \
+	} while (0)
+
+#define VK_CHECK_FORCE(call) \
+	do \
+	{ \
+		VkResult result_ = call; \
+		if (result_ != VK_SUCCESS) \
+		{ \
+			fprintf(stderr, "%s:%d: %s failed with error %d\n", __FILE__, __LINE__, #call, result_); \
+			abort(); \
+		} \
 	} while (0)
 
 #define VK_CHECK_SWAPCHAIN(call) \

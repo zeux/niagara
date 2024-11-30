@@ -1487,7 +1487,7 @@ int main(int argc, const char** argv)
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = &releaseSemaphore;
 
-		VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, frameFence));
+		VK_CHECK_FORCE(vkQueueSubmit(queue, 1, &submitInfo, frameFence));
 
 		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
 		presentInfo.waitSemaphoreCount = 1;

@@ -27,6 +27,7 @@ bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadingEnabled = true;
+
 int debugLodStep = 0;
 
 VkSemaphore createSemaphore(VkDevice device)
@@ -121,8 +122,10 @@ struct alignas(16) Globals
 
 struct alignas(16) ShadeData
 {
+	vec3 cameraPosition;
+	float pad0;
 	vec3 sunDirection;
-	float padding;
+	float pad1;
 
 	mat4 inverseViewProjection;
 
@@ -1269,7 +1272,7 @@ int main(int argc, const char** argv)
 
 			if (clusterSubmit)
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? clusterpostPipeline : clusterPipeline);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? clusterpostPipeline : clusterPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer, DescriptorInfo(), textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
@@ -1281,7 +1284,7 @@ int main(int argc, const char** argv)
 			}
 			else if (taskSubmit)
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? meshtaskpostPipeline : late ? meshtasklatePipeline
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshtaskpostPipeline : late ? meshtasklatePipeline
 				                                                                                                              : meshtaskPipeline);
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView, VK_IMAGE_LAYOUT_GENERAL);
@@ -1295,7 +1298,7 @@ int main(int argc, const char** argv)
 			}
 			else
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass == 1 ? meshpostPipeline : meshPipeline);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshpostPipeline : meshPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
@@ -1438,6 +1441,7 @@ int main(int argc, const char** argv)
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadeProgram.updateTemplate, shadeProgram.layout, 0, descriptors);
 
 				ShadeData shadeData = {};
+				shadeData.cameraPosition = camera.position;
 				shadeData.sunDirection = sunDirection;
 				shadeData.inverseViewProjection = inverse(projection * view);
 				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));

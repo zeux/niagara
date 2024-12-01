@@ -15,6 +15,7 @@ struct alignas(16) Meshlet
 	int8_t cone_cutoff;
 
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
+	uint32_t baseVertex;
 	uint8_t vertexCount;
 	uint8_t triangleCount;
 };
@@ -26,9 +27,9 @@ struct alignas(16) MeshDraw
 	quat orientation;
 
 	uint32_t meshIndex;
-	uint32_t vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
 	uint32_t meshletVisibilityOffset;
 	uint32_t postPass;
+	uint32_t flags;
 
 	int albedoTexture;
 	int normalTexture;

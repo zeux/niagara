@@ -17,6 +17,7 @@ struct Meshlet
 	int8_t cone_cutoff;
 
 	uint dataOffset;
+	uint baseVertex;
 	uint8_t vertexCount;
 	uint8_t triangleCount;
 };
@@ -75,9 +76,9 @@ struct MeshDraw
 	vec4 orientation;
 
 	uint meshIndex;
-	uint vertexOffset; // == meshes[meshIndex].vertexOffset, helps data locality in mesh shader
 	uint meshletVisibilityOffset;
 	uint postPass;
+	uint flags;
 
 	int albedoTexture;
 	int normalTexture;

@@ -13,7 +13,7 @@
 #include <memory>
 #include <cstring>
 
-static size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices, bool fast = false)
+static size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices, uint32_t baseVertex, bool fast = false)
 {
 	const size_t max_vertices = MESH_MAXVTX;
 	const size_t max_triangles = MESH_MAXTRI;
@@ -48,6 +48,7 @@ static size_t appendMeshlets(Geometry& result, const std::vector<Vertex>& vertic
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);
+		m.baseVertex = baseVertex;
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
 
@@ -181,7 +182,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 		result.indices.insert(result.indices.end(), lodIndices.begin(), lodIndices.end());
 
 		lod.meshletOffset = uint32_t(result.meshlets.size());
-		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices, fast)) : 0;
+		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, vertices, lodIndices, mesh.vertexOffset, fast)) : 0;
 
 		lod.error = lodError * lodScale;
 
@@ -413,7 +414,6 @@ bool loadScene(Geometry& geometry, std::vector<MeshDraw>& draws, std::vector<std
 				draw.scale = std::max(scale[0], std::max(scale[1], scale[2]));
 				draw.orientation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
 				draw.meshIndex = range.first + j;
-				draw.vertexOffset = geometry.meshes[range.first + j].vertexOffset;
 
 				cgltf_material* material = primitiveMaterials[range.first + j - firstMeshOffset];
 

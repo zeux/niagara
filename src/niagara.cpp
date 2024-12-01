@@ -828,7 +828,6 @@ int main(int argc, const char** argv)
 			draw.orientation = quat(cosf(angle * 0.5f), axis * sinf(angle * 0.5f));
 
 			draw.meshIndex = uint32_t(meshIndex);
-			draw.vertexOffset = mesh.vertexOffset;
 		}
 	}
 

@@ -163,10 +163,10 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		geo.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
 		geo.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 
-		static_assert(offsetof(Vertex, vz) == offsetof(Vertex, vx) + sizeof(float) * 2, "Vertex layout mismatch");
+		static_assert(offsetof(Vertex, vz) == offsetof(Vertex, vx) + sizeof(uint16_t) * 2, "Vertex layout mismatch");
 
 		geo.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-		geo.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		geo.geometry.triangles.vertexFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		geo.geometry.triangles.vertexData.deviceAddress = vbAddress + mesh.vertexOffset * sizeof(Vertex);
 		geo.geometry.triangles.vertexStride = sizeof(Vertex);
 		geo.geometry.triangles.maxVertex = mesh.vertexCount - 1;

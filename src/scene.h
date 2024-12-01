@@ -39,7 +39,7 @@ struct alignas(16) MeshDraw
 
 struct Vertex
 {
-	float vx, vy, vz;
+	uint16_t vx, vy, vz, vw;
 	uint8_t nx, ny, nz, nw;
 	uint8_t tx, ty, tz, tw;
 	uint16_t tu, tv;

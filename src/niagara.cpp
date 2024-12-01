@@ -119,11 +119,6 @@ struct alignas(16) Globals
 	float screenWidth, screenHeight;
 };
 
-struct alignas(16) DepthReduceData
-{
-	vec2 imageSize;
-};
-
 struct alignas(16) ShadeData
 {
 	vec3 sunDirection;
@@ -180,7 +175,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 
 		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
 		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 		buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 		buildInfo.geometryCount = 1;
 		buildInfo.pGeometries = &geo;
@@ -313,7 +308,7 @@ VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const 
 
 	VkAccelerationStructureBuildGeometryInfoKHR buildInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR; // todo: fast build?
+	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	buildInfo.geometryCount = 1;
 	buildInfo.pGeometries = &geometry;
@@ -652,7 +647,7 @@ int main(int argc, const char** argv)
 	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ false });
 	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ true });
 
-	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(DepthReduceData));
+	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(vec4));
 	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
 
 	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals), textureSetLayout);
@@ -1351,7 +1346,7 @@ int main(int argc, const char** argv)
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);
 
-				DepthReduceData reduceData = { vec2(levelWidth, levelHeight) };
+				vec4 reduceData = vec4(levelWidth, levelHeight, 0, 0);
 
 				vkCmdPushConstants(commandBuffer, depthreduceProgram.layout, depthreduceProgram.pushConstantStages, 0, sizeof(reduceData), &reduceData);
 				vkCmdDispatch(commandBuffer, getGroupCount(levelWidth, depthreduceCS.localSizeX), getGroupCount(levelHeight, depthreduceCS.localSizeY), 1);

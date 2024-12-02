@@ -37,6 +37,7 @@ struct CullData
 	int lodEnabled;
 	int occlusionEnabled;
 	int clusterOcclusionEnabled;
+	int clusterBackfaceEnabled;
 
 	uint postPass;
 };

@@ -108,6 +108,7 @@ struct alignas(16) CullData
 	int lodEnabled;
 	int occlusionEnabled;
 	int clusterOcclusionEnabled;
+	int clusterBackfaceEnabled;
 
 	uint32_t postPass;
 };
@@ -1120,6 +1121,7 @@ int main(int argc, const char** argv)
 
 			{
 				CullData passData = cullData;
+				passData.clusterBackfaceEnabled = postPass == 0;
 				passData.postPass = postPass;
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
@@ -1257,6 +1259,8 @@ int main(int argc, const char** argv)
 
 			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+			vkCmdSetCullMode(commandBuffer, postPass == 0 ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE);
 
 			Globals passGlobals = globals;
 			passGlobals.cullData.postPass = postPass;

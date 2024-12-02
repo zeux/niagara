@@ -98,7 +98,7 @@ void main()
 	}
 
 	// backface cone culling
-	visible = visible && !coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0));
+	visible = visible && (cullData.clusterBackfaceEnabled == 0 || !coneCull(center, radius, cone_axis, cone_cutoff, vec3(0, 0, 0)));
 	// the left/top/right/bottom plane culling utilizes frustum symmetry to cull against two planes at the same time
 	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
 	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;

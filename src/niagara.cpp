@@ -601,23 +601,23 @@ int main(int argc, const char** argv)
 	VkPipelineCache pipelineCache = 0;
 
 	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["drawcull.comp"] }, sizeof(CullData));
-	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ false });
-	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ false });
-	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ true });
-	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ false });
+	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ false });
+	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ true });
+	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ true });
 
 	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["tasksubmit.comp"] }, 0);
-	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, shaders["tasksubmit.comp"], tasksubmitProgram.layout);
+	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, tasksubmitProgram);
 
 	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustersubmit.comp"] }, 0);
-	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, shaders["clustersubmit.comp"], clustersubmitProgram.layout);
+	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, clustersubmitProgram);
 
 	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustercull.comp"] }, sizeof(CullData));
-	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, shaders["clustercull.comp"], clustercullProgram.layout, { /* LATE= */ false });
-	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, shaders["clustercull.comp"], clustercullProgram.layout, { /* LATE= */ true });
+	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ false });
+	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ true });
 
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["depthreduce.comp"] }, sizeof(vec4));
-	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, shaders["depthreduce.comp"], depthreduceProgram.layout);
+	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceProgram);
 
 	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 
@@ -629,8 +629,8 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 	}
 
-	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, meshProgram.layout);
-	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, meshProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram);
+	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 	assert(meshPipeline);
 
 	VkPipeline meshtaskPipeline = 0;
@@ -640,19 +640,21 @@ int main(int argc, const char** argv)
 	VkPipeline clusterpostPipeline = 0;
 	if (meshShadingSupported)
 	{
-		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
-		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
-		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
-		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
-		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
-		assert(meshtaskPipeline && meshtasklatePipeline && clusterPipeline);
+		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ false, /* TASK= */ true });
+		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true });
+		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
+		assert(meshtaskPipeline && meshtasklatePipeline && meshtaskpostPipeline);
+
+		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false });
+		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+		assert(clusterPipeline && clusterpostPipeline);
 	}
 
 	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
-	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, shaders["blit.comp"], blitProgram.layout);
+	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, blitProgram);
 
 	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
-	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shaders["shade.comp"], shadeProgram.layout);
+	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shadeProgram);
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);

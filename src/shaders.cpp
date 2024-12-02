@@ -494,7 +494,7 @@ static VkSpecializationInfo fillSpecializationInfo(std::vector<VkSpecializationM
 	return result;
 }
 
-VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, const VkPipelineRenderingCreateInfo& renderingInfo, Shaders shaders, VkPipelineLayout layout, Constants constants)
+VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, const VkPipelineRenderingCreateInfo& renderingInfo, const Program& program, Constants constants)
 {
 	std::vector<VkSpecializationMapEntry> specializationEntries;
 	VkSpecializationInfo specializationInfo = fillSpecializationInfo(specializationEntries, constants);
@@ -502,8 +502,10 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 
 	std::vector<VkPipelineShaderStageCreateInfo> stages;
-	for (const Shader* shader : shaders)
+	for (size_t i = 0; i < program.shaderCount; ++i)
 	{
+		const Shader* shader = program.shaders[i];
+
 		VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 		stage.stage = shader->stage;
 		stage.module = shader->module;
@@ -561,7 +563,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	dynamicState.pDynamicStates = dynamicStates;
 	createInfo.pDynamicState = &dynamicState;
 
-	createInfo.layout = layout;
+	createInfo.layout = program.layout;
 	createInfo.pNext = &renderingInfo;
 
 	VkPipeline pipeline = 0;
@@ -570,8 +572,11 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	return pipeline;
 }
 
-VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache, const Shader& shader, VkPipelineLayout layout, Constants constants)
+VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache, const Program& program, Constants constants)
 {
+	assert(program.shaderCount == 1);
+	const Shader& shader = *program.shaders[0];
+
 	assert(shader.stage == VK_SHADER_STAGE_COMPUTE_BIT);
 
 	VkComputePipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
@@ -586,7 +591,7 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 	stage.pSpecializationInfo = &specializationInfo;
 
 	createInfo.stage = stage;
-	createInfo.layout = layout;
+	createInfo.layout = program.layout;
 
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateComputePipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
@@ -630,6 +635,12 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 		program.localSizeY = shader->localSizeY;
 		program.localSizeZ = shader->localSizeZ;
 	}
+
+	memset(program.shaders, 0, sizeof(program.shaders));
+	program.shaderCount = 0;
+
+	for (const Shader* shader : shaders)
+		program.shaders[program.shaderCount++] = shader;
 
 	return program;
 }

@@ -27,7 +27,6 @@ bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadingEnabled = true;
-
 int debugLodStep = 0;
 
 VkSemaphore createSemaphore(VkDevice device)
@@ -396,7 +395,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			taskShadingEnabled = !taskShadingEnabled;
 		}
-		if (key == GLFW_KEY_S)
+		if (key == GLFW_KEY_F)
 		{
 			shadingEnabled = !shadingEnabled;
 		}
@@ -404,6 +403,19 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugLodStep = key - GLFW_KEY_0;
 		}
+	}
+}
+
+void mouseCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_RIGHT)
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetCursorPos(window, 0, 0);
+	}
+	else if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_RIGHT)
+	{
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 	}
 }
 
@@ -534,6 +546,7 @@ int main(int argc, const char** argv)
 	assert(window);
 
 	glfwSetKeyCallback(window, keyCallback);
+	glfwSetMouseButtonCallback(window, mouseCallback);
 
 	VkSurfaceKHR surface = createSurface(instance, window);
 	assert(surface);
@@ -946,12 +959,36 @@ int main(int argc, const char** argv)
 	double frameGpuAvg = 0;
 
 	uint64_t frameIndex = 0;
+	double frameTimestamp = glfwGetTime();
 
 	while (!glfwWindowShouldClose(window))
 	{
+		double frameDelta = glfwGetTime() - frameTimestamp;
+		frameTimestamp = glfwGetTime();
+
 		double frameCpuBegin = glfwGetTime() * 1000;
 
 		glfwPollEvents();
+
+		if (glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
+		{
+			double xpos, ypos;
+			glfwGetCursorPos(window, &xpos, &ypos);
+
+			bool cameraBoost = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS);
+			vec2 cameraMotion = vec2(glfwGetKey(window, GLFW_KEY_W), glfwGetKey(window, GLFW_KEY_D)) - vec2(glfwGetKey(window, GLFW_KEY_S), glfwGetKey(window, GLFW_KEY_A));
+			vec2 cameraRotation = vec2(xpos, ypos);
+
+			float cameraMotionSpeed = cameraBoost ? 10.f : 3.0f;
+			float cameraRotationSpeed = glm::radians(10.f);
+
+			camera.position += float(cameraMotion.y * frameDelta * cameraMotionSpeed) * (camera.orientation * vec3(1, 0, 0));
+			camera.position += float(cameraMotion.x * frameDelta * cameraMotionSpeed) * (camera.orientation * vec3(0, 0, -1));
+			camera.orientation = glm::rotate(glm::quat(0, 0, 0, 1), float(-cameraRotation.x * frameDelta * cameraRotationSpeed), vec3(0, 1, 0)) * camera.orientation;
+			camera.orientation = glm::rotate(glm::quat(0, 0, 0, 1), float(-cameraRotation.y * frameDelta * cameraRotationSpeed), camera.orientation * vec3(1, 0, 0)) * camera.orientation;
+
+			glfwSetCursorPos(window, 0, 0);
+		}
 
 		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
 
@@ -1048,7 +1085,7 @@ int main(int argc, const char** argv)
 		view = inverse(view);
 		view = glm::scale(glm::identity<glm::mat4>(), vec3(1, 1, -1)) * view;
 
-		float znear = 0.5f;
+		float znear = 0.1f;
 		mat4 projection = perspectiveProjection(camera.fovY, float(swapchain.width) / float(swapchain.height), znear);
 
 		mat4 projectionT = transpose(projection);

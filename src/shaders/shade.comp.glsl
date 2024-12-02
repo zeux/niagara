@@ -1,9 +1,5 @@
 #version 460
 
-#extension GL_GOOGLE_include_directive: require
-
-#include "math.h"
-
 #define RAYTRACE 1
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -43,9 +39,9 @@ void main()
 	vec4 gbuffer1 = texture(gbufferImage1, uv);
 	float depth = texture(depthImage, uv).r;
 
-	vec3 albedo = fromsrgb(gbuffer0.rgb);
-	vec3 emissive = vec3(albedo * (gbuffer0.a * gbuffer0.a * 10));
-	vec3 normal = decodeOct(gbuffer1.rg * 2 - 1);
+	vec3 albedo = gbuffer0.rgb;
+	vec3 emissive = vec3(gbuffer0.a);
+	vec3 normal = gbuffer1.rgb * 2 - 1;
 
 	float ndotl = max(dot(normal, shadeData.sunDirection), 0.0);
 
@@ -56,7 +52,7 @@ void main()
 	vec3 view = normalize(shadeData.cameraPosition - wpos);
 	vec3 halfv = normalize(view + shadeData.sunDirection);
 	float ndoth = max(dot(normal, halfv), 0.0);
-	float specular = pow(ndoth, 64 * gbuffer1.b) * gbuffer1.b;
+	float specular = pow(ndoth, 64);
 
 	float shadow = 1;
 
@@ -71,10 +67,7 @@ void main()
 	shadow = (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.0;
 #endif
 
-	float ambient = 0.05;
-
-	vec3 final = albedo.rgb * (ndotl * shadow + ambient) + vec3(specular * shadow) + emissive;
-	vec3 outputColor = tosrgb(final);
+	vec3 outputColor = albedo.rgb * sqrt(ndotl * shadow + 0.05) + vec3(specular * shadow) + emissive;
 
 	imageStore(outImage, ivec2(pos), vec4(outputColor, 1.0));
 }

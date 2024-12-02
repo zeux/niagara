@@ -84,6 +84,12 @@ struct MeshDraw
 	int normalTexture;
 	int specularTexture;
 	int emissiveTexture;
+
+	vec4 diffuseFactor;
+	vec3 specularFactor;
+	float glossinessFactor;
+	vec3 emissiveFactor;
+	float padding;
 };
 
 struct MeshDrawCommand

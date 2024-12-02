@@ -18,6 +18,7 @@ struct alignas(16) Meshlet
 	uint32_t baseVertex;
 	uint8_t vertexCount;
 	uint8_t triangleCount;
+	uint8_t padding[2];
 };
 
 struct alignas(16) MeshDraw
@@ -35,6 +36,12 @@ struct alignas(16) MeshDraw
 	int normalTexture;
 	int specularTexture;
 	int emissiveTexture;
+
+	vec4 diffuseFactor;
+	vec3 specularFactor;
+	float glossinessFactor;
+	vec3 emissiveFactor;
+	float padding;
 };
 
 struct Vertex

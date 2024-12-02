@@ -6,6 +6,7 @@
 #extension GL_EXT_nonuniform_qualifier: require
 
 #include "mesh.h"
+#include "math.h"
 
 layout (constant_id = 2) const int POST = 0;
 
@@ -50,30 +51,28 @@ void main()
 {
 	MeshDraw meshDraw = draws[drawId];
 
-	vec4 albedo = vec4(0.5f, 0.5f, 0.5f, 1);
+	vec4 albedo = meshDraw.diffuseFactor;
 	if (meshDraw.albedoTexture > 0)
-		albedo = texture(SAMP(meshDraw.albedoTexture), uv);
+		albedo *= fromsrgb(texture(SAMP(meshDraw.albedoTexture), uv));
 
 	vec3 nmap = vec3(0, 0, 1);
 	if (meshDraw.normalTexture > 0)
 		nmap = texture(SAMP(meshDraw.normalTexture), uv).rgb * 2 - 1;
 
-	vec4 specgloss = vec4(0.0f);
+	vec4 specgloss = vec4(meshDraw.specularFactor, meshDraw.glossinessFactor);
 	if (meshDraw.specularTexture > 0)
-		specgloss = texture(SAMP(meshDraw.specularTexture), uv);
+		specgloss *= texture(SAMP(meshDraw.specularTexture), uv);
 
-	vec3 emissive = vec3(0.0f);
+	vec3 emissive = meshDraw.emissiveFactor;
 	if (meshDraw.emissiveTexture > 0)
-		emissive = texture(SAMP(meshDraw.emissiveTexture), uv).rgb;
+		emissive *= fromsrgb(texture(SAMP(meshDraw.emissiveTexture), uv).rgb);
+	float emissivef = dot(emissive, vec3(0.3, 0.6, 0.1)) / (dot(albedo.rgb, vec3(0.3, 0.6, 0.1)) + 1e-3);
 
 	vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
-
 	vec3 nrm = normalize(nmap.r * tangent.xyz + nmap.g * bitangent + nmap.b * normal);
 
-	// TODO: emissive encoding should support colored & HDR emissive
-	gbuffer[0] = vec4(albedo.rgb, emissive.r);
-	// TODO: specular glossiness encoding is missing; we should encode roughness+metalness somehow in gbuffer1.z and use oct encoding for normal
-	gbuffer[1] = vec4(nrm * 0.5 + 0.5, 0.0);
+	gbuffer[0] = vec4(tosrgb(albedo.rgb), sqrt(emissivef / 10));
+	gbuffer[1] = vec4(encodeOct(nrm) * 0.5 + 0.5, specgloss.w, 0.0);
 
 	if (POST > 0 && albedo.a < 0.5)
 		discard;

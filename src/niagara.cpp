@@ -590,94 +590,46 @@ int main(int argc, const char** argv)
 	gbufferInfo.pColorAttachmentFormats = gbufferFormats;
 	gbufferInfo.depthAttachmentFormat = depthFormat;
 
-	bool rcs = false;
-
-	Shader drawcullCS = {};
-	rcs = loadShader(drawcullCS, device, argv[0], "spirv/drawcull.comp.spv");
+	ShaderSet shaders;
+	bool rcs = loadShaders(shaders, device, argv[0], "spirv/");
 	assert(rcs);
-
-	Shader depthreduceCS = {};
-	rcs = loadShader(depthreduceCS, device, argv[0], "spirv/depthreduce.comp.spv");
-	assert(rcs);
-
-	Shader tasksubmitCS = {};
-	rcs = loadShader(tasksubmitCS, device, argv[0], "spirv/tasksubmit.comp.spv");
-	assert(rcs);
-
-	Shader clustersubmitCS = {};
-	rcs = loadShader(clustersubmitCS, device, argv[0], "spirv/clustersubmit.comp.spv");
-	assert(rcs);
-
-	Shader clustercullCS = {};
-	rcs = loadShader(clustercullCS, device, argv[0], "spirv/clustercull.comp.spv");
-	assert(rcs);
-
-	Shader meshVS = {};
-	rcs = loadShader(meshVS, device, argv[0], "spirv/mesh.vert.spv");
-	assert(rcs);
-
-	Shader meshFS = {};
-	rcs = loadShader(meshFS, device, argv[0], "spirv/mesh.frag.spv");
-	assert(rcs);
-
-	Shader meshletMS = {};
-	Shader meshletTS = {};
-	if (meshShadingSupported)
-	{
-		rcs = loadShader(meshletMS, device, argv[0], "spirv/meshlet.mesh.spv");
-		assert(rcs);
-
-		rcs = loadShader(meshletTS, device, argv[0], "spirv/meshlet.task.spv");
-		assert(rcs);
-	}
-
-	Shader blitCS = {};
-	rcs = loadShader(blitCS, device, argv[0], "spirv/blit.comp.spv");
-	assert(rcs);
-
-	Shader shadeCS = {};
-	if (raytracingSupported)
-	{
-		rcs = loadShader(shadeCS, device, argv[0], "spirv/shade.comp.spv");
-		assert(rcs);
-	}
 
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
 	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
-	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &drawcullCS }, sizeof(CullData));
-	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ false });
-	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ false });
-	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ true });
-	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, drawcullCS, drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["drawcull.comp"] }, sizeof(CullData));
+	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ false });
+	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ false });
+	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ false, /* TASK= */ true });
+	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, shaders["drawcull.comp"], drawcullProgram.layout, { /* LATE= */ true, /* TASK= */ true });
 
-	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &tasksubmitCS }, 0);
-	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, tasksubmitCS, tasksubmitProgram.layout);
+	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["tasksubmit.comp"] }, 0);
+	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, shaders["tasksubmit.comp"], tasksubmitProgram.layout);
 
-	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustersubmitCS }, 0);
-	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, clustersubmitCS, clustersubmitProgram.layout);
+	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustersubmit.comp"] }, 0);
+	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, shaders["clustersubmit.comp"], clustersubmitProgram.layout);
 
-	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &clustercullCS }, sizeof(CullData));
-	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ false });
-	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, clustercullCS, clustercullProgram.layout, { /* LATE= */ true });
+	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustercull.comp"] }, sizeof(CullData));
+	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, shaders["clustercull.comp"], clustercullProgram.layout, { /* LATE= */ false });
+	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, shaders["clustercull.comp"], clustercullProgram.layout, { /* LATE= */ true });
 
-	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &depthreduceCS }, sizeof(vec4));
-	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceCS, depthreduceProgram.layout);
+	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["depthreduce.comp"] }, sizeof(vec4));
+	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, shaders["depthreduce.comp"], depthreduceProgram.layout);
 
-	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshVS, &meshFS }, sizeof(Globals), textureSetLayout);
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 
 	Program meshtaskProgram = {};
 	Program clusterProgram = {};
 	if (meshShadingSupported)
 	{
-		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletTS, &meshletMS, &meshFS }, sizeof(Globals), textureSetLayout);
-		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &meshletMS, &meshFS }, sizeof(Globals), textureSetLayout);
+		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
+		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 	}
 
-	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshVS, &meshFS }, meshProgram.layout);
-	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshVS, &meshFS }, meshProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, meshProgram.layout);
+	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, meshProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 	assert(meshPipeline);
 
 	VkPipeline meshtaskPipeline = 0;
@@ -687,19 +639,19 @@ int main(int argc, const char** argv)
 	VkPipeline clusterpostPipeline = 0;
 	if (meshShadingSupported)
 	{
-		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
-		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
-		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletTS, &meshletMS, &meshFS }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
-		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
-		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &meshletMS, &meshFS }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
+		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ false, /* TASK= */ true });
+		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true });
+		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, meshtaskProgram.layout, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
+		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false });
+		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, clusterProgram.layout, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
 		assert(meshtaskPipeline && meshtasklatePipeline && clusterPipeline);
 	}
 
-	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &blitCS }, sizeof(vec4));
-	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, blitCS, blitProgram.layout);
+	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
+	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, shaders["blit.comp"], blitProgram.layout);
 
-	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shadeCS }, sizeof(ShadeData));
-	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shadeCS, shadeProgram.layout);
+	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
+	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shaders["shade.comp"], shadeProgram.layout);
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -1177,7 +1129,7 @@ int main(int argc, const char** argv)
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, drawcullProgram.updateTemplate, drawcullProgram.layout, 0, descriptors);
 
 				vkCmdPushConstants(commandBuffer, drawcullProgram.layout, drawcullProgram.pushConstantStages, 0, sizeof(cullData), &passData);
-				vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullCS.localSizeX), 1, 1);
+				vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullProgram.localSizeX), 1, 1);
 			}
 
 			if (taskSubmit)
@@ -1390,7 +1342,7 @@ int main(int argc, const char** argv)
 				vec4 reduceData = vec4(levelWidth, levelHeight, 0, 0);
 
 				vkCmdPushConstants(commandBuffer, depthreduceProgram.layout, depthreduceProgram.pushConstantStages, 0, sizeof(reduceData), &reduceData);
-				vkCmdDispatch(commandBuffer, getGroupCount(levelWidth, depthreduceCS.localSizeX), getGroupCount(levelHeight, depthreduceCS.localSizeY), 1);
+				vkCmdDispatch(commandBuffer, getGroupCount(levelWidth, depthreduceProgram.localSizeX), getGroupCount(levelHeight, depthreduceProgram.localSizeY), 1);
 
 				VkImageMemoryBarrier2 reduceBarrier = imageBarrier(depthPyramid.image,
 				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
@@ -1486,7 +1438,7 @@ int main(int argc, const char** argv)
 				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
 
 				vkCmdPushConstants(commandBuffer, shadeProgram.layout, shadeProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
-				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeCS.localSizeX), getGroupCount(swapchain.height, shadeCS.localSizeY), 1);
+				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeProgram.localSizeX), getGroupCount(swapchain.height, shadeProgram.localSizeY), 1);
 			}
 			else
 			{
@@ -1497,7 +1449,7 @@ int main(int argc, const char** argv)
 
 				vec4 blitData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
 				vkCmdPushConstants(commandBuffer, blitProgram.layout, blitProgram.pushConstantStages, 0, sizeof(blitData), &blitData);
-				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, blitCS.localSizeX), getGroupCount(swapchain.height, blitCS.localSizeY), 1);
+				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, blitProgram.localSizeX), getGroupCount(swapchain.height, blitProgram.localSizeY), 1);
 			}
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
@@ -1688,22 +1640,9 @@ int main(int argc, const char** argv)
 
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
-	vkDestroyShaderModule(device, drawcullCS.module, 0);
-	vkDestroyShaderModule(device, blitCS.module, 0);
-	vkDestroyShaderModule(device, shadeCS.module, 0);
-	vkDestroyShaderModule(device, tasksubmitCS.module, 0);
-	vkDestroyShaderModule(device, clustersubmitCS.module, 0);
-	vkDestroyShaderModule(device, clustercullCS.module, 0);
-	vkDestroyShaderModule(device, depthreduceCS.module, 0);
-
-	vkDestroyShaderModule(device, meshVS.module, 0);
-	vkDestroyShaderModule(device, meshFS.module, 0);
-
-	if (meshShadingSupported)
-	{
-		vkDestroyShaderModule(device, meshletTS.module, 0);
-		vkDestroyShaderModule(device, meshletMS.module, 0);
-	}
+	for (Shader& shader : shaders.shaders)
+		if (shader.module)
+			vkDestroyShaderModule(device, shader.module, 0);
 
 	vkDestroySampler(device, textureSampler, 0);
 	vkDestroySampler(device, readSampler, 0);

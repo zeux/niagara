@@ -2,7 +2,9 @@
 #include "shaders.h"
 #include "config.h"
 
+#include <dirent.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <string>
 #include <vector>
@@ -383,6 +385,40 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 	return updateTemplate;
 }
 
+bool loadShader(Shader& shader, VkDevice device, const char* path)
+{
+	FILE* file = fopen(path, "rb");
+	if (!file)
+		return false;
+
+	fseek(file, 0, SEEK_END);
+	long length = ftell(file);
+	assert(length >= 0);
+	fseek(file, 0, SEEK_SET);
+
+	std::vector<char> spirv(length);
+
+	size_t rc = fread(spirv.data(), 1, length, file);
+	assert(rc == size_t(length));
+	fclose(file);
+
+	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+	createInfo.codeSize = length; // note: this needs to be a number of bytes!
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(spirv.data());
+
+	VkShaderModule shaderModule = 0;
+	if (device)
+		VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
+
+	assert(length % 4 == 0);
+	parseShader(shader, reinterpret_cast<const uint32_t*>(spirv.data()), length / 4);
+
+	shader.spirv = spirv;
+	shader.module = shaderModule;
+
+	return true;
+}
+
 bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path)
 {
 	std::string spath = base;
@@ -393,37 +429,55 @@ bool loadShader(Shader& shader, VkDevice device, const char* base, const char* p
 		spath = spath.substr(0, pos + 1);
 	spath += path;
 
-	FILE* file = fopen(spath.c_str(), "rb");
-	if (!file)
+	return loadShader(shader, device, spath.c_str());
+}
+
+bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const char* path)
+{
+	std::string spath = base;
+	std::string::size_type pos = spath.find_last_of("/\\");
+	if (pos == std::string::npos)
+		spath = "";
+	else
+		spath = spath.substr(0, pos + 1);
+	spath += path;
+
+	DIR* dir = opendir(spath.c_str());
+	if (!dir)
 		return false;
 
-	fseek(file, 0, SEEK_END);
-	long length = ftell(file);
-	assert(length >= 0);
-	fseek(file, 0, SEEK_SET);
+	while (dirent* de = readdir(dir))
+	{
+		const char* ext = strstr(de->d_name, ".spv");
+		if (!ext || strcmp(ext, ".spv") != 0)
+			continue;
 
-	char* buffer = new char[length];
-	assert(buffer);
+		std::string fpath = spath + '/' + de->d_name;
+		Shader shader = {};
+		if (!loadShader(shader, device, fpath.c_str()))
+		{
+			fprintf(stderr, "Warning: %s is not a valid SPIRV module\n", de->d_name);
+			continue;
+		}
 
-	size_t rc = fread(buffer, 1, length, file);
-	assert(rc == size_t(length));
-	fclose(file);
+		shader.name = std::string(de->d_name, ext - de->d_name);
+		shaders.shaders.push_back(shader);
+	}
 
-	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-	createInfo.codeSize = length; // note: this needs to be a number of bytes!
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer);
+	closedir(dir);
 
-	VkShaderModule shaderModule = 0;
-	VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
-
-	assert(length % 4 == 0);
-	parseShader(shader, reinterpret_cast<const uint32_t*>(buffer), length / 4);
-
-	delete[] buffer;
-
-	shader.module = shaderModule;
-
+	printf("Loaded %d shaders from %s\n", int(shaders.shaders.size()), spath.c_str());
 	return true;
+}
+
+const Shader& ShaderSet::operator[](const char* name) const
+{
+	for (const Shader& shader : shaders)
+		if (shader.name == name)
+			return shader;
+
+	fprintf(stderr, "Error: shader %s could not be loaded\n", name);
+	abort();
 }
 
 static VkSpecializationInfo fillSpecializationInfo(std::vector<VkSpecializationMapEntry>& entries, const Constants& constants)
@@ -567,6 +621,15 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 	assert(program.updateTemplate);
 
 	program.pushConstantStages = pushConstantStages;
+
+	const Shader* shader = shaders.size() == 1 ? *shaders.begin() : nullptr;
+
+	if (shader && shader->stage == VK_SHADER_STAGE_COMPUTE_BIT)
+	{
+		program.localSizeX = shader->localSizeX;
+		program.localSizeY = shader->localSizeY;
+		program.localSizeZ = shader->localSizeZ;
+	}
 
 	return program;
 }

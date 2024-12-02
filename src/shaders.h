@@ -1,7 +1,12 @@
 #pragma once
 
+#include <string>
+
 struct Shader
 {
+	std::string name;
+
+	std::vector<char> spirv;
 	VkShaderModule module;
 	VkShaderStageFlagBits stage;
 
@@ -16,6 +21,13 @@ struct Shader
 	bool usesDescriptorArray;
 };
 
+struct ShaderSet
+{
+	std::vector<Shader> shaders;
+
+	const Shader& operator[](const char* name) const;
+};
+
 struct Program
 {
 	VkPipelineBindPoint bindPoint;
@@ -23,9 +35,15 @@ struct Program
 	VkDescriptorSetLayout setLayout;
 	VkDescriptorUpdateTemplate updateTemplate;
 	VkShaderStageFlags pushConstantStages;
+
+	uint32_t localSizeX;
+	uint32_t localSizeY;
+	uint32_t localSizeZ;
 };
 
+bool loadShader(Shader& shader, VkDevice device, const char* path);
 bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path);
+bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const char* path);
 
 using Shaders = std::initializer_list<const Shader*>;
 using Constants = std::initializer_list<int>;

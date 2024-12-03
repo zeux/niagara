@@ -29,6 +29,9 @@ bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadingEnabled = true;
 int debugLodStep = 0;
 
+bool reloadShaders = false;
+double reloadShadersTimer = 0;
+
 VkSemaphore createSemaphore(VkDevice device)
 {
 	VkSemaphoreCreateInfo createInfo = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
@@ -404,6 +407,11 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugLodStep = key - GLFW_KEY_0;
 		}
+		if (key == GLFW_KEY_R)
+		{
+			reloadShaders = !reloadShaders;
+			reloadShadersTimer = 0;
+		}
 	}
 }
 
@@ -597,28 +605,13 @@ int main(int argc, const char** argv)
 
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
-	// TODO: this is critical for performance!
 	VkPipelineCache pipelineCache = 0;
 
 	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["drawcull.comp"] }, sizeof(CullData));
-	VkPipeline drawcullPipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ false });
-	VkPipeline drawculllatePipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ false });
-	VkPipeline taskcullPipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ true });
-	VkPipeline taskculllatePipeline = createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ true });
-
 	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["tasksubmit.comp"] }, 0);
-	VkPipeline tasksubmitPipeline = createComputePipeline(device, pipelineCache, tasksubmitProgram);
-
 	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustersubmit.comp"] }, 0);
-	VkPipeline clustersubmitPipeline = createComputePipeline(device, pipelineCache, clustersubmitProgram);
-
 	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustercull.comp"] }, sizeof(CullData));
-	VkPipeline clustercullPipeline = createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ false });
-	VkPipeline clusterculllatePipeline = createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ true });
-
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["depthreduce.comp"] }, sizeof(vec4));
-	VkPipeline depthreducePipeline = createComputePipeline(device, pipelineCache, depthreduceProgram);
-
 	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 
 	Program meshtaskProgram = {};
@@ -629,32 +622,69 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 	}
 
-	VkPipeline meshPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram);
-	VkPipeline meshpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
-	assert(meshPipeline);
+	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
+	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
 
+	VkPipeline drawcullPipeline = 0;
+	VkPipeline drawculllatePipeline = 0;
+	VkPipeline taskcullPipeline = 0;
+	VkPipeline taskculllatePipeline = 0;
+	VkPipeline tasksubmitPipeline = 0;
+	VkPipeline clustersubmitPipeline = 0;
+	VkPipeline clustercullPipeline = 0;
+	VkPipeline clusterculllatePipeline = 0;
+	VkPipeline depthreducePipeline = 0;
+	VkPipeline meshPipeline = 0;
+	VkPipeline meshpostPipeline = 0;
 	VkPipeline meshtaskPipeline = 0;
 	VkPipeline meshtasklatePipeline = 0;
 	VkPipeline meshtaskpostPipeline = 0;
 	VkPipeline clusterPipeline = 0;
 	VkPipeline clusterpostPipeline = 0;
-	if (meshShadingSupported)
+	VkPipeline blitPipeline = 0;
+	VkPipeline shadePipeline = 0;
+
+	auto pipelines = [&]()
 	{
-		meshtaskPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ false, /* TASK= */ true });
-		meshtasklatePipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true });
-		meshtaskpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 });
-		assert(meshtaskPipeline && meshtasklatePipeline && meshtaskpostPipeline);
+		auto replace = [&](VkPipeline& pipeline, VkPipeline newPipeline)
+		{
+			if (pipeline)
+				vkDestroyPipeline(device, pipeline, 0);
+			assert(newPipeline);
+			pipeline = newPipeline;
+		};
 
-		clusterPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false });
-		clusterpostPipeline = createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 });
-		assert(clusterPipeline && clusterpostPipeline);
-	}
+		replace(drawcullPipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ false }));
+		replace(drawculllatePipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ false }));
+		replace(taskcullPipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ false, /* TASK= */ true }));
+		replace(taskculllatePipeline, createComputePipeline(device, pipelineCache, drawcullProgram, { /* LATE= */ true, /* TASK= */ true }));
 
-	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
-	VkPipeline blitPipeline = createComputePipeline(device, pipelineCache, blitProgram);
+		replace(tasksubmitPipeline, createComputePipeline(device, pipelineCache, tasksubmitProgram));
+		replace(clustersubmitPipeline, createComputePipeline(device, pipelineCache, clustersubmitProgram));
 
-	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
-	VkPipeline shadePipeline = createComputePipeline(device, pipelineCache, shadeProgram);
+		replace(clustercullPipeline, createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ false }));
+		replace(clusterculllatePipeline, createComputePipeline(device, pipelineCache, clustercullProgram, { /* LATE= */ true }));
+
+		replace(depthreducePipeline, createComputePipeline(device, pipelineCache, depthreduceProgram));
+
+		replace(meshPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram));
+		replace(meshpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 }));
+
+		if (meshShadingSupported)
+		{
+			replace(meshtaskPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ false, /* TASK= */ true }));
+			replace(meshtasklatePipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true }));
+			replace(meshtaskpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, meshtaskProgram, { /* LATE= */ true, /* TASK= */ true, /* POST= */ 1 }));
+
+			replace(clusterPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false }));
+			replace(clusterpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 }));
+		}
+
+		replace(blitPipeline, createComputePipeline(device, pipelineCache, blitProgram));
+		replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
+	};
+
+	pipelines();
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -941,6 +971,36 @@ int main(int argc, const char** argv)
 			camera.orientation = glm::rotate(glm::quat(0, 0, 0, 1), float(-cameraRotation.y * frameDelta * cameraRotationSpeed), camera.orientation * vec3(1, 0, 0)) * camera.orientation;
 
 			glfwSetCursorPos(window, 0, 0);
+		}
+
+		if (reloadShaders && glfwGetTime() >= reloadShadersTimer)
+		{
+			bool changed = false;
+			int rc = system("ninja --quiet compile_shaders");
+			if (rc == 0)
+			{
+				for (Shader& shader : shaders.shaders)
+				{
+					if (shader.module)
+						vkDestroyShaderModule(device, shader.module, 0);
+
+					std::vector<char> oldSpirv = std::move(shader.spirv);
+
+					rcs = loadShader(shader, device, argv[0], ("spirv/" + shader.name + ".spv").c_str());
+					assert(rcs);
+
+					changed |= oldSpirv != shader.spirv;
+				}
+
+				if (changed)
+				{
+					VK_CHECK(vkDeviceWaitIdle(device));
+
+					pipelines();
+				}
+			}
+
+			reloadShadersTimer = glfwGetTime() + 1;
 		}
 
 		SwapchainStatus swapchainStatus = updateSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -1523,7 +1583,8 @@ int main(int argc, const char** argv)
 		double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
 
 		char title[512];
-		snprintf(title, sizeof(title), "cpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, task shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",
+		snprintf(title, sizeof(title), "%scpu: %.2f ms; gpu: %.2f ms (cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms); triangles %.2fM; %.1fB tri/sec, %.1fM draws/sec; mesh shading %s, task shading %s, frustum culling %s, occlusion culling %s, level-of-detail %s, cluster occlusion culling %s",
+		    reloadShaders ? "R* " : "",
 		    frameCpuAvg, frameGpuAvg,
 		    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 		    pyramidGpuTime,

@@ -58,10 +58,9 @@ void main()
 
 #if RAYTRACE
 	uint rayflags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT;
-	uint cullmask = 0xff; // note: 0xff is faster on amdvlk but 1 is faster on radv
 
 	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, rayflags, cullmask, wpos, 1e-2, shadeData.sunDirection, 1e3);
+	rayQueryInitializeEXT(rq, tlas, rayflags, 0xff, wpos, 1e-2, shadeData.sunDirection, 1e3);
 	rayQueryProceedEXT(rq);
 
 	shadow = (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.0;

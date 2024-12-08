@@ -624,6 +624,8 @@ int main(int argc, const char** argv)
 
 	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
 	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
+	Program shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadeData));
+	Program shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 
 	VkPipeline drawcullPipeline = 0;
 	VkPipeline drawculllatePipeline = 0;
@@ -643,6 +645,8 @@ int main(int argc, const char** argv)
 	VkPipeline clusterpostPipeline = 0;
 	VkPipeline blitPipeline = 0;
 	VkPipeline shadePipeline = 0;
+	VkPipeline shadowPipeline = 0;
+	VkPipeline shadowblurPipeline = 0;
 
 	auto pipelines = [&]()
 	{
@@ -682,6 +686,8 @@ int main(int argc, const char** argv)
 
 		replace(blitPipeline, createComputePipeline(device, pipelineCache, blitProgram));
 		replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
+		replace(shadowPipeline, createComputePipeline(device, pipelineCache, shadowProgram));
+		replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
 	};
 
 	pipelines();
@@ -938,6 +944,8 @@ int main(int argc, const char** argv)
 
 	Image gbufferTargets[gbufferCount] = {};
 	Image depthTarget = {};
+	Image shadowTarget = {};
+	Image shadowblurTarget = {};
 
 	Image depthPyramid = {};
 	VkImageView depthPyramidMips[16] = {};
@@ -1034,9 +1042,17 @@ int main(int argc, const char** argv)
 				destroyImage(depthPyramid, device);
 			}
 
+			if (shadowTarget.image)
+				destroyImage(shadowTarget, device);
+			if (shadowblurTarget.image)
+				destroyImage(shadowblurTarget, device);
+
 			for (uint32_t i = 0; i < gbufferCount; ++i)
 				createImage(gbufferTargets[i], device, memoryProperties, swapchain.width, swapchain.height, 1, gbufferFormats[i], VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			createImage(depthTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+			createImage(shadowTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+			createImage(shadowblurTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 			// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
 			depthPyramidWidth = previousPow2(swapchain.width);
@@ -1499,19 +1515,85 @@ int main(int argc, const char** argv)
 
 			if (raytracingSupported && shadingEnabled)
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
+				VkImageMemoryBarrier2 preshadowBarrier =
+				    imageBarrier(shadowTarget.image,
+				        0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+				        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
-				DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, gbufferTargets[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, tlas };
-				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadeProgram.updateTemplate, shadeProgram.layout, 0, descriptors);
+				pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &preshadowBarrier);
 
-				ShadeData shadeData = {};
-				shadeData.cameraPosition = camera.position;
-				shadeData.sunDirection = sunDirection;
-				shadeData.inverseViewProjection = inverse(projection * view);
-				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+				{
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowPipeline);
 
-				vkCmdPushConstants(commandBuffer, shadeProgram.layout, shadeProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
-				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeProgram.localSizeX), getGroupCount(swapchain.height, shadeProgram.localSizeY), 1);
+					DescriptorInfo descriptors[] = { { shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, tlas };
+					vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadowProgram.updateTemplate, shadowProgram.layout, 0, descriptors);
+
+					ShadeData shadeData = {};
+					shadeData.cameraPosition = camera.position;
+					shadeData.sunDirection = sunDirection;
+					shadeData.inverseViewProjection = inverse(projection * view);
+					shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+
+					vkCmdPushConstants(commandBuffer, shadowProgram.layout, shadowProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
+					vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadowProgram.localSizeX), getGroupCount(swapchain.height, shadowProgram.localSizeY), 1);
+				}
+
+				for (int pass = 0; pass < 2; ++pass)
+				{
+					const Image& blurFrom = pass == 0 ? shadowTarget : shadowblurTarget;
+					const Image& blurTo = pass == 0 ? shadowblurTarget : shadowTarget;
+
+					VkImageMemoryBarrier2 blurToBarrier =
+					    pass == 0
+					        ? imageBarrier(blurTo.image,
+					              0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+					              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL)
+					        : imageBarrier(blurTo.image,
+					              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL,
+					              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+
+					VkImageMemoryBarrier2 blurBarriers[] = {
+						imageBarrier(blurFrom.image,
+						    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+						    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL),
+						blurToBarrier
+					};
+
+					pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(blurBarriers), blurBarriers);
+
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowblurPipeline);
+
+					DescriptorInfo descriptors[] = { { blurTo.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, blurFrom.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+					vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadowblurProgram.updateTemplate, shadowblurProgram.layout, 0, descriptors);
+
+					vec4 blurData = vec4(float(swapchain.width), float(swapchain.height), pass == 0 ? 1 : 0, 0);
+
+					vkCmdPushConstants(commandBuffer, shadowblurProgram.layout, shadowblurProgram.pushConstantStages, 0, sizeof(blurData), &blurData);
+					vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadowblurProgram.localSizeX), getGroupCount(swapchain.height, shadowblurProgram.localSizeY), 1);
+				}
+
+				VkImageMemoryBarrier2 shadowblurYBarrier =
+				    imageBarrier(shadowTarget.image,
+				        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+				        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
+
+				pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &shadowblurYBarrier);
+
+				{
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
+
+					DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, gbufferTargets[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL } };
+					vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadeProgram.updateTemplate, shadeProgram.layout, 0, descriptors);
+
+					ShadeData shadeData = {};
+					shadeData.cameraPosition = camera.position;
+					shadeData.sunDirection = sunDirection;
+					shadeData.inverseViewProjection = inverse(projection * view);
+					shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+
+					vkCmdPushConstants(commandBuffer, shadeProgram.layout, shadeProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
+					vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeProgram.localSizeX), getGroupCount(swapchain.height, shadeProgram.localSizeY), 1);
+				}
 			}
 			else
 			{
@@ -1628,6 +1710,11 @@ int main(int argc, const char** argv)
 		destroyImage(depthPyramid, device);
 	}
 
+	if (shadowTarget.image)
+		destroyImage(shadowTarget, device);
+	if (shadowblurTarget.image)
+		destroyImage(shadowblurTarget, device);
+
 	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
 		if (swapchainImageViews[i])
 			vkDestroyImageView(device, swapchainImageViews[i], 0);
@@ -1711,6 +1798,12 @@ int main(int argc, const char** argv)
 
 	vkDestroyPipeline(device, shadePipeline, 0);
 	destroyProgram(device, shadeProgram);
+
+	vkDestroyPipeline(device, shadowPipeline, 0);
+	destroyProgram(device, shadowProgram);
+
+	vkDestroyPipeline(device, shadowblurPipeline, 0);
+	destroyProgram(device, shadowblurProgram);
 
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 

@@ -6,6 +6,7 @@
 #extension GL_EXT_nonuniform_qualifier: require
 
 #include "mesh.h"
+#include "math.h"
 
 layout (constant_id = 2) const int POST = 0;
 
@@ -31,6 +32,11 @@ layout(location = 4) in vec3 wpos;
 
 layout(binding = 7) uniform sampler textureSampler;
 
+layout(binding = 8) readonly buffer Materials
+{
+	Material materials[];
+};
+
 layout(binding = 0, set = 1) uniform texture2D textures[];
 
 #define SAMP(id) sampler2D(textures[nonuniformEXT(id)], textureSampler)
@@ -49,31 +55,33 @@ uint hash(uint a)
 void main()
 {
 	MeshDraw meshDraw = draws[drawId];
+	Material material = materials[meshDraw.materialIndex];
 
-	vec4 albedo = vec4(0.5f, 0.5f, 0.5f, 1);
-	if (meshDraw.albedoTexture > 0)
-		albedo = texture(SAMP(meshDraw.albedoTexture), uv);
+	vec4 albedo = material.diffuseFactor;
+	if (material.albedoTexture > 0)
+		albedo *= fromsrgb(texture(SAMP(material.albedoTexture), uv));
 
 	vec3 nmap = vec3(0, 0, 1);
-	if (meshDraw.normalTexture > 0)
-		nmap = texture(SAMP(meshDraw.normalTexture), uv).rgb * 2 - 1;
+	if (material.normalTexture > 0)
+		nmap = texture(SAMP(material.normalTexture), uv).rgb * 2 - 1;
 
-	vec4 specgloss = vec4(0.0f);
-	if (meshDraw.specularTexture > 0)
-		specgloss = texture(SAMP(meshDraw.specularTexture), uv);
+	vec4 specgloss = material.specularFactor;
+	if (material.specularTexture > 0)
+		specgloss *= fromsrgb(texture(SAMP(material.specularTexture), uv));
 
-	vec3 emissive = vec3(0.0f);
-	if (meshDraw.emissiveTexture > 0)
-		emissive = texture(SAMP(meshDraw.emissiveTexture), uv).rgb;
+	vec3 emissive = material.emissiveFactor;
+	if (material.emissiveTexture > 0)
+		emissive *= fromsrgb(texture(SAMP(material.emissiveTexture), uv).rgb);
 
 	vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
 
 	vec3 nrm = normalize(nmap.r * tangent.xyz + nmap.g * bitangent + nmap.b * normal);
 
-	// TODO: emissive encoding should support colored & HDR emissive
-	gbuffer[0] = vec4(albedo.rgb, emissive.r);
-	// TODO: specular glossiness encoding is missing; we should encode roughness+metalness somehow in gbuffer1.z and use oct encoding for normal
-	gbuffer[1] = vec4(nrm * 0.5 + 0.5, 0.0);
+	float emissivef = dot(emissive, vec3(0.3, 0.6, 0.1)) / (dot(albedo.rgb, vec3(0.3, 0.6, 0.1)) + 1e-3);
+
+	// TODO: reconstruct metalness from specular texture
+	gbuffer[0] = vec4(tosrgb(albedo).rgb, log2(1 + emissivef) / 5);
+	gbuffer[1] = vec4(encodeOct(nrm) * 0.5 + 0.5, specgloss.a, 0.0);
 
 	if (POST > 0 && albedo.a < 0.5)
 		discard;

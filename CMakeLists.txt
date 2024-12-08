@@ -16,7 +16,7 @@ add_executable(niagara
 set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 
 target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW GLM_FORCE_QUAT_CTOR_XYZW)
-target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf)
+target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
 
 if(APPLE)
   target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_METAL_EXT)
@@ -38,19 +38,21 @@ elseif(WIN32)
   set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_WIN32_KHR")
 endif()
 
+if(UNIX)
+  set_source_files_properties(src/extern.cpp PROPERTIES COMPILE_FLAGS $<IF:$<CONFIG:Debug>,,-Os>)
+endif()
+
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(extern/glfw)
-add_subdirectory(extern/glm)
 add_subdirectory(extern/volk)
 add_subdirectory(extern/meshoptimizer)
 
 target_link_libraries(niagara
   PRIVATE
     glfw
-    glm::glm
     volk
     meshoptimizer)
 

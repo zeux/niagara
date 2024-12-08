@@ -638,9 +638,16 @@ int main(int argc, const char** argv)
 	}
 
 	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
-	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
-	Program shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData));
-	Program shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
+
+	Program shadeProgram = {};
+	Program shadowProgram = {};
+	Program shadowblurProgram = {};
+	if (raytracingSupported)
+	{
+		shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
+		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData));
+		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
+	}
 
 	VkPipeline drawcullPipeline = 0;
 	VkPipeline drawculllatePipeline = 0;
@@ -700,9 +707,13 @@ int main(int argc, const char** argv)
 		}
 
 		replace(blitPipeline, createComputePipeline(device, pipelineCache, blitProgram));
-		replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
-		replace(shadowPipeline, createComputePipeline(device, pipelineCache, shadowProgram));
-		replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
+
+		if (raytracingSupported)
+		{
+			replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
+			replace(shadowPipeline, createComputePipeline(device, pipelineCache, shadowProgram));
+			replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
+		}
 	};
 
 	pipelines();
@@ -1821,14 +1832,16 @@ int main(int argc, const char** argv)
 	vkDestroyPipeline(device, blitPipeline, 0);
 	destroyProgram(device, blitProgram);
 
-	vkDestroyPipeline(device, shadePipeline, 0);
-	destroyProgram(device, shadeProgram);
+	if (raytracingSupported)
+	{
+		vkDestroyPipeline(device, shadePipeline, 0);
+		destroyProgram(device, shadeProgram);
 
-	vkDestroyPipeline(device, shadowPipeline, 0);
-	destroyProgram(device, shadowProgram);
-
-	vkDestroyPipeline(device, shadowblurPipeline, 0);
-	destroyProgram(device, shadowblurProgram);
+		vkDestroyPipeline(device, shadowPipeline, 0);
+		vkDestroyPipeline(device, shadowblurPipeline, 0);
+		destroyProgram(device, shadowProgram);
+		destroyProgram(device, shadowblurProgram);
+	}
 
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 

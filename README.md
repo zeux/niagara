@@ -52,6 +52,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 23. Bindless textures: https://youtu.be/n9nqSEyXMeA
 24. Tracing rays: https://youtu.be/N1OVfBEcyb8
 25. Tracing rays faster: https://youtu.be/U7TGQsjT16E
+26. Materials and shadows: https://youtu.be/iZTUjRntMbM
 
 # Issues
 

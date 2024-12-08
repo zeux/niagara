@@ -432,6 +432,9 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 				if (material && material->alpha_mode != cgltf_alpha_mode_opaque)
 					draw.postPass = 1;
 
+				if (material && material->has_transmission)
+					draw.postPass = 2;
+
 				draws.push_back(draw);
 			}
 		}

@@ -58,8 +58,12 @@ void main()
 
 	float shadow = texture(shadowImage, uv).r;
 
-	vec3 outputColor = albedo.rgb * (ndotl * shadow + 0.05) + vec3(specular * shadow) + emissive;
+	float ambient = 0.03;
+	float shadowAmbient = 0.03;
+	float sunIntensity = 1.5;
+
+	vec3 outputColor = albedo.rgb * (ndotl * min(shadow + shadowAmbient, 1.0) * sunIntensity + ambient) + vec3(specular * shadow) + emissive;
 
 	float deband = gradientNoise(vec2(pos));
-	imageStore(outImage, ivec2(pos), vec4(tosrgb(outputColor) + (deband * 2 - 1) / 256, 1.0));
+	imageStore(outImage, ivec2(pos), vec4(tosrgb(outputColor) + (deband * 2 - 1) * (0.5 / 255), 1.0));
 }

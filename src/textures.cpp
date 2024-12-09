@@ -82,6 +82,10 @@ static VkFormat getFormat(const DDS_HEADER& header, const DDS_HEADER_DXT10& head
 		return VK_FORMAT_BC2_UNORM_BLOCK;
 	if (header.ddspf.dwFourCC == fourCC("DXT5"))
 		return VK_FORMAT_BC3_UNORM_BLOCK;
+	if (header.ddspf.dwFourCC == fourCC("ATI1"))
+		return VK_FORMAT_BC4_UNORM_BLOCK;
+	if (header.ddspf.dwFourCC == fourCC("ATI2"))
+		return VK_FORMAT_BC5_UNORM_BLOCK;
 
 	if (header.ddspf.dwFourCC == fourCC("DX10"))
 	{

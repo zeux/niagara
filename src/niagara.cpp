@@ -157,7 +157,7 @@ struct alignas(16) TextData
 	char data[112];
 };
 
-void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& vb, const Buffer& ib, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& vb, const Buffer& ib, std::vector<VkAccelerationStructureKHR>& blas, std::vector<VkDeviceSize>& compactedSizes, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
 {
 	std::vector<uint32_t> primitiveCounts(meshes.size());
 	std::vector<VkAccelerationStructureGeometryKHR> geometries(meshes.size());
@@ -203,7 +203,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 
 		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
 		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
 		buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 		buildInfo.geometryCount = 1;
 		buildInfo.pGeometries = &geo;
@@ -245,6 +245,13 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &blas[i]));
 	}
 
+	VkQueryPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+	createInfo.queryType = VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR;
+	createInfo.queryCount = blas.size();
+
+	VkQueryPool queryPool = 0;
+	VK_CHECK(vkCreateQueryPool(device, &createInfo, 0, &queryPool));
+
 	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 
 	VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
@@ -280,6 +287,9 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		pipelineBarrier(commandBuffer, 0, 1, &scratchBarrier, 0, nullptr);
 	}
 
+	vkCmdResetQueryPool(commandBuffer, queryPool, 0, blas.size());
+	vkCmdWriteAccelerationStructuresPropertiesKHR(commandBuffer, blas.size(), blas.data(), VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR, queryPool, 0);
+
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
 	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -289,7 +299,81 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
 	VK_CHECK(vkDeviceWaitIdle(device));
 
+	compactedSizes.resize(blas.size());
+	VK_CHECK(vkGetQueryPoolResults(device, queryPool, 0, blas.size(), blas.size() * sizeof(VkDeviceSize), compactedSizes.data(), sizeof(VkDeviceSize), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+
+	vkDestroyQueryPool(device, queryPool, 0);
+
 	destroyBuffer(scratchBuffer, device);
+}
+
+void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas, const std::vector<VkDeviceSize>& compactedSizes, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+{
+	const size_t kAlignment = 256; // required by spec for acceleration structures
+
+	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+
+	size_t totalCompactedSize = 0;
+	std::vector<size_t> compactedOffsets(blas.size());
+
+	for (size_t i = 0; i < blas.size(); ++i)
+	{
+		compactedOffsets[i] = totalCompactedSize;
+		totalCompactedSize = (totalCompactedSize + compactedSizes[i] + kAlignment - 1) & ~(kAlignment - 1);
+	}
+
+	printf("BLAS compacted accelerationStructureSize: %.2f MB\n", double(totalCompactedSize) / 1e6);
+
+	Buffer compactedBuffer;
+	createBuffer(compactedBuffer, device, memoryProperties, totalCompactedSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	std::vector<VkAccelerationStructureKHR> compactedBlas(blas.size());
+
+	for (size_t i = 0; i < blas.size(); ++i)
+	{
+		VkAccelerationStructureCreateInfoKHR accelerationInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+		accelerationInfo.buffer = compactedBuffer.buffer;
+		accelerationInfo.offset = compactedOffsets[i];
+		accelerationInfo.size = compactedSizes[i];
+		accelerationInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+
+		VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &compactedBlas[i]));
+	}
+
+	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+
+	VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+	for (size_t i = 0; i < blas.size(); ++i)
+	{
+		VkCopyAccelerationStructureInfoKHR copyInfo = { VK_STRUCTURE_TYPE_COPY_ACCELERATION_STRUCTURE_INFO_KHR };
+		copyInfo.src = blas[i];
+		copyInfo.dst = compactedBlas[i];
+		copyInfo.mode = VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR;
+
+		vkCmdCopyAccelerationStructureKHR(commandBuffer, &copyInfo);
+	}
+
+	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+	VK_CHECK(vkDeviceWaitIdle(device));
+
+	for (size_t i = 0; i < blas.size(); ++i)
+	{
+		vkDestroyAccelerationStructureKHR(device, blas[i], nullptr);
+		blas[i] = compactedBlas[i];
+	}
+
+	destroyBuffer(blasBuffer, device);
+	blasBuffer = compactedBuffer;
 }
 
 VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const std::vector<MeshDraw>& draws, const std::vector<VkAccelerationStructureKHR>& blas, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
@@ -989,7 +1073,10 @@ int main(int argc, const char** argv)
 	Buffer tlasBuffer = {};
 	if (raytracingSupported)
 	{
-		buildBLAS(device, geometry.meshes, vb, ib, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+		std::vector<VkDeviceSize> compactedSizes;
+		buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+		compactBLAS(device, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+
 		tlas = buildTLAS(device, tlasBuffer, draws, blas, commandPool, commandBuffer, queue, memoryProperties);
 	}
 

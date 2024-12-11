@@ -57,6 +57,8 @@ void main()
 	MeshDraw meshDraw = draws[drawId];
 	Material material = materials[meshDraw.materialIndex];
 
+	float deband = gradientNoise(gl_FragCoord.xy) * 2 - 1;
+
 	vec4 albedo = material.diffuseFactor;
 	if (material.albedoTexture > 0)
 		albedo *= fromsrgb(texture(SAMP(material.albedoTexture), uv));
@@ -81,7 +83,7 @@ void main()
 
 	// TODO: reconstruct metalness from specular texture
 	gbuffer[0] = vec4(tosrgb(albedo).rgb, log2(1 + emissivef) / 5);
-	gbuffer[1] = vec4(encodeOct(nrm) * 0.5 + 0.5, specgloss.a, 0.0);
+	gbuffer[1] = vec4(encodeOct(nrm) * 0.5 + 0.5 + deband * (0.5 / 1023), specgloss.a, 0.0);
 
 	if (POST > 0 && albedo.a < 0.5)
 		discard;

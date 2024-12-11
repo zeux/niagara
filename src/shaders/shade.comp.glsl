@@ -64,6 +64,6 @@ void main()
 
 	vec3 outputColor = albedo.rgb * (ndotl * min(shadow + shadowAmbient, 1.0) * sunIntensity + ambient) + vec3(specular * shadow) + emissive;
 
-	float deband = gradientNoise(vec2(pos));
-	imageStore(outImage, ivec2(pos), vec4(tosrgb(outputColor) + (deband * 2 - 1) * (0.5 / 255), 1.0));
+	float deband = gradientNoise(vec2(pos)) * 2 - 1;
+	imageStore(outImage, ivec2(pos), vec4(tosrgb(outputColor) + deband * (0.5 / 255), 1.0));
 }

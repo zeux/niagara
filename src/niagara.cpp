@@ -981,6 +981,7 @@ int main(int argc, const char** argv)
 	float drawDistance = 200;
 
 	uint32_t meshletVisibilityCount = 0;
+	uint32_t meshPostPasses = 0;
 
 	for (size_t i = 0; i < draws.size(); ++i)
 	{
@@ -994,6 +995,7 @@ int main(int argc, const char** argv)
 			meshletCount = std::max(meshletCount, mesh.lods[i].meshletCount);
 
 		meshletVisibilityCount += meshletCount;
+		meshPostPasses |= 1 << draw.postPass;
 	}
 
 	uint32_t meshletVisibilityBytes = (meshletVisibilityCount + 31) / 32 * sizeof(uint32_t);
@@ -1625,11 +1627,15 @@ int main(int argc, const char** argv)
 		// late render: render objects that are visible this frame but weren't drawn in the early pass
 		render(/* late= */ true, colorClear, depthClear, 1, 10, "late render");
 
-		// post cull: frustum + occlusion cull & fill extra objects
-		cull(taskSubmit ? taskculllatePipeline : drawculllatePipeline, 12, "post cull", /* late= */ true, /* postPass= */ 1);
+		// we can skip post passes if no draw call needs them
+		if (meshPostPasses >> 1)
+		{
+			// post cull: frustum + occlusion cull & fill extra objects
+			cull(taskSubmit ? taskculllatePipeline : drawculllatePipeline, 12, "post cull", /* late= */ true, /* postPass= */ 1);
 
-		// late render: render objects that are visible this frame but weren't drawn in the early pass
-		render(/* late= */ true, colorClear, depthClear, 2, 14, "post render", /* postPass= */ 1);
+			// post render: render extra objects
+			render(/* late= */ true, colorClear, depthClear, 2, 14, "post render", /* postPass= */ 1);
+		}
 
 		VkImageMemoryBarrier2 blitBarriers[2 + gbufferCount] = {
 			// note: even though the source image has previous state as undef, we need to specify COMPUTE_SHADER to synchronize with submitStageMask below

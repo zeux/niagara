@@ -5,7 +5,7 @@
 #define MESH_WGSIZE 64
 
 // Should we do meshlet frustum, occlusion and backface culling in task shader?
-#define TASK_CULL 1
+#define TASK_CULL 0
 
 // Should we do triangle frustum and backface culling in mesh shader?
 #define MESH_CULL 0

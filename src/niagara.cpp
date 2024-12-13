@@ -1326,6 +1326,7 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, 0, 1, &prefillBarrier, 0, nullptr);
 
 			vkCmdFillBuffer(commandBuffer, dccb.buffer, 0, 4, 0);
+			vkCmdFillBuffer(commandBuffer, dccb.buffer, 4, 8, 1);
 
 			// pyramid barrier is tricky: our frame sequence is cull -> render -> pyramid -> cull -> render
 			// the first cull (late=0) doesn't read pyramid data BUT the read in the shader is guarded by a push constant value (which could be specialization constant but isn't due to AMD bug)
@@ -1360,7 +1361,7 @@ int main(int argc, const char** argv)
 				vkCmdDispatch(commandBuffer, getGroupCount(uint32_t(draws.size()), drawcullProgram.localSizeX), 1, 1);
 			}
 
-			if (taskSubmit)
+			if (0)
 			{
 				VkBufferMemoryBarrier2 syncBarrier = bufferBarrier(dccb.buffer,
 				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
@@ -1404,6 +1405,7 @@ int main(int argc, const char** argv)
 				pipelineBarrier(commandBuffer, 0, 1, &prefillBarrier, 0, nullptr);
 
 				vkCmdFillBuffer(commandBuffer, ccb.buffer, 0, 4, 0);
+				vkCmdFillBuffer(commandBuffer, ccb.buffer, 4, 8, 1);
 
 				VkBufferMemoryBarrier2 fillBarriers[] = {
 					bufferBarrier(cib.buffer,
@@ -1425,20 +1427,23 @@ int main(int argc, const char** argv)
 				passData.postPass = postPass;
 
 				vkCmdPushConstants(commandBuffer, clustercullProgram.layout, clustercullProgram.pushConstantStages, 0, sizeof(cullData), &passData);
-				vkCmdDispatchIndirect(commandBuffer, dccb.buffer, 4);
+				vkCmdDispatchIndirect(commandBuffer, dccb.buffer, 0);
 
-				VkBufferMemoryBarrier2 syncBarrier = bufferBarrier(ccb.buffer,
-				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+				if (0)
+				{
+					VkBufferMemoryBarrier2 syncBarrier = bufferBarrier(ccb.buffer,
+					    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+					    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 
-				pipelineBarrier(commandBuffer, 0, 1, &syncBarrier, 0, nullptr);
+					pipelineBarrier(commandBuffer, 0, 1, &syncBarrier, 0, nullptr);
 
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clustersubmitPipeline);
+					vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clustersubmitPipeline);
 
-				DescriptorInfo descriptors2[] = { ccb.buffer, cib.buffer };
-				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clustersubmitProgram.updateTemplate, clustersubmitProgram.layout, 0, descriptors2);
+					DescriptorInfo descriptors2[] = { ccb.buffer, cib.buffer };
+					vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, clustersubmitProgram.updateTemplate, clustersubmitProgram.layout, 0, descriptors2);
 
-				vkCmdDispatch(commandBuffer, 1, 1, 1);
+					vkCmdDispatch(commandBuffer, 1, 1, 1);
+				}
 
 				VkBufferMemoryBarrier2 cullBarriers[] = {
 					bufferBarrier(cib.buffer,
@@ -1501,7 +1506,7 @@ int main(int argc, const char** argv)
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
-				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
+				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 0, 1, 0);
 			}
 			else if (taskSubmit)
 			{
@@ -1515,7 +1520,7 @@ int main(int argc, const char** argv)
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
-				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
+				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 0, 1, 0);
 			}
 			else
 			{

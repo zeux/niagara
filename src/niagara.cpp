@@ -29,6 +29,7 @@ bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadingEnabled = true;
 bool shadowblurEnabled = true;
+int shadowQuality = 1;
 int debugGuiMode = 1;
 int debugLodStep = 0;
 
@@ -513,6 +514,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			shadowblurEnabled = !shadowblurEnabled;
 		}
+		if (key == GLFW_KEY_Q)
+		{
+			shadowQuality = 1 - shadowQuality;
+		}
 		if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
 		{
 			debugLodStep = key - GLFW_KEY_0;
@@ -746,7 +751,7 @@ int main(int argc, const char** argv)
 	if (raytracingSupported)
 	{
 		shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
-		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData));
+		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), textureSetLayout);
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 	}
 
@@ -769,7 +774,8 @@ int main(int argc, const char** argv)
 	VkPipeline clusterpostPipeline = 0;
 	VkPipeline blitPipeline = 0;
 	VkPipeline shadePipeline = 0;
-	VkPipeline shadowPipeline = 0;
+	VkPipeline shadowlqPipeline = 0;
+	VkPipeline shadowhqPipeline = 0;
 	VkPipeline shadowblurPipeline = 0;
 
 	auto pipelines = [&]()
@@ -815,7 +821,8 @@ int main(int argc, const char** argv)
 		if (raytracingSupported)
 		{
 			replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
-			replace(shadowPipeline, createComputePipeline(device, pipelineCache, shadowProgram));
+			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 0 }));
+			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 1 }));
 			replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
 		}
 	};
@@ -1015,7 +1022,7 @@ int main(int argc, const char** argv)
 	createBuffer(vb, device, memoryProperties, geometry.vertices.size() * sizeof(Vertex), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer ib = {};
-	createBuffer(ib, device, memoryProperties, geometry.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	createBuffer(ib, device, memoryProperties, geometry.indices.size() * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer mlb = {};
 	Buffer mdb = {};
@@ -1609,7 +1616,7 @@ int main(int argc, const char** argv)
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 
-		VkClearColorValue colorClear = { 48.f / 255.f, 10.f / 255.f, 36.f / 255.f, 1 };
+		VkClearColorValue colorClear = { 135.f / 255.f, 206.f / 255.f, 250.f / 255.f, 15.f / 255.f };
 		VkClearDepthStencilValue depthClear = { 0.f, 0 };
 
 		// early cull: frustum cull & fill objects that *were* visible last frame
@@ -1669,10 +1676,12 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &preshadowBarrier);
 
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowPipeline);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowQuality == 0 ? shadowlqPipeline : shadowhqPipeline);
 
-				DescriptorInfo descriptors[] = { { shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, tlas };
+				DescriptorInfo descriptors[] = { { shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, tlas, db.buffer, mb.buffer, mtb.buffer, vb.buffer, ib.buffer, textureSampler };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadowProgram.updateTemplate, shadowProgram.layout, 0, descriptors);
+
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				ShadowData shadowData = {};
 				shadowData.sunDirection = sunDirection;
@@ -1833,9 +1842,10 @@ int main(int argc, const char** argv)
 				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(8, "RT shading %s, shadow blur %s",
+				debugtext(8, "RT shading %s, shadow blur %s, shadow quality %d",
 				    raytracingSupported && shadingEnabled ? "ON" : "OFF",
-				    raytracingSupported && shadingEnabled && shadowblurEnabled ? "ON" : "OFF");
+				    raytracingSupported && shadingEnabled && shadowblurEnabled ? "ON" : "OFF",
+				    shadowQuality);
 			}
 		}
 
@@ -2002,7 +2012,8 @@ int main(int argc, const char** argv)
 		vkDestroyPipeline(device, shadePipeline, 0);
 		destroyProgram(device, shadeProgram);
 
-		vkDestroyPipeline(device, shadowPipeline, 0);
+		vkDestroyPipeline(device, shadowlqPipeline, 0);
+		vkDestroyPipeline(device, shadowhqPipeline, 0);
 		vkDestroyPipeline(device, shadowblurPipeline, 0);
 		destroyProgram(device, shadowProgram);
 		destroyProgram(device, shadowblurProgram);

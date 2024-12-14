@@ -1684,25 +1684,20 @@ int main(int argc, const char** argv)
 				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadowProgram.localSizeX), getGroupCount(swapchain.height, shadowProgram.localSizeY), 1);
 			}
 
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
+
 			for (int pass = 0; pass < (shadowblurEnabled ? 2 : 0); ++pass)
 			{
 				const Image& blurFrom = pass == 0 ? shadowTarget : shadowblurTarget;
 				const Image& blurTo = pass == 0 ? shadowblurTarget : shadowTarget;
 
-				VkImageMemoryBarrier2 blurToBarrier =
-				    pass == 0
-				        ? imageBarrier(blurTo.image,
-				              0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-				              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL)
-				        : imageBarrier(blurTo.image,
-				              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL,
-				              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
-
 				VkImageMemoryBarrier2 blurBarriers[] = {
 					imageBarrier(blurFrom.image,
 					    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
 					    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL),
-					blurToBarrier
+					imageBarrier(blurTo.image,
+					    pass == 0 ? 0 : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, pass == 0 ? 0 : VK_ACCESS_SHADER_READ_BIT, pass == 0 ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_GENERAL,
+					    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
 				};
 
 				pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(blurBarriers), blurBarriers);
@@ -1725,11 +1720,9 @@ int main(int argc, const char** argv)
 
 			pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &postblurBarrier);
 
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
 
 			{
-				vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
-
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
 
 				DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, gbufferTargets[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL } };
@@ -1743,9 +1736,9 @@ int main(int argc, const char** argv)
 
 				vkCmdPushConstants(commandBuffer, shadeProgram.layout, shadeProgram.pushConstantStages, 0, sizeof(shadeData), &shadeData);
 				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadeProgram.localSizeX), getGroupCount(swapchain.height, shadeProgram.localSizeY), 1);
-
-				vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 3);
 			}
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 3);
 		}
 		else
 		{
@@ -1753,7 +1746,6 @@ int main(int argc, const char** argv)
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
-
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blitPipeline);
@@ -1816,6 +1808,7 @@ int main(int argc, const char** argv)
 			double cullpostGpuTime = double(timestampResults[13] - timestampResults[12]) * props.limits.timestampPeriod * 1e-6;
 			double renderpostGpuTime = double(timestampResults[15] - timestampResults[14]) * props.limits.timestampPeriod * 1e-6;
 			double shadowsGpuTime = double(timestampResults[17] - timestampResults[16]) * props.limits.timestampPeriod * 1e-6;
+			double shadowblurGpuTime = double(timestampResults[18] - timestampResults[17]) * props.limits.timestampPeriod * 1e-6;
 			double finalGpuTime = double(timestampResults[19] - timestampResults[18]) * props.limits.timestampPeriod * 1e-6;
 
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
@@ -1825,11 +1818,11 @@ int main(int argc, const char** argv)
 
 			if (debugGuiMode % 3 == 2)
 			{
-				debugtext(2, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, shadows: %.2f ms, final: %.2f ms",
+				debugtext(2, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms, final: %.2f ms",
 				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 				    pyramidGpuTime,
 				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
-				    shadowsGpuTime,
+				    shadowsGpuTime, shadowblurGpuTime,
 				    finalGpuTime);
 				debugtext(3, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
 				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);

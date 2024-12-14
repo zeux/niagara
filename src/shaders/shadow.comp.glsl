@@ -65,31 +65,19 @@ layout(binding = 0, set = 1) uniform texture2D textures[];
 
 #define SAMP(id) sampler2D(textures[nonuniformEXT(id)], textureSampler)
 
-void main()
+bool shadowTrace(vec3 wpos, vec3 dir, uint rayflags)
 {
-	uvec2 pos = gl_GlobalInvocationID.xy;
-	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
-
-	float depth = texture(depthImage, uv).r;
-
-	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1);
-	vec4 wposh = shadowData.inverseViewProjection * clip;
-	vec3 wpos = wposh.xyz / wposh.w;
-
-	uint rayflags = gl_RayFlagsTerminateOnFirstHitEXT | (QUALITY == 0 ? gl_RayFlagsCullNoOpaqueEXT : 0);
-
-	vec3 dir = shadowData.sunDirection;
-	// TODO: a lot more tuning required here
-	// TODO: this should actually be doing cone sampling, not random XZ offsets
-	float dir0 = gradientNoise(vec2(pos.xy));
-	float dir1 = gradientNoise(vec2(pos.yx));
-	dir.x += (dir0 * 2 - 1) * shadowData.sunJitter;
-	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
-	dir = normalize(dir);
-
 	rayQueryEXT rq;
 	rayQueryInitializeEXT(rq, tlas, rayflags, 0xff, wpos, 1e-2, dir, 1e3);
-	while (rayQueryProceedEXT(rq) && QUALITY != 0)
+	rayQueryProceedEXT(rq);
+	return rayQueryGetIntersectionTypeEXT(rq, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+}
+
+bool shadowTraceTransparent(vec3 wpos, vec3 dir, uint rayflags)
+{
+	rayQueryEXT rq;
+	rayQueryInitializeEXT(rq, tlas, rayflags, 0xff, wpos, 1e-2, dir, 1e3);
+	while (rayQueryProceedEXT(rq))
 	{
 		int objid = rayQueryGetIntersectionInstanceIdEXT(rq, false);
 		int triid = rayQueryGetIntersectionPrimitiveIndexEXT(rq, false);
@@ -121,8 +109,43 @@ void main()
 		if (alpha >= 0.5)
 			rayQueryConfirmIntersectionEXT(rq);
 	}
+	return rayQueryGetIntersectionTypeEXT(rq, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+}
 
-	float shadow = (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) ? 1.0 : 0.0;
+void main()
+{
+	uvec2 pos = gl_GlobalInvocationID.xy;
+	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
+
+	float depth = texture(depthImage, uv).r;
+
+	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1);
+	vec4 wposh = shadowData.inverseViewProjection * clip;
+	vec3 wpos = wposh.xyz / wposh.w;
+
+	vec3 dir = shadowData.sunDirection;
+	// TODO: a lot more tuning required here
+	// TODO: this should actually be doing cone sampling, not random XZ offsets
+	float dir0 = gradientNoise(vec2(pos.xy));
+	float dir1 = gradientNoise(vec2(pos.yx));
+	dir.x += (dir0 * 2 - 1) * shadowData.sunJitter;
+	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
+	dir = normalize(dir);
+
+	// On AMDVLK + RDNA3, two shadow traces are faster in practice than one; this may be different on other vendors/drivers
+	// For example, for now on radv + RDNA3 one trace is faster, but radv is missing pointer flags optimizations
+#if 1
+	bool shadowhit = shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT);
+
+	if (!shadowhit && QUALITY != 0)
+		shadowhit = shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullOpaqueEXT);
+#else
+	bool shadowhit = QUALITY == 0
+		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT)
+		: shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT);
+#endif
+
+	float shadow = shadowhit ? 0.0 : 1.0;
 
 	imageStore(outImage, ivec2(pos), vec4(shadow, 0, 0, 0));
 }

@@ -22,6 +22,7 @@ struct ShadowData
 	mat4 inverseViewProjection;
 
 	vec2 imageSize;
+	uint checkerboard;
 };
 
 layout(push_constant) uniform block
@@ -115,8 +116,15 @@ bool shadowTraceTransparent(vec3 wpos, vec3 dir, uint rayflags)
 void main()
 {
 	uvec2 pos = gl_GlobalInvocationID.xy;
-	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
 
+	if (shadowData.checkerboard == 1)
+	{
+		// checkerboard even
+		pos.x *= 2;
+		pos.x += pos.y & 1;
+	}
+
+	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
 	float depth = texture(depthImage, uv).r;
 
 	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1);
@@ -124,6 +132,7 @@ void main()
 	vec3 wpos = wposh.xyz / wposh.w;
 
 	vec3 dir = shadowData.sunDirection;
+
 	// TODO: a lot more tuning required here
 	// TODO: this should actually be doing cone sampling, not random XZ offsets
 	float dir0 = gradientNoise(vec2(pos.xy));

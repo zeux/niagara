@@ -29,6 +29,7 @@ bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
 bool shadingEnabled = true;
 bool shadowblurEnabled = true;
+bool shadowCheckerboard = false;
 int shadowQuality = 1;
 int debugGuiMode = 1;
 int debugLodStep = 0;
@@ -135,6 +136,7 @@ struct alignas(16) ShadowData
 	mat4 inverseViewProjection;
 
 	vec2 imageSize;
+	unsigned int checkerboard;
 };
 
 struct alignas(16) ShadeData
@@ -513,6 +515,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			shadowblurEnabled = !shadowblurEnabled;
 		}
+		if (key == GLFW_KEY_X)
+		{
+			shadowCheckerboard = !shadowCheckerboard;
+		}
 		if (key == GLFW_KEY_Q)
 		{
 			shadowQuality = 1 - shadowQuality;
@@ -746,11 +752,13 @@ int main(int argc, const char** argv)
 
 	Program shadeProgram = {};
 	Program shadowProgram = {};
+	Program shadowfillProgram = {};
 	Program shadowblurProgram = {};
 	if (raytracingSupported)
 	{
 		shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
 		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), textureSetLayout);
+		shadowfillProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowfill.comp"] }, sizeof(vec4));
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 	}
 
@@ -775,6 +783,7 @@ int main(int argc, const char** argv)
 	VkPipeline shadePipeline = 0;
 	VkPipeline shadowlqPipeline = 0;
 	VkPipeline shadowhqPipeline = 0;
+	VkPipeline shadowfillPipeline = 0;
 	VkPipeline shadowblurPipeline = 0;
 
 	auto pipelines = [&]()
@@ -822,6 +831,7 @@ int main(int argc, const char** argv)
 			replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
 			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 0 }));
 			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 1 }));
+			replace(shadowfillPipeline, createComputePipeline(device, pipelineCache, shadowfillProgram));
 			replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
 		}
 	};
@@ -1665,6 +1675,9 @@ int main(int argc, const char** argv)
 		{
 			uint32_t timestamp = 16;
 
+			// checkerboard rendering: we dispatch half as many columns and xform them to fill the screen
+			int shadowWidthCB = shadowCheckerboard ? (swapchain.width + 1) / 2 : swapchain.width;
+
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
 			VkImageMemoryBarrier2 preshadowBarrier =
@@ -1687,12 +1700,32 @@ int main(int argc, const char** argv)
 				shadowData.sunJitter = shadowblurEnabled ? 1e-2f : 0;
 				shadowData.inverseViewProjection = inverse(projection * view);
 				shadowData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+				shadowData.checkerboard = shadowCheckerboard;
 
 				vkCmdPushConstants(commandBuffer, shadowProgram.layout, shadowProgram.pushConstantStages, 0, sizeof(shadowData), &shadowData);
-				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadowProgram.localSizeX), getGroupCount(swapchain.height, shadowProgram.localSizeY), 1);
+				vkCmdDispatch(commandBuffer, getGroupCount(shadowWidthCB, shadowProgram.localSizeX), getGroupCount(swapchain.height, shadowProgram.localSizeY), 1);
 			}
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
+
+			if (shadowCheckerboard)
+			{
+				VkImageMemoryBarrier2 fillBarrier = imageBarrier(shadowTarget.image,
+				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
+				    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
+
+				pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &fillBarrier);
+
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowfillPipeline);
+
+				DescriptorInfo descriptors[] = { { shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
+				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadowfillProgram.updateTemplate, shadowfillProgram.layout, 0, descriptors);
+
+				vec4 fillData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
+
+				vkCmdPushConstants(commandBuffer, shadowProgram.layout, shadowProgram.pushConstantStages, 0, sizeof(fillData), &fillData);
+				vkCmdDispatch(commandBuffer, getGroupCount(shadowWidthCB, shadowProgram.localSizeX), getGroupCount(swapchain.height, shadowProgram.localSizeY), 1);
+			}
 
 			for (int pass = 0; pass < (shadowblurEnabled ? 2 : 0); ++pass)
 			{
@@ -1841,10 +1874,10 @@ int main(int argc, const char** argv)
 				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(8, "RT shading %s, shadow blur %s, shadow quality %d",
+				debugtext(8, "RT shading %s, shadow blur %s, shadow quality %d, shadow checkerboard %s",
 				    raytracingSupported && shadingEnabled ? "ON" : "OFF",
 				    raytracingSupported && shadingEnabled && shadowblurEnabled ? "ON" : "OFF",
-				    shadowQuality);
+				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");
 			}
 		}
 
@@ -2013,8 +2046,10 @@ int main(int argc, const char** argv)
 
 		vkDestroyPipeline(device, shadowlqPipeline, 0);
 		vkDestroyPipeline(device, shadowhqPipeline, 0);
+		vkDestroyPipeline(device, shadowfillPipeline, 0);
 		vkDestroyPipeline(device, shadowblurPipeline, 0);
 		destroyProgram(device, shadowProgram);
+		destroyProgram(device, shadowfillProgram);
 		destroyProgram(device, shadowblurProgram);
 	}
 

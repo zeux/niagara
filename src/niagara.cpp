@@ -408,7 +408,7 @@ VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const 
 		instance.instanceCustomIndex = i;
 		instance.mask = 1 << draw.postPass;
 		instance.flags = draw.postPass ? VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
-		instance.accelerationStructureReference = blasAddresses[draw.meshIndex];
+		instance.accelerationStructureReference = draw.postPass <= 1 ? blasAddresses[draw.meshIndex] : 0;
 
 		memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(instances.data) + i, &instance, sizeof(VkAccelerationStructureInstanceKHR));
 	}

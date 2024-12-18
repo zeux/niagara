@@ -1505,6 +1505,7 @@ int main(int argc, const char** argv)
 			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 			vkCmdSetCullMode(commandBuffer, postPass == 0 ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE);
+			vkCmdSetDepthBias(commandBuffer, postPass == 0 ? 0 : 16, 0, postPass == 0 ? 0 : 1);
 
 			Globals passGlobals = globals;
 			passGlobals.cullData.postPass = postPass;

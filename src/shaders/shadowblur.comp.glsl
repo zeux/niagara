@@ -43,7 +43,7 @@ void main()
 
 		float gw = exp2(-abs(i) / 10);
 		float dv = znear / texelFetch(depthImage, uvoff, 0).r;
-		float dw = exp2(-abs(depth - dv) * 20);
+		float dw = exp2(-abs(depth / dv - 1) * 200);
 		float fw = gw * dw;
 
 		shadow += texelFetch(shadowImage, uvoff, 0).r * fw;

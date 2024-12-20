@@ -104,9 +104,9 @@ void main()
 	if ((texbit0 | texbit1) == 0)
 		return;
 
-	vec4 color = texbit1 == 1 ? unpackUnorm4x8(text.color) : vec4(0.0);
+	vec3 color = texbit1 == 1 ? unpackUnorm4x8(text.color).bgr : vec3(0.0);
 
 	for (int y = 0; y < text.scale; ++y)
 		for (int x = 0; x < text.scale; ++x)
-			imageStore(outImage, (text.offset * size + pos) * text.scale + ivec2(x, y), color);
+			imageStore(outImage, (text.offset * size + pos) * text.scale + ivec2(x, y), vec4(color, 1.0));
 }

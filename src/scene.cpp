@@ -121,7 +121,7 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 
 static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets, bool fast = false)
 {
-	std::vector<uint32_t> remap(indices.size());
+	std::vector<uint32_t> remap(vertices.size());
 	size_t uniqueVertices = meshopt_generateVertexRemap(remap.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
 
 	meshopt_remapVertexBuffer(vertices.data(), vertices.data(), vertices.size(), sizeof(Vertex), remap.data());
@@ -465,6 +465,8 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		}
 	}
 
+	int textureOffset = 1 + int(texturePaths.size());
+
 	for (size_t i = 0; i < data->materials_count; ++i)
 	{
 		cgltf_material* material = &data->materials[i];
@@ -475,33 +477,33 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		if (material->has_pbr_specular_glossiness)
 		{
 			if (material->pbr_specular_glossiness.diffuse_texture.texture)
-				mat.albedoTexture = 1 + int(cgltf_texture_index(data, material->pbr_specular_glossiness.diffuse_texture.texture));
+				mat.albedoTexture = textureOffset + int(cgltf_texture_index(data, material->pbr_specular_glossiness.diffuse_texture.texture));
 
 			mat.diffuseFactor = vec4(material->pbr_specular_glossiness.diffuse_factor[0], material->pbr_specular_glossiness.diffuse_factor[1], material->pbr_specular_glossiness.diffuse_factor[2], material->pbr_specular_glossiness.diffuse_factor[3]);
 
 			if (material->pbr_specular_glossiness.specular_glossiness_texture.texture)
-				mat.specularTexture = 1 + int(cgltf_texture_index(data, material->pbr_specular_glossiness.specular_glossiness_texture.texture));
+				mat.specularTexture = textureOffset + int(cgltf_texture_index(data, material->pbr_specular_glossiness.specular_glossiness_texture.texture));
 
 			mat.specularFactor = vec4(material->pbr_specular_glossiness.specular_factor[0], material->pbr_specular_glossiness.specular_factor[1], material->pbr_specular_glossiness.specular_factor[2], material->pbr_specular_glossiness.glossiness_factor);
 		}
 		else if (material->has_pbr_metallic_roughness)
 		{
 			if (material->pbr_metallic_roughness.base_color_texture.texture)
-				mat.albedoTexture = 1 + int(cgltf_texture_index(data, material->pbr_metallic_roughness.base_color_texture.texture));
+				mat.albedoTexture = textureOffset + int(cgltf_texture_index(data, material->pbr_metallic_roughness.base_color_texture.texture));
 
 			mat.diffuseFactor = vec4(material->pbr_metallic_roughness.base_color_factor[0], material->pbr_metallic_roughness.base_color_factor[1], material->pbr_metallic_roughness.base_color_factor[2], material->pbr_metallic_roughness.base_color_factor[3]);
 
 			if (material->pbr_metallic_roughness.metallic_roughness_texture.texture)
-				mat.specularTexture = 1 + int(cgltf_texture_index(data, material->pbr_metallic_roughness.metallic_roughness_texture.texture));
+				mat.specularTexture = textureOffset + int(cgltf_texture_index(data, material->pbr_metallic_roughness.metallic_roughness_texture.texture));
 
 			mat.specularFactor = vec4(1, 1, 1, 1 - material->pbr_metallic_roughness.roughness_factor);
 		}
 
 		if (material->normal_texture.texture)
-			mat.normalTexture = 1 + int(cgltf_texture_index(data, material->normal_texture.texture));
+			mat.normalTexture = textureOffset + int(cgltf_texture_index(data, material->normal_texture.texture));
 
 		if (material->emissive_texture.texture)
-			mat.emissiveTexture = 1 + int(cgltf_texture_index(data, material->emissive_texture.texture));
+			mat.emissiveTexture = textureOffset + int(cgltf_texture_index(data, material->emissive_texture.texture));
 
 		mat.emissiveFactor = vec3(material->emissive_factor[0], material->emissive_factor[1], material->emissive_factor[2]);
 

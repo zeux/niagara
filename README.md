@@ -131,3 +131,12 @@ https://github.com/KhronosGroup/glslang/issues/3103
 
 * ✔️ Incomplete mip data is encoded for non-power-of-two textures \
 https://github.com/wolfpld/etcpak/pull/43
+
+* radv should use pointer flags on RDNA3 during BVH traversal \
+https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/32417
+
+* radv: VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR is not supported for TLAS \
+https://gitlab.freedesktop.org/mesa/mesa/-/issues/12346
+
+* Missing synchronization validation for ray tracing acceleration updates & uses \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/9076

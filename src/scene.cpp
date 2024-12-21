@@ -344,7 +344,7 @@ static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& p
 	}
 }
 
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast)
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast)
 {
 	clock_t timer = clock();
 
@@ -396,6 +396,8 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 	assert(primitiveMaterials.size() + firstMeshOffset == geometry.meshes.size());
 
+	std::vector<int> nodeDraws(data->nodes_count, -1); // for animations
+
 	size_t materialOffset = materials.size();
 	assert(materialOffset > 0); // index 0 = dummy materials
 
@@ -434,6 +436,8 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 				if (material && material->has_transmission)
 					draw.postPass = 2;
+
+				nodeDraws[i] = int(draws.size());
 
 				draws.push_back(draw);
 			}
@@ -535,8 +539,134 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		texturePaths.push_back(ipath + uri);
 	}
 
-	printf("Loaded %s: %d meshes, %d draws, %d vertices in %.2f sec\n",
-	    path, int(geometry.meshes.size()), int(draws.size()), int(geometry.vertices.size()),
+	std::vector<cgltf_animation_sampler*> samplersT(data->nodes_count);
+	std::vector<cgltf_animation_sampler*> samplersR(data->nodes_count);
+	std::vector<cgltf_animation_sampler*> samplersS(data->nodes_count);
+
+	for (size_t i = 0; i < data->animations_count; ++i)
+	{
+		cgltf_animation* anim = &data->animations[i];
+
+		for (size_t j = 0; j < anim->channels_count; ++j)
+		{
+			cgltf_animation_channel* channel = &anim->channels[j];
+			cgltf_animation_sampler* sampler = channel->sampler;
+
+			if (!channel->target_node)
+				continue;
+
+			if (channel->target_path == cgltf_animation_path_type_translation)
+				samplersT[cgltf_node_index(data, channel->target_node)] = sampler;
+			else if (channel->target_path == cgltf_animation_path_type_rotation)
+				samplersR[cgltf_node_index(data, channel->target_node)] = sampler;
+			else if (channel->target_path == cgltf_animation_path_type_scale)
+				samplersS[cgltf_node_index(data, channel->target_node)] = sampler;
+		}
+	}
+
+	for (size_t i = 0; i < data->nodes_count; ++i)
+	{
+		if (!samplersR[i] && !samplersT[i] && !samplersS[i])
+			continue;
+
+		if (nodeDraws[i] == -1)
+		{
+			fprintf(stderr, "Warning: skipping animation for node %d without draw\n", int(i));
+			continue;
+		}
+
+		cgltf_accessor* input = 0;
+		if (samplersT[i])
+			input = samplersT[i]->input;
+		else if (samplersR[i])
+			input = samplersR[i]->input;
+		else if (samplersS[i])
+			input = samplersS[i]->input;
+
+		if ((samplersT[i] && samplersT[i]->input->count != input->count) ||
+		    (samplersR[i] && samplersR[i]->input->count != input->count) ||
+		    (samplersS[i] && samplersS[i]->input->count != input->count))
+		{
+			fprintf(stderr, "Warning: skipping animation for node %d due to mismatched sampler counts\n", int(i));
+			continue;
+		}
+
+		if ((samplersT[i] && samplersT[i]->interpolation != cgltf_interpolation_type_linear) ||
+		    (samplersR[i] && samplersR[i]->interpolation != cgltf_interpolation_type_linear) ||
+		    (samplersS[i] && samplersS[i]->interpolation != cgltf_interpolation_type_linear))
+		{
+			fprintf(stderr, "Warning: skipping animation for node %d due to mismatched sampler counts\n", int(i));
+			continue;
+		}
+
+		if (input->count < 2)
+		{
+			fprintf(stderr, "Warning: skipping animation for node %d with %d keyframes\n", int(i), int(input->count));
+			continue;
+		}
+
+		std::vector<float> times(input->count);
+		cgltf_accessor_unpack_floats(input, times.data(), times.size());
+
+		Animation animation = {};
+		animation.drawIndex = nodeDraws[i];
+		animation.startTime = times[0];
+		animation.period = times[1] - times[0];
+
+		std::vector<float> valuesR, valuesT, valuesS;
+
+		if (samplersT[i])
+		{
+			valuesT.resize(samplersT[i]->output->count * 3);
+			cgltf_accessor_unpack_floats(samplersT[i]->output, valuesT.data(), valuesT.size());
+		}
+
+		if (samplersR[i])
+		{
+			valuesR.resize(samplersR[i]->output->count * 4);
+			cgltf_accessor_unpack_floats(samplersR[i]->output, valuesR.data(), valuesR.size());
+		}
+
+		if (samplersS[i])
+		{
+			valuesS.resize(samplersS[i]->output->count * 3);
+			cgltf_accessor_unpack_floats(samplersS[i]->output, valuesS.data(), valuesS.size());
+		}
+
+		cgltf_node nodeCopy = data->nodes[i];
+
+		for (size_t j = 0; j < input->count; ++j)
+		{
+			if (samplersT[i])
+				memcpy(nodeCopy.translation, &valuesT[j * 3], 3 * sizeof(float));
+
+			if (samplersR[i])
+				memcpy(nodeCopy.rotation, &valuesR[j * 4], 4 * sizeof(float));
+
+			if (samplersS[i])
+				memcpy(nodeCopy.scale, &valuesS[j * 3], 3 * sizeof(float));
+
+			float matrix[16];
+			cgltf_node_transform_world(&nodeCopy, matrix);
+
+			float translation[3];
+			float rotation[4];
+			float scale[3];
+			decomposeTransform(translation, rotation, scale, matrix);
+
+			Keyframe kf = {};
+			kf.translation = vec3(translation[0], translation[1], translation[2]);
+			kf.rotation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
+			kf.scale = std::max(scale[0], std::max(scale[1], scale[2]));
+
+			animation.keyframes.push_back(kf);
+		}
+
+		animations.push_back(std::move(animation));
+	}
+
+	printf("Loaded %s: %d meshes, %d draws, %d animations, %d vertices in %.2f sec\n",
+	    path, int(geometry.meshes.size()), int(draws.size()), int(animations.size()), int(geometry.vertices.size()),
 	    double(clock() - timer) / CLOCKS_PER_SEC);
 
 	if (buildMeshlets)

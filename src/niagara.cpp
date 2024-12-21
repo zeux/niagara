@@ -31,6 +31,7 @@ bool shadingEnabled = true;
 bool shadowblurEnabled = true;
 bool shadowCheckerboard = false;
 int shadowQuality = 1;
+bool animationEnabled = false;
 int debugGuiMode = 1;
 int debugLodStep = 0;
 
@@ -537,6 +538,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugGuiMode++;
 		}
+		if (key == GLFW_KEY_SPACE)
+		{
+			animationEnabled = !animationEnabled;
+		}
 	}
 }
 
@@ -868,6 +873,7 @@ int main(int argc, const char** argv)
 	Geometry geometry;
 	std::vector<Material> materials;
 	std::vector<MeshDraw> draws;
+	std::vector<Animation> animations;
 	std::vector<std::string> texturePaths;
 
 	// material index 0 is always dummy
@@ -889,7 +895,7 @@ int main(int argc, const char** argv)
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
-			if (!loadScene(geometry, materials, draws, texturePaths, camera, sunDirection, argv[1], meshShadingSupported, fastMode))
+			if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], meshShadingSupported, fastMode))
 			{
 				printf("Error: scene %s failed to load\n", argv[1]);
 				return 1;
@@ -1055,7 +1061,7 @@ int main(int argc, const char** argv)
 	}
 
 	Buffer db = {};
-	createBuffer(db, device, memoryProperties, draws.size() * sizeof(MeshDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	createBuffer(db, device, memoryProperties, draws.size() * sizeof(MeshDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	Buffer dvb = {};
 	createBuffer(dvb, device, memoryProperties, draws.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1117,6 +1123,8 @@ int main(int argc, const char** argv)
 
 	uint64_t frameIndex = 0;
 	double frameTimestamp = glfwGetTime();
+
+	double animationTime = 0;
 
 	uint64_t timestampResults[20] = {};
 	uint64_t pipelineResults[3] = {};
@@ -1243,6 +1251,37 @@ int main(int argc, const char** argv)
 					vkDestroyImageView(device, swapchainImageViews[i], 0);
 
 				swapchainImageViews[i] = createImageView(device, swapchain.images[i], swapchainFormat, 0, 1);
+			}
+		}
+
+		if (animationEnabled)
+		{
+			animationTime += frameDelta;
+
+			for (Animation& animation : animations)
+			{
+				double index = (animationTime - animation.startTime) / animation.period;
+
+				if (index < 0)
+					continue;
+
+				index = fmod(index, double(animation.keyframes.size()));
+
+				int index0 = int(index) % animation.keyframes.size();
+				int index1 = (index0 + 1) % animation.keyframes.size();
+
+				double t = index - floor(index);
+
+				const Keyframe& keyframe0 = animation.keyframes[index0];
+				const Keyframe& keyframe1 = animation.keyframes[index1];
+
+				MeshDraw& draw = draws[animation.drawIndex];
+				draw.position = glm::mix(keyframe0.translation, keyframe1.translation, float(t));
+				draw.scale = glm::mix(keyframe0.scale, keyframe1.scale, float(t));
+				draw.orientation = glm::slerp(keyframe0.rotation, keyframe1.rotation, float(t));
+
+				MeshDraw& gpuDraw = static_cast<MeshDraw*>(db.data)[animation.drawIndex];
+				memcpy(&gpuDraw, &draw, sizeof(draw));
 			}
 		}
 
@@ -1931,8 +1970,8 @@ int main(int argc, const char** argv)
 		VK_CHECK(vkWaitForFences(device, 1, &frameFence, VK_TRUE, ~0ull));
 		VK_CHECK(vkResetFences(device, 1, &frameFence));
 
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-		VK_CHECK(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+		VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
+		VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
 
 		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
 		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;

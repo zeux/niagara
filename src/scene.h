@@ -90,5 +90,21 @@ struct Camera
 	float fovY;
 };
 
+struct Keyframe
+{
+	vec3 translation;
+	float scale;
+	quat rotation;
+};
+
+struct Animation
+{
+	uint32_t drawIndex;
+
+	float startTime;
+	float period;
+	std::vector<Keyframe> keyframes;
+};
+
 bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false);
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false);
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false);

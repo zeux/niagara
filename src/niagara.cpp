@@ -380,66 +380,44 @@ void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas,
 	blasBuffer = compactedBuffer;
 }
 
-VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const std::vector<MeshDraw>& draws, const std::vector<VkAccelerationStructureKHR>& blas, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+void fillInstanceRT(VkAccelerationStructureInstanceKHR& instance, const MeshDraw& draw, uint32_t instanceIndex, VkDeviceAddress blas)
 {
-	Buffer instances;
-	createBuffer(instances, device, memoryProperties, sizeof(VkAccelerationStructureInstanceKHR) * draws.size(), VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	mat3 xform = transpose(glm::mat3_cast(draw.orientation)) * draw.scale;
 
-	std::vector<VkDeviceAddress> blasAddresses(blas.size());
+	memcpy(instance.transform.matrix[0], &xform[0], sizeof(float) * 3);
+	memcpy(instance.transform.matrix[1], &xform[1], sizeof(float) * 3);
+	memcpy(instance.transform.matrix[2], &xform[2], sizeof(float) * 3);
+	instance.transform.matrix[0][3] = draw.position.x;
+	instance.transform.matrix[1][3] = draw.position.y;
+	instance.transform.matrix[2][3] = draw.position.z;
+	instance.instanceCustomIndex = instanceIndex;
+	instance.mask = 1 << draw.postPass;
+	instance.flags = draw.postPass ? VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+	instance.accelerationStructureReference = draw.postPass <= 1 ? blas : 0;
+}
 
-	for (size_t i = 0; i < blas.size(); ++i)
-	{
-		VkAccelerationStructureDeviceAddressInfoKHR info = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
-		info.accelerationStructure = blas[i];
-
-		blasAddresses[i] = vkGetAccelerationStructureDeviceAddressKHR(device, &info);
-	}
-
-	for (size_t i = 0; i < draws.size(); ++i)
-	{
-		const MeshDraw& draw = draws[i];
-		assert(draw.meshIndex < blas.size());
-
-		mat3 xform = transpose(glm::mat3_cast(draw.orientation)) * draw.scale;
-
-		VkAccelerationStructureInstanceKHR instance = {};
-		memcpy(instance.transform.matrix[0], &xform[0], sizeof(float) * 3);
-		memcpy(instance.transform.matrix[1], &xform[1], sizeof(float) * 3);
-		memcpy(instance.transform.matrix[2], &xform[2], sizeof(float) * 3);
-		instance.transform.matrix[0][3] = draw.position.x;
-		instance.transform.matrix[1][3] = draw.position.y;
-		instance.transform.matrix[2][3] = draw.position.z;
-		instance.instanceCustomIndex = i;
-		instance.mask = 1 << draw.postPass;
-		instance.flags = draw.postPass ? VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
-		instance.accelerationStructureReference = draw.postPass <= 1 ? blasAddresses[draw.meshIndex] : 0;
-
-		memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(instances.data) + i, &instance, sizeof(VkAccelerationStructureInstanceKHR));
-	}
-
+VkAccelerationStructureKHR createTLAS(VkDevice device, Buffer& tlasBuffer, Buffer& scratchBuffer, const Buffer& instanceBuffer, uint32_t primitiveCount, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+{
 	VkAccelerationStructureGeometryKHR geometry = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 	geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 	geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-	geometry.geometry.instances.data.deviceAddress = getBufferAddress(instances, device);
+	geometry.geometry.instances.data.deviceAddress = getBufferAddress(instanceBuffer, device);
 
 	VkAccelerationStructureBuildGeometryInfoKHR buildInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
 	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 	buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	buildInfo.geometryCount = 1;
 	buildInfo.pGeometries = &geometry;
 
-	uint32_t primitiveCount = uint32_t(draws.size());
-
 	VkAccelerationStructureBuildSizesInfoKHR sizeInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
 	vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildInfo, &primitiveCount, &sizeInfo);
 
-	printf("TLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(sizeInfo.accelerationStructureSize) / 1e6, double(sizeInfo.buildScratchSize) / 1e6);
+	printf("TLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB, updateScratch: %.2f MB\n", double(sizeInfo.accelerationStructureSize) / 1e6, double(sizeInfo.buildScratchSize) / 1e6, double(sizeInfo.updateScratchSize) / 1e6);
 
 	createBuffer(tlasBuffer, device, memoryProperties, sizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	Buffer scratch;
-	createBuffer(scratch, device, memoryProperties, sizeInfo.buildScratchSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	createBuffer(scratchBuffer, device, memoryProperties, std::max(sizeInfo.buildScratchSize, sizeInfo.updateScratchSize), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VkAccelerationStructureCreateInfoKHR accelerationInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
 	accelerationInfo.buffer = tlasBuffer.buffer;
@@ -449,36 +427,38 @@ VkAccelerationStructureKHR buildTLAS(VkDevice device, Buffer& tlasBuffer, const 
 	VkAccelerationStructureKHR tlas = nullptr;
 	VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &tlas));
 
+	return tlas;
+}
+
+void buildTLAS(VkDevice device, VkCommandBuffer commandBuffer, VkAccelerationStructureKHR tlas, const Buffer& tlasBuffer, const Buffer& scratchBuffer, const Buffer& instanceBuffer, uint32_t primitiveCount, VkBuildAccelerationStructureModeKHR mode)
+{
+	VkAccelerationStructureGeometryKHR geometry = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+	geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+	geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+	geometry.geometry.instances.data.deviceAddress = getBufferAddress(instanceBuffer, device);
+
+	VkAccelerationStructureBuildGeometryInfoKHR buildInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+	buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+	buildInfo.mode = mode;
+	buildInfo.geometryCount = 1;
+	buildInfo.pGeometries = &geometry;
+
+	buildInfo.srcAccelerationStructure = tlas;
 	buildInfo.dstAccelerationStructure = tlas;
-	buildInfo.scratchData.deviceAddress = getBufferAddress(scratch, device);
+	buildInfo.scratchData.deviceAddress = getBufferAddress(scratchBuffer, device);
 
 	VkAccelerationStructureBuildRangeInfoKHR buildRange = {};
 	buildRange.primitiveCount = primitiveCount;
 	const VkAccelerationStructureBuildRangeInfoKHR* buildRangePtr = &buildRange;
 
-	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
-
-	VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-
 	vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &buildRangePtr);
 
-	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	VkBufferMemoryBarrier2 barrier = bufferBarrier(tlasBuffer.buffer,
+	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+	    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
 
-	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-
-	VK_CHECK(vkDeviceWaitIdle(device));
-
-	destroyBuffer(scratch, device);
-	destroyBuffer(instances, device);
-
-	return tlas;
+	pipelineBarrier(commandBuffer, 0, 1, &barrier, 0, nullptr);
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -1093,16 +1073,43 @@ int main(int argc, const char** argv)
 	uploadBuffer(device, commandPool, commandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
 
 	std::vector<VkAccelerationStructureKHR> blas;
+	std::vector<VkDeviceAddress> blasAddresses;
 	VkAccelerationStructureKHR tlas = nullptr;
+	bool tlasNeedsRebuild = true;
 	Buffer blasBuffer = {};
 	Buffer tlasBuffer = {};
+	Buffer tlasScratchBuffer = {};
+	Buffer tlasInstanceBuffer = {};
 	if (raytracingSupported)
 	{
 		std::vector<VkDeviceSize> compactedSizes;
 		buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
 		compactBLAS(device, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
 
-		tlas = buildTLAS(device, tlasBuffer, draws, blas, commandPool, commandBuffer, queue, memoryProperties);
+		blasAddresses.resize(blas.size());
+
+		for (size_t i = 0; i < blas.size(); ++i)
+		{
+			VkAccelerationStructureDeviceAddressInfoKHR info = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+			info.accelerationStructure = blas[i];
+
+			blasAddresses[i] = vkGetAccelerationStructureDeviceAddressKHR(device, &info);
+		}
+
+		createBuffer(tlasInstanceBuffer, device, memoryProperties, sizeof(VkAccelerationStructureInstanceKHR) * draws.size(), VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		for (size_t i = 0; i < draws.size(); ++i)
+		{
+			const MeshDraw& draw = draws[i];
+			assert(draw.meshIndex < blas.size());
+
+			VkAccelerationStructureInstanceKHR instance = {};
+			fillInstanceRT(instance, draw, uint32_t(i), blasAddresses[draw.meshIndex]);
+
+			memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(tlasInstanceBuffer.data) + i, &instance, sizeof(VkAccelerationStructureInstanceKHR));
+		}
+
+		tlas = createTLAS(device, tlasBuffer, tlasScratchBuffer, tlasInstanceBuffer, draws.size(), memoryProperties);
 	}
 
 	Image gbufferTargets[gbufferCount] = {};
@@ -1126,7 +1133,7 @@ int main(int argc, const char** argv)
 
 	double animationTime = 0;
 
-	uint64_t timestampResults[20] = {};
+	uint64_t timestampResults[22] = {};
 	uint64_t pipelineResults[3] = {};
 
 	while (!glfwWindowShouldClose(window))
@@ -1282,6 +1289,14 @@ int main(int argc, const char** argv)
 
 				MeshDraw& gpuDraw = static_cast<MeshDraw*>(db.data)[animation.drawIndex];
 				memcpy(&gpuDraw, &draw, sizeof(draw));
+
+				if (raytracingSupported)
+				{
+					VkAccelerationStructureInstanceKHR instance = {};
+					fillInstanceRT(instance, draw, uint32_t(animation.drawIndex), blasAddresses[draw.meshIndex]);
+
+					memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(tlasInstanceBuffer.data) + animation.drawIndex, &instance, sizeof(VkAccelerationStructureInstanceKHR));
+				}
 			}
 		}
 
@@ -1325,6 +1340,23 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
 
 			mvbCleared = true;
+		}
+
+		if (raytracingSupported)
+		{
+			uint32_t timestamp = 20;
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
+
+			if (tlasNeedsRebuild)
+			{
+				buildTLAS(device, commandBuffer, tlas, tlasBuffer, tlasScratchBuffer, tlasInstanceBuffer, draws.size(), VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR);
+				tlasNeedsRebuild = false;
+			}
+			else if (animationEnabled)
+				buildTLAS(device, commandBuffer, tlas, tlasBuffer, tlasScratchBuffer, tlasInstanceBuffer, draws.size(), VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR);
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		}
 
 		mat4 view = glm::mat4_cast(camera.orientation);
@@ -1902,6 +1934,7 @@ int main(int argc, const char** argv)
 			double shadowsGpuTime = double(timestampResults[17] - timestampResults[16]) * props.limits.timestampPeriod * 1e-6;
 			double shadowblurGpuTime = double(timestampResults[18] - timestampResults[17]) * props.limits.timestampPeriod * 1e-6;
 			double finalGpuTime = double(timestampResults[19] - timestampResults[18]) * props.limits.timestampPeriod * 1e-6;
+			double tlasGpuTime = double(timestampResults[21] - timestampResults[20]) * props.limits.timestampPeriod * 1e-6;
 
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
@@ -1913,22 +1946,24 @@ int main(int argc, const char** argv)
 
 			if (debugGuiMode % 3 == 2)
 			{
-				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms, final: %.2f ms",
+				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms",
 				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 				    pyramidGpuTime,
-				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
+				    renderGpuTime + renderlateGpuTime + renderpostGpuTime);
+				debugtext(3, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms, final: %.2f ms",
+				    tlasGpuTime,
 				    shadowsGpuTime, shadowblurGpuTime,
 				    finalGpuTime);
-				debugtext(3, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
+				debugtext(4, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
 				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
 
-				debugtext(5, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
+				debugtext(6, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
 				    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
-				debugtext(6, ~0u, "mesh shading %s, task shading %s, cluster occlusion culling %s",
+				debugtext(7, ~0u, "mesh shading %s, task shading %s, cluster occlusion culling %s",
 				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(8, ~0u, "RT shading %s, shadow blur %s, shadow quality %d, shadow checkerboard %s",
+				debugtext(9, ~0u, "RT shading %s, shadow blur %s, shadow quality %d, shadow checkerboard %s",
 				    raytracingSupported && shadingEnabled ? "ON" : "OFF",
 				    raytracingSupported && shadingEnabled && shadowblurEnabled ? "ON" : "OFF",
 				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");
@@ -2038,6 +2073,8 @@ int main(int argc, const char** argv)
 
 		destroyBuffer(tlasBuffer, device);
 		destroyBuffer(blasBuffer, device);
+		destroyBuffer(tlasScratchBuffer, device);
+		destroyBuffer(tlasInstanceBuffer, device);
 	}
 
 	destroyBuffer(ib, device);

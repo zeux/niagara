@@ -53,6 +53,25 @@ void pipelineBarrier(VkCommandBuffer commandBuffer, VkDependencyFlags dependency
 	vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
+void stageBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stageMask)
+{
+	stageBarrier(commandBuffer, stageMask, stageMask);
+}
+
+void stageBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask)
+{
+	VkMemoryBarrier2 barrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+	barrier.srcStageMask = srcStageMask;
+	barrier.dstStageMask = dstStageMask;
+	barrier.srcAccessMask = barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+
+	VkDependencyInfo dependencyInfo = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependencyInfo.memoryBarrierCount = 1;
+	dependencyInfo.pMemoryBarriers = &barrier;
+
+	vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+}
+
 static uint32_t selectMemoryType(const VkPhysicalDeviceMemoryProperties& memoryProperties, uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
 {
 	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)

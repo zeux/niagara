@@ -18,7 +18,7 @@ void main()
 
 	// checkerboard odd
 	pos.x *= 2;
-	pos.x += 1 - (pos.y & 1);
+	pos.x += pos.y & 1;
 
 	float depth = texelFetch(depthImage, pos, 0).r;
 

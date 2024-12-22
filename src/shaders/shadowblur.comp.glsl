@@ -12,6 +12,7 @@ layout(push_constant) uniform block
 {
 	vec2 imageSize;
 	float direction;
+	float znear;
 };
 
 layout(binding = 0) uniform writeonly image2D outImage;
@@ -27,27 +28,30 @@ void main()
 	float shadow = texelFetch(shadowImage, ivec2(pos), 0).r;
 	float accumw = 1;
 
-	float znear = 1;
 	float depth = znear / texelFetch(depthImage, ivec2(pos), 0).r;
 
 	ivec2 offsetMask = -ivec2(direction, 1 - direction);
 
 	const int KERNEL = 10;
 
-	for (int i = -KERNEL; i <= KERNEL; ++i)
+	for (int sign = -1; sign <= 1; sign += 2)
 	{
-		if (i == 0)
-			continue;
+		ivec2 uvnext = ivec2(pos) + (ivec2(sign) & offsetMask);
+		float dnext = znear / texelFetch(depthImage, uvnext, 0).r;
+		float dgrad = abs(depth - dnext) < 0.1 ? dnext - depth : 0;
 
-        ivec2 uvoff = ivec2(pos) + (ivec2(i) & offsetMask);
+		for (int i = 1; i <= KERNEL; ++i)
+		{
+	        ivec2 uvoff = ivec2(pos) + (ivec2(i * sign) & offsetMask);
 
-		float gw = exp2(-abs(i) / 10);
-		float dv = znear / texelFetch(depthImage, uvoff, 0).r;
-		float dw = exp2(-abs(depth / dv - 1) * 200);
-		float fw = gw * dw;
+			float gw = exp2(-i * i / 50);
+			float dv = znear / texelFetch(depthImage, uvoff, 0).r;
+			float dw = exp2(-abs(dv - (depth + dgrad * i)) * 100);
+			float fw = gw * dw;
 
-		shadow += texelFetch(shadowImage, uvoff, 0).r * fw;
-		accumw += fw;
+			shadow += texelFetch(shadowImage, uvoff, 0).r * fw;
+			accumw += fw;
+		}
 	}
 
 	shadow /= accumw;

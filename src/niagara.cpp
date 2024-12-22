@@ -864,6 +864,7 @@ int main(int argc, const char** argv)
 	camera.position = { 0.0f, 0.0f, 0.0f };
 	camera.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
 	camera.fovY = glm::radians(70.f);
+	camera.znear = 0.1f;
 
 	vec3 sunDirection = normalize(vec3(1.0f, 1.0f, 1.0f));
 
@@ -1364,8 +1365,7 @@ int main(int argc, const char** argv)
 		view = inverse(view);
 		view = glm::scale(glm::identity<glm::mat4>(), vec3(1, 1, -1)) * view;
 
-		float znear = 0.1f;
-		mat4 projection = perspectiveProjection(camera.fovY, float(swapchain.width) / float(swapchain.height), znear);
+		mat4 projection = perspectiveProjection(camera.fovY, float(swapchain.width) / float(swapchain.height), camera.znear);
 
 		mat4 projectionT = transpose(projection);
 
@@ -1376,7 +1376,7 @@ int main(int argc, const char** argv)
 		cullData.view = view;
 		cullData.P00 = projection[0][0];
 		cullData.P11 = projection[1][1];
-		cullData.znear = znear;
+		cullData.znear = camera.znear;
 		cullData.zfar = drawDistance;
 		cullData.frustum[0] = frustumX.x;
 		cullData.frustum[1] = frustumX.z;
@@ -1831,7 +1831,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { { blurTo.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, blurFrom.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 				vkCmdPushDescriptorSetWithTemplateKHR(commandBuffer, shadowblurProgram.updateTemplate, shadowblurProgram.layout, 0, descriptors);
 
-				vec4 blurData = vec4(float(swapchain.width), float(swapchain.height), pass == 0 ? 1 : 0, 0);
+				vec4 blurData = vec4(float(swapchain.width), float(swapchain.height), pass == 0 ? 1 : 0, camera.znear);
 
 				vkCmdPushConstants(commandBuffer, shadowblurProgram.layout, shadowblurProgram.pushConstantStages, 0, sizeof(blurData), &blurData);
 				vkCmdDispatch(commandBuffer, getGroupCount(swapchain.width, shadowblurProgram.localSizeX), getGroupCount(swapchain.height, shadowblurProgram.localSizeY), 1);

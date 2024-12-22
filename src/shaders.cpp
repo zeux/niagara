@@ -2,9 +2,15 @@
 #include "shaders.h"
 #include "config.h"
 
-#include <dirent.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <dirent.h>
+#endif
+
 
 #include <string>
 #include <vector>
@@ -442,6 +448,32 @@ bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const ch
 		spath = spath.substr(0, pos + 1);
 	spath += path;
 
+#ifdef _WIN32
+	_finddata_t finddata;
+	intptr_t fh = _findfirst((spath + "/*.spv").c_str(), &finddata);
+	if (fh == -1)
+		return false;
+
+	do
+	{
+		const char* ext = strrchr(finddata.name, '.');
+		if (!ext)
+			continue;
+
+		std::string fpath = spath + '/' + finddata.name;
+		Shader shader = {};
+		if (!loadShader(shader, device, fpath.c_str()))
+		{
+			fprintf(stderr, "Warning: %s is not a valid SPIRV module\n", finddata.name);
+			continue;
+		}
+
+		shader.name = std::string(finddata.name, ext - finddata.name);
+		shaders.shaders.push_back(shader);
+	} while (_findnext(fh, &finddata) == 0);
+
+	_findclose(fh);
+#else
 	DIR* dir = opendir(spath.c_str());
 	if (!dir)
 		return false;
@@ -465,6 +497,7 @@ bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const ch
 	}
 
 	closedir(dir);
+#endif
 
 	printf("Loaded %d shaders from %s\n", int(shaders.shaders.size()), spath.c_str());
 	return true;

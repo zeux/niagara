@@ -7,6 +7,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(push_constant) uniform block
 {
 	vec2 imageSize;
+	int checkerboard;
 };
 
 layout(binding = 0, r8) uniform image2D shadowImage;
@@ -16,9 +17,9 @@ void main()
 {
 	ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
 
-	// checkerboard odd
+	// checkerboard (opposite)
 	pos.x *= 2;
-	pos.x += pos.y & 1;
+	pos.x += ~(pos.y ^ checkerboard) & 1;
 
 	float depth = texelFetch(depthImage, pos, 0).r;
 

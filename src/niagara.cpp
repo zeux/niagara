@@ -1478,6 +1478,7 @@ int main(int argc, const char** argv)
 
 			// checkerboard rendering: we dispatch half as many columns and xform them to fill the screen
 			int shadowWidthCB = shadowCheckerboard ? (swapchain.width + 1) / 2 : swapchain.width;
+			int shadowCheckerboardF = shadowCheckerboard ? 1 + (frameIndex % 2) : 0;
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
@@ -1500,7 +1501,7 @@ int main(int argc, const char** argv)
 				shadowData.sunJitter = shadowblurEnabled ? 1e-2f : 0;
 				shadowData.inverseViewProjection = inverse(projection * view);
 				shadowData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
-				shadowData.checkerboard = shadowCheckerboard;
+				shadowData.checkerboard = shadowCheckerboardF;
 
 				dispatch(commandBuffer, shadowProgram, shadowWidthCB, swapchain.height, shadowData, descriptors);
 			}
@@ -1520,8 +1521,9 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { { shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
 
 				vec4 fillData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
+				memcpy(&fillData.z, &shadowCheckerboardF, sizeof(shadowCheckerboardF));
 
-				dispatch(commandBuffer, shadowProgram, shadowWidthCB, swapchain.height, fillData, descriptors);
+				dispatch(commandBuffer, shadowfillProgram, shadowWidthCB, swapchain.height, fillData, descriptors);
 			}
 
 			for (int pass = 0; pass < (shadowblurEnabled ? 2 : 0); ++pass)

@@ -474,7 +474,9 @@ int main(int argc, const char** argv)
 	VkPipeline shadowfillPipeline = 0;
 	VkPipeline shadowblurPipeline = 0;
 
-	auto pipelines = [&]()
+	std::vector<VkPipeline> pipelines;
+
+	auto createPipelines = [&]()
 	{
 		auto replace = [&](VkPipeline& pipeline, VkPipeline newPipeline)
 		{
@@ -482,7 +484,10 @@ int main(int argc, const char** argv)
 				vkDestroyPipeline(device, pipeline, 0);
 			assert(newPipeline);
 			pipeline = newPipeline;
+			pipelines.push_back(newPipeline);
 		};
+
+		pipelines.clear();
 
 		replace(debugtextPipeline, createComputePipeline(device, pipelineCache, debugtextProgram));
 
@@ -524,7 +529,7 @@ int main(int argc, const char** argv)
 		}
 	};
 
-	pipelines();
+	createPipelines();
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
@@ -891,7 +896,7 @@ int main(int argc, const char** argv)
 				{
 					VK_CHECK(vkDeviceWaitIdle(device));
 
-					pipelines();
+					createPipelines();
 
 					reloadShadersColor = 0x00ff00;
 				}
@@ -1791,66 +1796,38 @@ int main(int argc, const char** argv)
 
 	destroySwapchain(device, swapchain);
 
-	vkDestroyPipeline(device, debugtextPipeline, 0);
+	for (VkPipeline pipeline : pipelines)
+		vkDestroyPipeline(device, pipeline, 0);
+
 	destroyProgram(device, debugtextProgram);
-
-	vkDestroyPipeline(device, drawcullPipeline, 0);
-	vkDestroyPipeline(device, drawculllatePipeline, 0);
-	vkDestroyPipeline(device, taskcullPipeline, 0);
-	vkDestroyPipeline(device, taskculllatePipeline, 0);
 	destroyProgram(device, drawcullProgram);
-
-	vkDestroyPipeline(device, tasksubmitPipeline, 0);
 	destroyProgram(device, tasksubmitProgram);
-
-	vkDestroyPipeline(device, clustersubmitPipeline, 0);
 	destroyProgram(device, clustersubmitProgram);
-
-	vkDestroyPipeline(device, clustercullPipeline, 0);
-	vkDestroyPipeline(device, clusterculllatePipeline, 0);
 	destroyProgram(device, clustercullProgram);
-
-	vkDestroyPipeline(device, depthreducePipeline, 0);
 	destroyProgram(device, depthreduceProgram);
-
-	vkDestroyPipeline(device, meshPipeline, 0);
-	vkDestroyPipeline(device, meshpostPipeline, 0);
 	destroyProgram(device, meshProgram);
 
 	if (meshShadingSupported)
 	{
-		vkDestroyPipeline(device, meshtaskPipeline, 0);
-		vkDestroyPipeline(device, meshtasklatePipeline, 0);
-		vkDestroyPipeline(device, meshtaskpostPipeline, 0);
 		destroyProgram(device, meshtaskProgram);
-
-		vkDestroyPipeline(device, clusterPipeline, 0);
-		vkDestroyPipeline(device, clusterpostPipeline, 0);
 		destroyProgram(device, clusterProgram);
 	}
 
-	vkDestroyPipeline(device, blitPipeline, 0);
 	destroyProgram(device, blitProgram);
 
 	if (raytracingSupported)
 	{
-		vkDestroyPipeline(device, shadePipeline, 0);
 		destroyProgram(device, shadeProgram);
-
-		vkDestroyPipeline(device, shadowlqPipeline, 0);
-		vkDestroyPipeline(device, shadowhqPipeline, 0);
-		vkDestroyPipeline(device, shadowfillPipeline, 0);
-		vkDestroyPipeline(device, shadowblurPipeline, 0);
 		destroyProgram(device, shadowProgram);
 		destroyProgram(device, shadowfillProgram);
 		destroyProgram(device, shadowblurProgram);
 	}
 
-	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
-
 	for (Shader& shader : shaders.shaders)
 		if (shader.module)
 			vkDestroyShaderModule(device, shader.module, 0);
+
+	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroySampler(device, textureSampler, 0);
 	vkDestroySampler(device, readSampler, 0);

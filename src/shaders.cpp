@@ -11,7 +11,6 @@
 #include <dirent.h>
 #endif
 
-
 #include <string>
 #include <vector>
 
@@ -355,7 +354,7 @@ static VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLay
 	return layout;
 }
 
-static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, Shaders shaders)
+static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipelineBindPoint bindPoint, VkPipelineLayout layout, Shaders shaders, uint32_t* pushDescriptorCount)
 {
 	std::vector<VkDescriptorUpdateTemplateEntry> entries;
 
@@ -375,6 +374,8 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 
 			entries.push_back(entry);
 		}
+
+	*pushDescriptorCount = uint32_t(entries.size());
 
 	VkDescriptorUpdateTemplateCreateInfo createInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO };
 
@@ -656,10 +657,11 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 	program.layout = createPipelineLayout(device, program.setLayout, arrayLayout, pushConstantStages, pushConstantSize);
 	assert(program.layout);
 
-	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders);
+	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders, &program.pushDescriptorCount);
 	assert(program.updateTemplate);
 
 	program.pushConstantStages = pushConstantStages;
+	program.pushConstantSize = uint32_t(pushConstantSize);
 
 	const Shader* shader = shaders.size() == 1 ? *shaders.begin() : nullptr;
 

@@ -34,7 +34,10 @@ struct Program
 	VkPipelineLayout layout;
 	VkDescriptorSetLayout setLayout;
 	VkDescriptorUpdateTemplate updateTemplate;
+
 	VkShaderStageFlags pushConstantStages;
+	uint32_t pushConstantSize;
+	uint32_t pushDescriptorCount;
 
 	uint32_t localSizeX;
 	uint32_t localSizeY;

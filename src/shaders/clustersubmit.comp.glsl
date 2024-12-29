@@ -32,9 +32,9 @@ void main()
 	// however, Y*256 is really slow on integrated RDNA2; 16*Y*16 seems to provide a reasonable balance between the two
 	if (tid == 0)
 	{
-		groupCountX = 16;
+		groupCountX = CLUSTER_TILE;
 		groupCountY = min((count + 255) / 256, 65535);
-		groupCountZ = 16;
+		groupCountZ = 256 / CLUSTER_TILE;
 	}
 
 	// the above may result in reading command data that was never written; as such, pad the excess entries with dummy commands (up to 63)

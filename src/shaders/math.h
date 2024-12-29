@@ -42,9 +42,10 @@ vec2 encodeOct(vec3 v)
 
 vec3 decodeOct(vec2 e)
 {
+	// https://x.com/Stubbesaurus/status/937994790553227264
 	vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
-	vec2 s = vec2((v.x >= 0.0) ? +1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
-	v.xy = v.z < 0 ? (1.0 - abs(v.yx)) * s : v.xy;
+	float t = max(-v.z, 0);
+	v.xy += vec2(v.x >= 0 ? -t : t, v.y >= 0 ? -t : t);
 	return normalize(v);
 }
 

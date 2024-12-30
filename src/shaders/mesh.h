@@ -2,9 +2,9 @@
 
 struct Vertex
 {
-	float16_t vx, vy, vz, vw;
-	uint8_t nx, ny, nz, nw;
-	uint8_t tx, ty, tz, tw;
+	float16_t vx, vy, vz;
+	uint16_t tp; // packed tangent: 8-8 octahedral
+	uint np;     // packed normal: 10-10-10-2 vector + bitangent sign
 	float16_t tu, tv;
 };
 

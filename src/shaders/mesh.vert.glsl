@@ -43,9 +43,11 @@ void main()
 
 	uint vi = gl_VertexIndex;
 	vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
-	vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
-	vec4 tangent = vec4(int(vertices[vi].tx), int(vertices[vi].ty), int(vertices[vi].tz), int(vertices[vi].tw)) / 127.0 - 1.0;
 	vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
+
+	vec3 normal;
+	vec4 tangent;
+	unpackTBN(vertices[vi].np, uint(vertices[vi].tp), normal, tangent);
 
 	normal = rotateQuat(normal, meshDraw.orientation);
 	tangent.xyz = rotateQuat(tangent.xyz, meshDraw.orientation);

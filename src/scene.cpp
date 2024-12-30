@@ -100,11 +100,10 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 			v.vx = meshopt_quantizeHalf(obj->positions[gi.p * 3 + 0]);
 			v.vy = meshopt_quantizeHalf(obj->positions[gi.p * 3 + 1]);
 			v.vz = meshopt_quantizeHalf(obj->positions[gi.p * 3 + 2]);
-			v.nx = uint8_t(obj->normals[gi.n * 3 + 0] * 127.f + 127.5f);
-			v.ny = uint8_t(obj->normals[gi.n * 3 + 1] * 127.f + 127.5f);
-			v.nz = uint8_t(obj->normals[gi.n * 3 + 2] * 127.f + 127.5f);
-			v.tx = v.ty = v.tz = 127;
-			v.tw = 254;
+			v.tp = 0;
+			v.np = (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 0], 10) + 511) |
+			       (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 1], 10) + 511) << 10 |
+			       (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 1], 10) + 511) << 20;
 			v.tu = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 0]);
 			v.tv = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 1]);
 		}
@@ -154,7 +153,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 	for (size_t i = 0; i < vertices.size(); ++i)
 	{
 		Vertex& v = vertices[i];
-		normals[i] = vec3(v.nx / 127.f - 1.f, v.ny / 127.f - 1.f, v.nz / 127.f - 1.f);
+		normals[i] = vec3((v.np & 1023) / 511.f - 1.f, ((v.np >> 10) & 1023) / 511.f - 1.f, ((v.np >> 20) & 1023) / 511.f - 1.f);
 	}
 
 	vec3 center = vec3(0);
@@ -311,9 +310,11 @@ static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& p
 
 		for (size_t j = 0; j < vertexCount; ++j)
 		{
-			vertices[j].nx = uint8_t(scratch[j * 3 + 0] * 127.f + 127.5f);
-			vertices[j].ny = uint8_t(scratch[j * 3 + 1] * 127.f + 127.5f);
-			vertices[j].nz = uint8_t(scratch[j * 3 + 2] * 127.f + 127.5f);
+			float nx = scratch[j * 3 + 0], ny = scratch[j * 3 + 1], nz = scratch[j * 3 + 2];
+
+			vertices[j].np = (meshopt_quantizeSnorm(nx, 10) + 511) |
+			                 (meshopt_quantizeSnorm(ny, 10) + 511) << 10 |
+			                 (meshopt_quantizeSnorm(nz, 10) + 511) << 20;
 		}
 	}
 
@@ -324,10 +325,13 @@ static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& p
 
 		for (size_t j = 0; j < vertexCount; ++j)
 		{
-			vertices[j].tx = uint8_t(scratch[j * 4 + 0] * 127.f + 127.5f);
-			vertices[j].ty = uint8_t(scratch[j * 4 + 1] * 127.f + 127.5f);
-			vertices[j].tz = uint8_t(scratch[j * 4 + 2] * 127.f + 127.5f);
-			vertices[j].tw = uint8_t(scratch[j * 4 + 3] * 127.f + 127.5f);
+			float tx = scratch[j * 4 + 0], ty = scratch[j * 4 + 1], tz = scratch[j * 4 + 2];
+			float tsum = fabsf(tx) + fabsf(ty) + fabsf(tz);
+			float tu = tz >= 0 ? tx / tsum : (1 - fabsf(ty / tsum)) * (tx >= 0 ? 1 : -1);
+			float tv = tz >= 0 ? ty / tsum : (1 - fabsf(tx / tsum)) * (ty >= 0 ? 1 : -1);
+
+			vertices[j].tp = (meshopt_quantizeSnorm(tu, 8) + 127) | (meshopt_quantizeSnorm(tv, 8) + 127) << 8;
+			vertices[j].np |= (scratch[j * 4 + 3] >= 0 ? 0 : 1) << 30;
 		}
 	}
 

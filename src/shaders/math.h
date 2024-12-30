@@ -75,3 +75,10 @@ float gradientNoise(vec2 uv)
 {
 	return fract(52.9829189 * fract(dot(uv, vec2(0.06711056, 0.00583715))));
 }
+
+void unpackTBN(uint np, uint tp, out vec3 normal, out vec4 tangent)
+{
+	normal = ((ivec3(np) >> ivec3(0, 10, 20)) & ivec3(1023)) / 511.0 - 1.0;
+	tangent.xyz = decodeOct(((ivec2(tp) >> ivec2(0, 8)) & ivec2(255)) / 127.0 - 1.0);
+	tangent.w = (np & (1 << 30)) != 0 ? -1.0 : 1.0;
+}

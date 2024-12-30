@@ -46,9 +46,9 @@ struct alignas(16) MeshDraw
 
 struct Vertex
 {
-	uint16_t vx, vy, vz, vw;
-	uint8_t nx, ny, nz, nw;
-	uint8_t tx, ty, tz, tw;
+	uint16_t vx, vy, vz;
+	uint16_t tp; // packed tangent: 8-8 octahedral
+	uint32_t np; // packed normal: 10-10-10-2 vector + bitangent sign
 	uint16_t tu, tv;
 };
 

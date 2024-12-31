@@ -18,6 +18,8 @@ struct alignas(16) Meshlet
 	uint32_t baseVertex;
 	uint8_t vertexCount;
 	uint8_t triangleCount;
+	uint8_t shortRefs;
+	uint8_t padding;
 };
 
 struct alignas(16) Material

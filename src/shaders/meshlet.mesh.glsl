@@ -42,6 +42,11 @@ layout(binding = 3) readonly buffer MeshletData
 	uint meshletData[];
 };
 
+layout(binding = 3) readonly buffer MeshletData16
+{
+	uint16_t meshletData16[];
+};
+
 layout(binding = 3) readonly buffer MeshletData8
 {
 	uint8_t meshletData8[];
@@ -106,8 +111,9 @@ void main()
 
 	uint dataOffset = meshlets[mi].dataOffset;
 	uint baseVertex = meshlets[mi].baseVertex;
+	bool shortRefs = uint(meshlets[mi].shortRefs) == 1;
 	uint vertexOffset = dataOffset;
-	uint indexOffset = dataOffset + vertexCount;
+	uint indexOffset = dataOffset + (shortRefs ? (vertexCount + 1) / 2 : vertexCount);
 
 #if DEBUG
 	uint mhash = hash(mi);
@@ -118,7 +124,7 @@ void main()
 
 	for (uint i = ti; i < vertexCount; )
 	{
-		uint vi = meshletData[vertexOffset + i] + baseVertex;
+		uint vi = shortRefs ? uint(meshletData16[vertexOffset * 2 + i]) + baseVertex : meshletData[vertexOffset + i] + baseVertex;
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);

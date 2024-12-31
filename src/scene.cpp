@@ -28,15 +28,29 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 	else
 		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, max_triangles, cone_weight));
 
-	// note: we can append meshlet_vertices & meshlet_triangles buffers more or less directly with small changes in Meshlet struct, but for now keep the GPU side layout flexible and separate
 	for (auto& meshlet : meshlets)
 	{
 		meshopt_optimizeMeshlet(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, meshlet.vertex_count);
 
 		size_t dataOffset = result.meshletdata.size();
 
+		unsigned int minVertex = ~0u, maxVertex = 0;
 		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
-			result.meshletdata.push_back(meshlet_vertices[meshlet.vertex_offset + i]);
+		{
+			minVertex = std::min(meshlet_vertices[meshlet.vertex_offset + i], minVertex);
+			maxVertex = std::max(meshlet_vertices[meshlet.vertex_offset + i], maxVertex);
+		}
+
+		bool shortRefs = maxVertex - minVertex < (1 << 16);
+
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+		{
+			unsigned int ref = meshlet_vertices[meshlet.vertex_offset + i] - minVertex;
+			if (shortRefs && i % 2)
+				result.meshletdata.back() |= ref << 16;
+			else
+				result.meshletdata.push_back(ref);
+		}
 
 		const unsigned int* indexGroups = reinterpret_cast<const unsigned int*>(&meshlet_triangles[0] + meshlet.triangle_offset);
 		unsigned int indexGroupCount = (meshlet.triangle_count * 3 + 3) / 4;
@@ -48,9 +62,10 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);
-		m.baseVertex = baseVertex;
+		m.baseVertex = baseVertex + minVertex;
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
+		m.shortRefs = shortRefs;
 
 		m.center = vec3(bounds.center[0], bounds.center[1], bounds.center[2]);
 		m.radius = bounds.radius;

@@ -22,6 +22,10 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
@@ -35,6 +39,7 @@ int shadowQuality = 1;
 bool animationEnabled = false;
 int debugGuiMode = 1;
 int debugLodStep = 0;
+bool debugSleep = false;
 
 bool reloadShaders = false;
 uint32_t reloadShadersColor = 0xffffffff;
@@ -238,6 +243,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		if (key == GLFW_KEY_SPACE)
 		{
 			animationEnabled = !animationEnabled;
+		}
+		if (key == GLFW_KEY_APOSTROPHE)
+		{
+			debugSleep = !debugSleep;
 		}
 	}
 }
@@ -1650,7 +1659,7 @@ int main(int argc, const char** argv)
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
 
-			debugtext(0, ~0u, "%scpu: %.2f ms; gpu: %.2f ms", reloadShaders ? "   " : "", frameCpuAvg, frameGpuAvg);
+			debugtext(0, ~0u, "%scpu: %.2f ms (%+.2f); gpu: %.2f ms", reloadShaders ? "   " : "", frameCpuAvg, frameDelta * 1000 - frameCpuAvg, frameGpuAvg);
 
 			if (reloadShaders)
 				debugtext(0, reloadShadersColor, "R*");
@@ -1728,6 +1737,15 @@ int main(int argc, const char** argv)
 		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
 		frameIndex++;
+
+		if (debugSleep)
+		{
+#ifdef _WIN32
+			Sleep(20);
+#else
+			usleep(20 * 1000);
+#endif
+		}
 	}
 
 	VK_CHECK(vkDeviceWaitIdle(device));

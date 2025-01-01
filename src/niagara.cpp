@@ -32,7 +32,7 @@ bool lodEnabled = true;
 bool occlusionEnabled = true;
 bool clusterOcclusionEnabled = true;
 bool taskShadingEnabled = false; // disabled to have good performance on AMD HW
-bool shadingEnabled = true;
+bool shadowsEnabled = true;
 bool shadowblurEnabled = true;
 bool shadowCheckerboard = false;
 int shadowQuality = 1;
@@ -167,7 +167,7 @@ struct alignas(16) ShadeData
 	vec3 cameraPosition;
 	float pad0;
 	vec3 sunDirection;
-	float pad1;
+	int shadowsEnabled;
 
 	mat4 inverseViewProjection;
 
@@ -213,7 +213,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		}
 		if (key == GLFW_KEY_F)
 		{
-			shadingEnabled = !shadingEnabled;
+			shadowsEnabled = !shadowsEnabled;
 		}
 		if (key == GLFW_KEY_B)
 		{
@@ -460,15 +460,13 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 	}
 
-	Program blitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["blit.comp"] }, sizeof(vec4));
+	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
 
-	Program shadeProgram = {};
 	Program shadowProgram = {};
 	Program shadowfillProgram = {};
 	Program shadowblurProgram = {};
 	if (raytracingSupported)
 	{
-		shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
 		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), textureSetLayout);
 		shadowfillProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowfill.comp"] }, sizeof(vec4));
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
@@ -541,11 +539,10 @@ int main(int argc, const char** argv)
 			replace(clusterpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 }));
 		}
 
-		replace(blitPipeline, createComputePipeline(device, pipelineCache, blitProgram));
+		replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
 
 		if (raytracingSupported)
 		{
-			replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
 			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 0 }));
 			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 1 }));
 			replace(shadowfillPipeline, createComputePipeline(device, pipelineCache, shadowfillProgram));
@@ -865,7 +862,7 @@ int main(int argc, const char** argv)
 
 	double animationTime = 0;
 
-	uint64_t timestampResults[22] = {};
+	uint64_t timestampResults[23] = {};
 	uint64_t pipelineResults[3] = {};
 
 	while (!glfwWindowShouldClose(window))
@@ -1076,7 +1073,7 @@ int main(int argc, const char** argv)
 
 		if (raytracingSupported)
 		{
-			uint32_t timestamp = 20;
+			uint32_t timestamp = 21;
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
@@ -1481,7 +1478,7 @@ int main(int argc, const char** argv)
 
 		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(blitBarriers), blitBarriers);
 
-		if (raytracingSupported && shadingEnabled)
+		if (raytracingSupported && shadowsEnabled)
 		{
 			uint32_t timestamp = 16;
 
@@ -1568,6 +1565,26 @@ int main(int argc, const char** argv)
 			pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &postblurBarrier);
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
+		}
+		else
+		{
+			VkImageMemoryBarrier2 dummyBarrier =
+			    imageBarrier(shadowTarget.image,
+			        0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
+			        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL);
+
+			pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, 1, &dummyBarrier);
+
+			uint32_t timestamp = 16; // todo: we need an actual profiler
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
+		}
+
+		{
+			uint32_t timestamp = 19;
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
@@ -1577,31 +1594,14 @@ int main(int argc, const char** argv)
 				ShadeData shadeData = {};
 				shadeData.cameraPosition = camera.position;
 				shadeData.sunDirection = sunDirection;
+				shadeData.shadowsEnabled = shadowsEnabled;
 				shadeData.inverseViewProjection = inverse(projection * view);
 				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
 
 				dispatch(commandBuffer, shadeProgram, swapchain.width, swapchain.height, shadeData, descriptors);
 			}
 
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 3);
-		}
-		else
-		{
-			uint32_t timestamp = 16;
-
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
-
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blitPipeline);
-
-			DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL } };
-
-			vec4 blitData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
-
-			dispatch(commandBuffer, blitProgram, swapchain.width, swapchain.height, blitData, descriptors);
-
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 3);
 		}
 
 		if (debugGuiMode % 3)
@@ -1653,8 +1653,8 @@ int main(int argc, const char** argv)
 			double renderpostGpuTime = double(timestampResults[15] - timestampResults[14]) * props.limits.timestampPeriod * 1e-6;
 			double shadowsGpuTime = double(timestampResults[17] - timestampResults[16]) * props.limits.timestampPeriod * 1e-6;
 			double shadowblurGpuTime = double(timestampResults[18] - timestampResults[17]) * props.limits.timestampPeriod * 1e-6;
-			double finalGpuTime = double(timestampResults[19] - timestampResults[18]) * props.limits.timestampPeriod * 1e-6;
-			double tlasGpuTime = double(timestampResults[21] - timestampResults[20]) * props.limits.timestampPeriod * 1e-6;
+			double shadeGpuTime = double(timestampResults[20] - timestampResults[19]) * props.limits.timestampPeriod * 1e-6;
+			double tlasGpuTime = double(timestampResults[22] - timestampResults[21]) * props.limits.timestampPeriod * 1e-6;
 
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
@@ -1666,14 +1666,14 @@ int main(int argc, const char** argv)
 
 			if (debugGuiMode % 3 == 2)
 			{
-				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms",
+				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, shade: %.2f ms",
 				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 				    pyramidGpuTime,
-				    renderGpuTime + renderlateGpuTime + renderpostGpuTime);
-				debugtext(3, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms, final: %.2f ms",
+				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
+				    shadeGpuTime);
+				debugtext(3, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
 				    tlasGpuTime,
-				    shadowsGpuTime, shadowblurGpuTime,
-				    finalGpuTime);
+				    shadowsGpuTime, shadowblurGpuTime);
 				debugtext(4, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
 				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
 
@@ -1683,9 +1683,9 @@ int main(int argc, const char** argv)
 				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(9, ~0u, "RT shading %s, shadow blur %s, shadow quality %d, shadow checkerboard %s",
-				    raytracingSupported && shadingEnabled ? "ON" : "OFF",
-				    raytracingSupported && shadingEnabled && shadowblurEnabled ? "ON" : "OFF",
+				debugtext(9, ~0u, "RT shadows: %s, blur %s, quality %d, checkerboard %s",
+				    raytracingSupported && shadowsEnabled ? "ON" : "OFF",
+				    raytracingSupported && shadowblurEnabled ? "ON" : "OFF",
 				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");
 			}
 		}
@@ -1834,8 +1834,6 @@ int main(int argc, const char** argv)
 		destroyProgram(device, meshtaskProgram);
 		destroyProgram(device, clusterProgram);
 	}
-
-	destroyProgram(device, blitProgram);
 
 	if (raytracingSupported)
 	{

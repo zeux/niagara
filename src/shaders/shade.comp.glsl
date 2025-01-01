@@ -10,6 +10,7 @@ struct ShadeData
 {
 	vec3 cameraPosition;
 	vec3 sunDirection;
+	int shadowsEnabled;
 
 	mat4 inverseViewProjection;
 
@@ -56,7 +57,9 @@ void main()
 	// TODO: this is not the BRDF we want
 	float specular = pow(ndoth, mix(1, 64, gloss)) * gloss;
 
-	float shadow = texture(shadowImage, uv).r;
+	float shadow = 1;
+	if (shadeData.shadowsEnabled == 1)
+		shadow = texture(shadowImage, uv).r;
 
 	float ambient = 0.03;
 	float shadowAmbient = 0.03;

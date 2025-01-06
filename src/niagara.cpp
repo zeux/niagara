@@ -1484,7 +1484,7 @@ int main(int argc, const char** argv)
 
 			// checkerboard rendering: we dispatch half as many columns and xform them to fill the screen
 			int shadowWidthCB = shadowCheckerboard ? (swapchain.width + 1) / 2 : swapchain.width;
-			int shadowCheckerboardF = shadowCheckerboard ? 1 + (frameIndex % 2) : 0;
+			int shadowCheckerboardF = shadowCheckerboard ? 1 : 0;
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 

@@ -69,6 +69,14 @@ vec4 fromsrgb(vec4 c)
 	return vec4(pow(c.xyz, vec3(2.2)), c.w);
 }
 
+// Optimized filmic operator by Jim Hejl and Richard Burgess-Dawson
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
+vec3 tonemap(vec3 c)
+{
+	vec3 x = max(vec3(0), c - 0.004);
+	return (x * (6.2 * x + .5)) / (x * (6.2 * x + 1.7) + 0.06);
+}
+
 // Gradient noise from Jorge Jimenez's presentation:
 // http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
 float gradientNoise(vec2 uv)

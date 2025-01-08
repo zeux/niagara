@@ -460,7 +460,7 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
 	}
 
-	Program shadeProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shade.comp"] }, sizeof(ShadeData));
+	Program finalProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["final.comp"] }, sizeof(ShadeData));
 
 	Program shadowProgram = {};
 	Program shadowfillProgram = {};
@@ -490,7 +490,7 @@ int main(int argc, const char** argv)
 	VkPipeline clusterPipeline = 0;
 	VkPipeline clusterpostPipeline = 0;
 	VkPipeline blitPipeline = 0;
-	VkPipeline shadePipeline = 0;
+	VkPipeline finalPipeline = 0;
 	VkPipeline shadowlqPipeline = 0;
 	VkPipeline shadowhqPipeline = 0;
 	VkPipeline shadowfillPipeline = 0;
@@ -539,7 +539,7 @@ int main(int argc, const char** argv)
 			replace(clusterpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 }));
 		}
 
-		replace(shadePipeline, createComputePipeline(device, pipelineCache, shadeProgram));
+		replace(finalPipeline, createComputePipeline(device, pipelineCache, finalProgram));
 
 		if (raytracingSupported)
 		{
@@ -1587,7 +1587,7 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
 			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadePipeline);
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, finalPipeline);
 
 				DescriptorInfo descriptors[] = { { swapchainImageViews[imageIndex], VK_IMAGE_LAYOUT_GENERAL }, { readSampler, gbufferTargets[0].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, gbufferTargets[1].imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, depthTarget.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, { readSampler, shadowTarget.imageView, VK_IMAGE_LAYOUT_GENERAL } };
 
@@ -1598,7 +1598,7 @@ int main(int argc, const char** argv)
 				shadeData.inverseViewProjection = inverse(projection * view);
 				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
 
-				dispatch(commandBuffer, shadeProgram, swapchain.width, swapchain.height, shadeData, descriptors);
+				dispatch(commandBuffer, finalProgram, swapchain.width, swapchain.height, shadeData, descriptors);
 			}
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
@@ -1666,7 +1666,7 @@ int main(int argc, const char** argv)
 
 			if (debugGuiMode % 3 == 2)
 			{
-				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, shade: %.2f ms",
+				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms",
 				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 				    pyramidGpuTime,
 				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
@@ -1835,9 +1835,10 @@ int main(int argc, const char** argv)
 		destroyProgram(device, clusterProgram);
 	}
 
+	destroyProgram(device, finalProgram);
+
 	if (raytracingSupported)
 	{
-		destroyProgram(device, shadeProgram);
 		destroyProgram(device, shadowProgram);
 		destroyProgram(device, shadowfillProgram);
 		destroyProgram(device, shadowblurProgram);

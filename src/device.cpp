@@ -17,6 +17,9 @@
 // Synchronization validation is disabled by default in Debug since it's rather slow
 #define SYNC_VALIDATION CONFIG_SYNCVAL
 
+// We have a strict requirement for latest Vulkan version to be available
+#define API_VERSION VK_API_VERSION_1_4
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -38,10 +41,14 @@ static bool isLayerSupported(const char* name)
 
 VkInstance createInstance()
 {
-	assert(volkGetInstanceVersion() >= VK_API_VERSION_1_3);
+	if (volkGetInstanceVersion() < API_VERSION)
+	{
+		fprintf(stderr, "ERROR: Vulkan 1.%d instance not found\n", VK_VERSION_MINOR(API_VERSION));
+		return 0;
+	}
 
 	VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
-	appInfo.apiVersion = VK_API_VERSION_1_3;
+	appInfo.apiVersion = API_VERSION;
 
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
@@ -191,7 +198,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
 			continue;
 
-		printf("GPU%d: %s\n", i, props.deviceName);
+		printf("GPU%d: %s (Vulkan 1.%d)\n", i, props.deviceName, VK_VERSION_MINOR(props.apiVersion));
 
 		uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevices[i]);
 		if (familyIndex == VK_QUEUE_FAMILY_IGNORED)
@@ -200,7 +207,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		if (!supportsPresentation(physicalDevices[i], familyIndex))
 			continue;
 
-		if (props.apiVersion < VK_API_VERSION_1_3)
+		if (props.apiVersion < API_VERSION)
 			continue;
 
 		if (ngpu && atoi(ngpu) == i)
@@ -230,7 +237,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	}
 	else
 	{
-		printf("ERROR: No GPUs found\n");
+		fprintf(stderr, "ERROR: No compatible GPU found\n");
 	}
 
 	return result;
@@ -247,7 +254,6 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	std::vector<const char*> extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 	};
 
 	if (meshShadingSupported)
@@ -296,6 +302,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features13.synchronization2 = true;
 	features13.maintenance4 = true;
 
+	VkPhysicalDeviceVulkan14Features features14 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES };
+	features14.maintenance5 = true;
+	features14.maintenance6 = true;
+	features14.pushDescriptor = true;
+
 	// This will only be used if meshShadingSupported=true (see below)
 	VkPhysicalDeviceMeshShaderFeaturesEXT featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT };
 	featuresMesh.taskShader = true;
@@ -320,8 +331,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features.pNext = &features11;
 	features11.pNext = &features12;
 	features12.pNext = &features13;
+	features13.pNext = &features14;
 
-	void** ppNext = &features13.pNext;
+	void** ppNext = &features14.pNext;
 
 	if (meshShadingSupported)
 	{

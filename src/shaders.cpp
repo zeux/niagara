@@ -392,7 +392,7 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 	return updateTemplate;
 }
 
-bool loadShader(Shader& shader, VkDevice device, const char* path)
+bool loadShader(Shader& shader, const char* path)
 {
 	FILE* file = fopen(path, "rb");
 	if (!file)
@@ -409,24 +409,15 @@ bool loadShader(Shader& shader, VkDevice device, const char* path)
 	assert(rc == size_t(length));
 	fclose(file);
 
-	VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-	createInfo.codeSize = length; // note: this needs to be a number of bytes!
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(spirv.data());
-
-	VkShaderModule shaderModule = 0;
-	if (device)
-		VK_CHECK(vkCreateShaderModule(device, &createInfo, 0, &shaderModule));
-
 	assert(length % 4 == 0);
 	parseShader(shader, reinterpret_cast<const uint32_t*>(spirv.data()), length / 4);
 
 	shader.spirv = spirv;
-	shader.module = shaderModule;
 
 	return true;
 }
 
-bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path)
+bool loadShader(Shader& shader, const char* base, const char* path)
 {
 	std::string spath = base;
 	std::string::size_type pos = spath.find_last_of("/\\");
@@ -436,10 +427,10 @@ bool loadShader(Shader& shader, VkDevice device, const char* base, const char* p
 		spath = spath.substr(0, pos + 1);
 	spath += path;
 
-	return loadShader(shader, device, spath.c_str());
+	return loadShader(shader, spath.c_str());
 }
 
-bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const char* path)
+bool loadShaders(ShaderSet& shaders, const char* base, const char* path)
 {
 	std::string spath = base;
 	std::string::size_type pos = spath.find_last_of("/\\");
@@ -463,7 +454,7 @@ bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const ch
 
 		std::string fpath = spath + '/' + finddata.name;
 		Shader shader = {};
-		if (!loadShader(shader, device, fpath.c_str()))
+		if (!loadShader(shader, fpath.c_str()))
 		{
 			fprintf(stderr, "Warning: %s is not a valid SPIRV module\n", finddata.name);
 			continue;
@@ -487,7 +478,7 @@ bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const ch
 
 		std::string fpath = spath + '/' + de->d_name;
 		Shader shader = {};
-		if (!loadShader(shader, device, fpath.c_str()))
+		if (!loadShader(shader, fpath.c_str()))
 		{
 			fprintf(stderr, "Warning: %s is not a valid SPIRV module\n", de->d_name);
 			continue;
@@ -535,18 +526,23 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 
-	std::vector<VkPipelineShaderStageCreateInfo> stages;
+	std::vector<VkPipelineShaderStageCreateInfo> stages(program.shaderCount);
+	std::vector<VkShaderModuleCreateInfo> modules(program.shaderCount);
 	for (size_t i = 0; i < program.shaderCount; ++i)
 	{
 		const Shader* shader = program.shaders[i];
 
-		VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+		VkShaderModuleCreateInfo& module = modules[i];
+		module.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		module.codeSize = shader->spirv.size(); // note: this needs to be a number of bytes!
+		module.pCode = reinterpret_cast<const uint32_t*>(shader->spirv.data());
+
+		VkPipelineShaderStageCreateInfo& stage = stages[i];
+		stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stage.stage = shader->stage;
-		stage.module = shader->module;
 		stage.pName = "main";
 		stage.pSpecializationInfo = &specializationInfo;
-
-		stages.push_back(stage);
+		stage.pNext = &module;
 	}
 
 	createInfo.stageCount = uint32_t(stages.size());
@@ -619,11 +615,15 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 	std::vector<VkSpecializationMapEntry> specializationEntries;
 	VkSpecializationInfo specializationInfo = fillSpecializationInfo(specializationEntries, constants);
 
+	VkShaderModuleCreateInfo module = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+	module.codeSize = shader.spirv.size(); // note: this needs to be a number of bytes!
+	module.pCode = reinterpret_cast<const uint32_t*>(shader.spirv.data());
+
 	VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 	stage.stage = shader.stage;
-	stage.module = shader.module;
 	stage.pName = "main";
 	stage.pSpecializationInfo = &specializationInfo;
+	stage.pNext = &module;
 
 	createInfo.stage = stage;
 	createInfo.layout = program.layout;

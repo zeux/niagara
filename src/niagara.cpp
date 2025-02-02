@@ -441,7 +441,7 @@ int main(int argc, const char** argv)
 	gbufferInfo.depthAttachmentFormat = depthFormat;
 
 	ShaderSet shaders;
-	bool rcs = loadShaders(shaders, device, argv[0], "spirv/");
+	bool rcs = loadShaders(shaders, argv[0], "spirv/");
 	assert(rcs);
 
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
@@ -907,12 +907,9 @@ int main(int argc, const char** argv)
 			{
 				for (Shader& shader : shaders.shaders)
 				{
-					if (shader.module)
-						vkDestroyShaderModule(device, shader.module, 0);
-
 					std::vector<char> oldSpirv = std::move(shader.spirv);
 
-					rcs = loadShader(shader, device, argv[0], ("spirv/" + shader.name + ".spv").c_str());
+					rcs = loadShader(shader, argv[0], ("spirv/" + shader.name + ".spv").c_str());
 					assert(rcs);
 
 					changed |= oldSpirv != shader.spirv;
@@ -1848,10 +1845,6 @@ int main(int argc, const char** argv)
 		destroyProgram(device, shadowfillProgram);
 		destroyProgram(device, shadowblurProgram);
 	}
-
-	for (Shader& shader : shaders.shaders)
-		if (shader.module)
-			vkDestroyShaderModule(device, shader.module, 0);
 
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 

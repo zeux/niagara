@@ -7,7 +7,6 @@ struct Shader
 	std::string name;
 
 	std::vector<char> spirv;
-	VkShaderModule module;
 	VkShaderStageFlagBits stage;
 
 	VkDescriptorType resourceTypes[32];
@@ -47,9 +46,9 @@ struct Program
 	size_t shaderCount;
 };
 
-bool loadShader(Shader& shader, VkDevice device, const char* path);
-bool loadShader(Shader& shader, VkDevice device, const char* base, const char* path);
-bool loadShaders(ShaderSet& shaders, VkDevice device, const char* base, const char* path);
+bool loadShader(Shader& shader, const char* path);
+bool loadShader(Shader& shader, const char* base, const char* path);
+bool loadShaders(ShaderSet& shaders, const char* base, const char* path);
 
 using Shaders = std::initializer_list<const Shader*>;
 using Constants = std::initializer_list<int>;

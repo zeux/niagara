@@ -238,7 +238,7 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 
 	VkClusterAccelerationStructureInputInfoNV clusterInfo = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_INPUT_INFO_NV };
 	clusterInfo.maxAccelerationStructureCount = 0;
-	clusterInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+	clusterInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	clusterInfo.opType = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_TYPE_BUILD_TRIANGLE_CLUSTER_NV;
 	clusterInfo.opMode = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_MODE_IMPLICIT_DESTINATIONS_NV;
 	clusterInfo.opInput.pTriangleClusters = &clusterSizes;
@@ -248,9 +248,14 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	for (const Mesh& mesh : meshes)
 	{
 		clusterSizes.maxTotalTriangleCount += mesh.lods[0].indexCount / 3;
-		clusterSizes.maxTotalVertexCount += mesh.vertexCount;
 		clusterInfo.maxAccelerationStructureCount += mesh.lods[0].meshletCount;
 		maxClustersPerMesh = std::max(maxClustersPerMesh, size_t(mesh.lods[0].meshletCount));
+
+		for (size_t mi = 0; mi < mesh.lods[0].meshletCount; ++mi)
+		{
+			const Meshlet& ml = meshlets[mesh.lods[0].meshletOffset + mi];
+			clusterSizes.maxTotalVertexCount += ml.vertexCount;
+		}
 	}
 
 	VkClusterAccelerationStructureClustersBottomLevelInputNV accelSizes = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_CLUSTERS_BOTTOM_LEVEL_INPUT_NV };
@@ -259,7 +264,7 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 
 	VkClusterAccelerationStructureInputInfoNV accelInfo = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_INPUT_INFO_NV };
 	accelInfo.maxAccelerationStructureCount = meshes.size();
-	accelInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+	accelInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	accelInfo.opType = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_TYPE_BUILD_CLUSTERS_BOTTOM_LEVEL_NV;
 	accelInfo.opMode = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_MODE_IMPLICIT_DESTINATIONS_NV;
 	accelInfo.opInput.pClustersBottomLevel = &accelSizes;
@@ -363,7 +368,7 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV* accelData = static_cast<VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV*>(infosBuffer.data);
 	size_t accelOffset = 0;
 
-	printf("max cluster count %d\n", int(maxClustersPerMesh));
+	printf("max cluster count %d, total cluster count %d, total blas count %d\n", int(maxClustersPerMesh), int(clusterInfo.maxAccelerationStructureCount), int(accelInfo.maxAccelerationStructureCount));
 
 	for (const Mesh& mesh : meshes)
 	{

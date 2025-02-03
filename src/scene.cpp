@@ -13,7 +13,7 @@
 #include <memory>
 #include <cstring>
 
-static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, const std::vector<uint32_t>& indices, uint32_t baseVertex, bool fast = false)
+static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, std::vector<uint32_t>& indices, uint32_t baseVertex, bool lod0, bool fast = false)
 {
 	const size_t max_vertices = MESH_MAXVTX;
 	const size_t max_triangles = MESH_MAXTRI;
@@ -57,6 +57,23 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 
 		for (unsigned int i = 0; i < indexGroupCount; ++i)
 			result.meshletdata.push_back(indexGroups[i]);
+
+		if (lod0)
+		{
+			for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+			{
+				unsigned int vtx = meshlet_vertices[meshlet.vertex_offset + i];
+
+				unsigned short hx = meshopt_quantizeHalf(vertices[vtx].x);
+				unsigned short hy = meshopt_quantizeHalf(vertices[vtx].y);
+				unsigned short hz = meshopt_quantizeHalf(vertices[vtx].z);
+
+				result.meshletvtx0.push_back(hx);
+				result.meshletvtx0.push_back(hy);
+				result.meshletvtx0.push_back(hz);
+				result.meshletvtx0.push_back(0);
+			}
+		}
 
 		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, &vertices[0].x, vertices.size(), sizeof(vec3));
 
@@ -203,7 +220,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 		result.indices.insert(result.indices.end(), lodIndices.begin(), lodIndices.end());
 
 		lod.meshletOffset = uint32_t(result.meshlets.size());
-		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, positions, lodIndices, mesh.vertexOffset, fast)) : 0;
+		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, positions, lodIndices, mesh.vertexOffset, &lod == mesh.lods, fast)) : 0;
 
 		lod.error = lodError * lodScale;
 

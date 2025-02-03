@@ -4,6 +4,8 @@
 #include "scene.h"
 #include "resources.h"
 
+#include "config.h"
+
 #include <string.h>
 
 void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& vb, const Buffer& ib, std::vector<VkAccelerationStructureKHR>& blas, std::vector<VkDeviceSize>& compactedSizes, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
@@ -222,6 +224,224 @@ void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas,
 
 	destroyBuffer(blasBuffer, device);
 	blasBuffer = compactedBuffer;
+}
+
+void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vector<Meshlet>& meshlets, const Buffer& vxb, const Buffer& mdb, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+{
+	VkClusterAccelerationStructureTriangleClusterInputNV clusterSizes = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_TRIANGLE_CLUSTER_INPUT_NV };
+	clusterSizes.vertexFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+	clusterSizes.maxGeometryIndexValue = 0;
+	clusterSizes.maxClusterUniqueGeometryCount = 1;
+	clusterSizes.maxClusterTriangleCount = MESH_MAXTRI;
+	clusterSizes.maxClusterVertexCount = MESH_MAXVTX;
+	clusterSizes.minPositionTruncateBitCount = 0;
+
+	VkClusterAccelerationStructureInputInfoNV clusterInfo = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_INPUT_INFO_NV };
+	clusterInfo.maxAccelerationStructureCount = 0;
+	clusterInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+	clusterInfo.opType = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_TYPE_BUILD_TRIANGLE_CLUSTER_NV;
+	clusterInfo.opMode = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_MODE_IMPLICIT_DESTINATIONS_NV;
+	clusterInfo.opInput.pTriangleClusters = &clusterSizes;
+
+	size_t maxClustersPerMesh = 0;
+
+	for (const Mesh& mesh : meshes)
+	{
+		clusterSizes.maxTotalTriangleCount += mesh.lods[0].indexCount / 3;
+		clusterSizes.maxTotalVertexCount += mesh.vertexCount;
+		clusterInfo.maxAccelerationStructureCount += mesh.lods[0].meshletCount;
+		maxClustersPerMesh = std::max(maxClustersPerMesh, size_t(mesh.lods[0].meshletCount));
+	}
+
+	VkClusterAccelerationStructureClustersBottomLevelInputNV accelSizes = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_CLUSTERS_BOTTOM_LEVEL_INPUT_NV };
+	accelSizes.maxTotalClusterCount = clusterInfo.maxAccelerationStructureCount;
+	accelSizes.maxClusterCountPerAccelerationStructure = maxClustersPerMesh;
+
+	VkClusterAccelerationStructureInputInfoNV accelInfo = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_INPUT_INFO_NV };
+	accelInfo.maxAccelerationStructureCount = meshes.size();
+	accelInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR;
+	accelInfo.opType = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_TYPE_BUILD_CLUSTERS_BOTTOM_LEVEL_NV;
+	accelInfo.opMode = VK_CLUSTER_ACCELERATION_STRUCTURE_OP_MODE_IMPLICIT_DESTINATIONS_NV;
+	accelInfo.opInput.pClustersBottomLevel = &accelSizes;
+
+	VkAccelerationStructureBuildSizesInfoKHR csizeInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+	vkGetClusterAccelerationStructureBuildSizesNV(device, &clusterInfo, &csizeInfo);
+
+	VkAccelerationStructureBuildSizesInfoKHR bsizeInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+	vkGetClusterAccelerationStructureBuildSizesNV(device, &accelInfo, &bsizeInfo);
+
+	printf("CLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(csizeInfo.accelerationStructureSize) / 1e6, double(csizeInfo.buildScratchSize) / 1e6);
+	printf("CBLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(bsizeInfo.accelerationStructureSize) / 1e6, double(bsizeInfo.buildScratchSize) / 1e6);
+
+	Buffer clasBuffer;
+	createBuffer(clasBuffer, device, memoryProperties, csizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	createBuffer(blasBuffer, device, memoryProperties, bsizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	Buffer scratchBuffer;
+	createBuffer(scratchBuffer, device, memoryProperties, std::max(bsizeInfo.buildScratchSize, csizeInfo.buildScratchSize), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	Buffer infosBuffer;
+	createBuffer(infosBuffer, device, memoryProperties, std::max(clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV), accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV)), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkDeviceAddress mdbAddress = getBufferAddress(mdb, device);
+	VkDeviceAddress vxbAddress = getBufferAddress(vxb, device);
+
+	VkClusterAccelerationStructureBuildTriangleClusterInfoNV* clusterData = static_cast<VkClusterAccelerationStructureBuildTriangleClusterInfoNV*>(infosBuffer.data);
+	size_t vxbOffset = 0;
+
+	for (const Mesh& mesh : meshes)
+	{
+		for (size_t mi = 0; mi < mesh.lods[0].meshletCount; ++mi)
+		{
+			const Meshlet& ml = meshlets[mesh.lods[0].meshletOffset + mi];
+
+			VkClusterAccelerationStructureBuildTriangleClusterInfoNV cluster = {};
+			cluster.clusterID = uint32_t(mi);
+			cluster.triangleCount = ml.triangleCount;
+			cluster.vertexCount = ml.vertexCount;
+			cluster.positionTruncateBitCount = 0;
+			cluster.indexType = VK_CLUSTER_ACCELERATION_STRUCTURE_INDEX_FORMAT_8BIT_NV;
+			cluster.vertexBufferStride = sizeof(uint16_t) * 4;
+			cluster.indexBuffer = mdbAddress + (ml.dataOffset + (ml.shortRefs ? (ml.vertexCount + 1) / 2 : ml.vertexCount)) * sizeof(uint32_t);
+			cluster.vertexBuffer = vxbAddress + vxbOffset;
+
+			memcpy(clusterData, &cluster, sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV));
+			clusterData++;
+			vxbOffset += ml.vertexCount * (sizeof(uint16_t) * 4);
+		}
+	}
+
+	Buffer rangeBuffer;
+	// todo host vis -> device local?
+	createBuffer(rangeBuffer, device, memoryProperties, (clusterInfo.maxAccelerationStructureCount + accelInfo.maxAccelerationStructureCount) * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkClusterAccelerationStructureCommandsInfoNV clusterBuild = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_COMMANDS_INFO_NV };
+	clusterBuild.input = clusterInfo;
+	clusterBuild.dstImplicitData = getBufferAddress(clasBuffer, device);
+	clusterBuild.scratchData = getBufferAddress(scratchBuffer, device);
+	clusterBuild.dstAddressesArray.deviceAddress = getBufferAddress(rangeBuffer, device);
+	clusterBuild.dstAddressesArray.size = clusterInfo.maxAccelerationStructureCount * 16;
+	clusterBuild.dstAddressesArray.stride = 16;
+	clusterBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + 8;
+	clusterBuild.dstSizesArray.size = clusterInfo.maxAccelerationStructureCount * 16 - 8;
+	clusterBuild.dstSizesArray.stride = 16;
+	clusterBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
+	clusterBuild.srcInfosArray.size = clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV);
+
+	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+
+	VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+	vkCmdBuildClusterAccelerationStructureIndirectNV(commandBuffer, &clusterBuild);
+
+	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+	VK_CHECK(vkDeviceWaitIdle(device));
+
+	size_t totalClusterSize = 0;
+	for (size_t i = 0; i < clusterInfo.maxAccelerationStructureCount; ++i)
+	{
+		uint64_t addr = ((uint64_t*)rangeBuffer.data)[i * 2];
+		uint32_t size = ((uint32_t*)rangeBuffer.data)[i * 4 + 2];
+
+		// printf("cluster %d: %16lx %08x\n", int(i), addr, size);
+
+		totalClusterSize += ((uint32_t*)rangeBuffer.data)[i * 4 + 2];
+	}
+
+	printf("CLAS actual total accelerationStructureSize: %.2f MB\n", double(totalClusterSize) / 1e6);
+
+	VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV* accelData = static_cast<VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV*>(infosBuffer.data);
+	size_t accelOffset = 0;
+
+	printf("max cluster count %d\n", int(maxClustersPerMesh));
+
+	for (const Mesh& mesh : meshes)
+	{
+		VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV accel = {};
+		accel.clusterReferencesCount = uint32_t(mesh.lods[0].meshletCount);
+		accel.clusterReferencesStride = 16;
+		accel.clusterReferences = getBufferAddress(rangeBuffer, device) + accelOffset * 16;
+
+		// NOTE: HUGE HACK!!!
+		// ON NV 3050 we have a single mesh with over 2000 clusters in Bistro scene
+		// if we keep the entire cluster set in the build, the GPU will hang during build
+		// we will print here the first cluster we skip from the mesh; not sure what is going on really.
+		if (accel.clusterReferencesCount > 2000)
+		{
+			// IMPORTANT:
+			// This is definitely not a "broken" cluster: we can shift the range of clusters we build here by a couple clusters forward, and it still works
+			// accel.clusterReferences += 32;
+			// ... but if we get just one extra cluster (1537 below), GPU hangs
+			// It's suspicious that 1536 == 1024 + 512 but who knows what's going on.
+			accel.clusterReferencesCount = 1536;
+			printf("HACK: in mesh %d we are going to skip clusters starting from %d\n", int(&mesh - meshes.data()), int(accel.clusterReferencesCount));
+			printf("SKIP: cluster blas %016lx size %04x tris %d vertices %d\n",
+			    ((uint64_t*)rangeBuffer.data)[(accelOffset + accel.clusterReferencesCount) * 2],
+			    ((uint32_t*)rangeBuffer.data)[(accelOffset + accel.clusterReferencesCount) * 4 + 2],
+			    meshlets[mesh.lods[0].meshletOffset + accel.clusterReferencesCount].triangleCount,
+			    meshlets[mesh.lods[0].meshletOffset + accel.clusterReferencesCount].vertexCount);
+		}
+
+		// printf("mesh %d: offset %d count %d\n", int(&mesh - meshes.data()), int(accelOffset), mesh.lods[0].meshletCount);
+
+		memcpy(accelData, &accel, sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV));
+		accelData++;
+		accelOffset += mesh.lods[0].meshletCount;
+	}
+
+	VkClusterAccelerationStructureCommandsInfoNV accelBuild = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_COMMANDS_INFO_NV };
+	accelBuild.input = accelInfo;
+	accelBuild.dstImplicitData = getBufferAddress(blasBuffer, device);
+	accelBuild.scratchData = getBufferAddress(scratchBuffer, device);
+	accelBuild.dstAddressesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 16;
+	accelBuild.dstAddressesArray.size = accelInfo.maxAccelerationStructureCount * 16;
+	accelBuild.dstAddressesArray.stride = 16;
+	accelBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 16 + 8;
+	accelBuild.dstSizesArray.size = accelInfo.maxAccelerationStructureCount * 16 - 8;
+	accelBuild.dstSizesArray.stride = 16;
+	accelBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
+	accelBuild.srcInfosArray.size = accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV);
+
+	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+	vkCmdBuildClusterAccelerationStructureIndirectNV(commandBuffer, &accelBuild);
+
+	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+	VK_CHECK(vkDeviceWaitIdle(device));
+
+	VkDeviceAddress blasAddress = getBufferAddress(blasBuffer, device);
+	uint32_t* rangeAccel = (uint32_t*)rangeBuffer.data + clusterInfo.maxAccelerationStructureCount * 4;
+
+	blas.resize(meshes.size());
+
+	for (size_t i = 0; i < accelInfo.maxAccelerationStructureCount; ++i)
+	{
+		VkAccelerationStructureCreateInfoKHR accelerationInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+		accelerationInfo.buffer = blasBuffer.buffer;
+		accelerationInfo.offset = ((uint64_t*)rangeAccel)[i * 2] - blasAddress;
+		accelerationInfo.size = rangeAccel[i * 4 + 2];
+		accelerationInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+
+		VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &blas[i]));
+	}
+
+	destroyBuffer(scratchBuffer, device);
+	destroyBuffer(infosBuffer, device);
+	destroyBuffer(rangeBuffer, device);
+
+	// TODO: destroyBuffer(clasBuffer, device);
 }
 
 void fillInstanceRT(VkAccelerationStructureInstanceKHR& instance, const MeshDraw& draw, uint32_t instanceIndex, VkDeviceAddress blas)

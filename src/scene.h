@@ -82,6 +82,7 @@ struct Geometry
 	std::vector<uint32_t> indices;
 	std::vector<Meshlet> meshlets;
 	std::vector<uint32_t> meshletdata;
+	std::vector<uint16_t> meshletvtx0; // 4 position components per vertex referenced by meshlets in lod 0, packed tightly
 	std::vector<Mesh> meshes;
 };
 

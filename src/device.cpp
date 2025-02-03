@@ -269,7 +269,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	if (clusterrtSupported)
 		extensions.push_back(VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME);
 
-	extensions.push_back(VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME);
+	if (rtvalidationSupported)
+		extensions.push_back(VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;

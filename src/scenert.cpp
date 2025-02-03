@@ -380,7 +380,7 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 		// ON NV 3050 we have a single mesh with over 2000 clusters in Bistro scene
 		// if we keep the entire cluster set in the build, the GPU will hang during build
 		// we will print here the first cluster we skip from the mesh; not sure what is going on really.
-		if (accel.clusterReferencesCount > 2000)
+		if (accel.clusterReferencesCount > 2000 && getenv("NHACK") && atoi(getenv("NHACK")))
 		{
 			// IMPORTANT:
 			// This is definitely not a "broken" cluster: we can shift the range of clusters we build here by a couple clusters forward, and it still works

@@ -14,15 +14,7 @@
 #include <string>
 #include <vector>
 
-#if defined __APPLE__
-#include <spirv_cross/spirv.h>
-#elif defined __linux__
-#include <spirv/unified1/spirv.h>
-#elif VK_HEADER_VERSION >= 135
-#include <spirv-headers/spirv.h>
-#else
-#include <vulkan/spirv.h>
-#endif
+#include "../extern/spirv.h"
 
 // https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.pdf
 struct Id

@@ -18,6 +18,8 @@ set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED Y
 target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW GLM_FORCE_QUAT_CTOR_XYZW)
 target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
 
+set(VULKAN_HEADERS_INSTALL_DIR ${CMAKE_SOURCE_DIR}/extern/Vulkan-Headers)
+
 if(APPLE)
   target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_METAL_EXT)
   target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_COCOA)

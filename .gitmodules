@@ -16,3 +16,6 @@
 [submodule "extern/cgltf"]
 	path = extern/cgltf
 	url = https://github.com/jkuhlmann/cgltf
+[submodule "extern/Vulkan-Headers"]
+	path = extern/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers

@@ -9,7 +9,7 @@
 
 // Validation is enabled by default in Debug
 #ifndef NDEBUG
-#define KHR_VALIDATION 0
+#define KHR_VALIDATION 1
 #else
 #define KHR_VALIDATION CONFIG_RELVAL
 #endif
@@ -243,7 +243,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported, bool rtvalidationSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -268,6 +268,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 	if (clusterrtSupported)
 		extensions.push_back(VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+
+	extensions.push_back(VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME);
 
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;
@@ -323,6 +325,10 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresAccelerationStructure = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	featuresAccelerationStructure.accelerationStructure = true;
 
+	// This will only be used if rtvalidationSupported=true (see below)
+	VkPhysicalDeviceRayTracingValidationFeaturesNV featuresRayTracingValidation = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
+	featuresRayTracingValidation.rayTracingValidation = true;
+
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
 	createInfo.pQueueCreateInfos = &queueInfo;
@@ -351,6 +357,14 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 		*ppNext = &featuresAccelerationStructure;
 		ppNext = &featuresAccelerationStructure.pNext;
+	}
+
+	if (rtvalidationSupported)
+	{
+		printf("Enabled NV raytracing validation extension\n");
+
+		*ppNext = &featuresRayTracingValidation;
+		ppNext = &featuresRayTracingValidation.pNext;
 	}
 
 	VkDevice device = 0;

@@ -372,12 +372,14 @@ int main(int argc, const char** argv)
 	bool meshShadingSupported = false;
 	bool raytracingSupported = false;
 	bool clusterrtSupported = false;
+	bool rtvalidationSupported = false;
 
 	for (auto& ext : extensions)
 	{
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
 		raytracingSupported = raytracingSupported || strcmp(ext.extensionName, VK_KHR_RAY_QUERY_EXTENSION_NAME) == 0;
 		clusterrtSupported = clusterrtSupported || strcmp(ext.extensionName, VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME) == 0;
+		rtvalidationSupported = rtvalidationSupported || strcmp(ext.extensionName, VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME) == 0;
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -389,7 +391,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported, rtvalidationSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -761,7 +763,7 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		createBuffer(mlb, device, memoryProperties, geometry.meshlets.size() * sizeof(Meshlet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
@@ -813,6 +815,7 @@ int main(int argc, const char** argv)
 	VkAccelerationStructureKHR tlas = nullptr;
 	bool tlasNeedsRebuild = true;
 	Buffer blasBuffer = {};
+	Buffer clasBuffer = {};
 	Buffer tlasBuffer = {};
 	Buffer tlasScratchBuffer = {};
 	Buffer tlasInstanceBuffer = {};
@@ -821,10 +824,10 @@ int main(int argc, const char** argv)
 		if (clusterrtSupported)
 		{
 			Buffer vxb = {};
-			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			memcpy(vxb.data, geometry.meshletvtx0.data(), geometry.meshletvtx0.size() * sizeof(uint16_t));
 
-			buildCLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+			buildCLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, clasBuffer, commandPool, commandBuffer, queue, memoryProperties);
 
 			destroyBuffer(vxb, device);
 		}
@@ -1819,6 +1822,8 @@ int main(int argc, const char** argv)
 
 		destroyBuffer(tlasBuffer, device);
 		destroyBuffer(blasBuffer, device);
+		if (clusterrtSupported)
+			destroyBuffer(clasBuffer, device);
 		destroyBuffer(tlasScratchBuffer, device);
 		destroyBuffer(tlasInstanceBuffer, device);
 	}

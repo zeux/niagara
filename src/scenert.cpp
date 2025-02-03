@@ -226,7 +226,7 @@ void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas,
 	blasBuffer = compactedBuffer;
 }
 
-void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vector<Meshlet>& meshlets, const Buffer& vxb, const Buffer& mdb, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
+void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vector<Meshlet>& meshlets, const Buffer& vxb, const Buffer& mdb, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, Buffer& clasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
 {
 	VkClusterAccelerationStructureTriangleClusterInputNV clusterSizes = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_TRIANGLE_CLUSTER_INPUT_NV };
 	clusterSizes.vertexFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -278,7 +278,6 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	printf("CLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(csizeInfo.accelerationStructureSize) / 1e6, double(csizeInfo.buildScratchSize) / 1e6);
 	printf("CBLAS accelerationStructureSize: %.2f MB, scratchSize: %.2f MB\n", double(bsizeInfo.accelerationStructureSize) / 1e6, double(bsizeInfo.buildScratchSize) / 1e6);
 
-	Buffer clasBuffer;
 	createBuffer(clasBuffer, device, memoryProperties, csizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	createBuffer(blasBuffer, device, memoryProperties, bsizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);

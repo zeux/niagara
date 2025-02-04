@@ -9,7 +9,7 @@
 
 // Validation is enabled by default in Debug
 #ifndef NDEBUG
-#define KHR_VALIDATION 0
+#define KHR_VALIDATION 1
 #else
 #define KHR_VALIDATION CONFIG_RELVAL
 #endif

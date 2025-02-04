@@ -761,7 +761,7 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		createBuffer(mlb, device, memoryProperties, geometry.meshlets.size() * sizeof(Meshlet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
@@ -821,10 +821,10 @@ int main(int argc, const char** argv)
 		if (clusterrtSupported)
 		{
 			Buffer vxb = {};
-			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			memcpy(vxb.data, geometry.meshletvtx0.data(), geometry.meshletvtx0.size() * sizeof(uint16_t));
 
-			buildCLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+			buildCBLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
 
 			destroyBuffer(vxb, device);
 		}

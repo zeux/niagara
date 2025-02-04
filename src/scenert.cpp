@@ -228,7 +228,8 @@ void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas,
 
 void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vector<Meshlet>& meshlets, const Buffer& vxb, const Buffer& mdb, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
 {
-	const size_t kAlignment = 256; // required by spec for acceleration structures
+	const size_t kAlignment = 256;        // required by spec for acceleration structures
+	const size_t kClusterAlignment = 128; // required by spec for cluster acceleration structures
 
 	VkClusterAccelerationStructureTriangleClusterInputNV clusterSizes = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_TRIANGLE_CLUSTER_INPUT_NV };
 	clusterSizes.vertexFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -374,8 +375,11 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	{
 		uint32_t size = ((uint32_t*)rangeBuffer.data)[clusterInfo.maxAccelerationStructureCount * 2 + i * 2];
 
-		compactTotalSize += (size + kAlignment - 1) & ~(kAlignment - 1);
+		compactTotalSize += (size + kClusterAlignment - 1) & ~(kClusterAlignment - 1);
 	}
+
+	// align subsequent acceleration structures
+	compactTotalSize = (compactTotalSize + kAlignment - 1) & ~(kAlignment - 1);
 
 	printf("CLAS compacted accelerationStructureSize: %.2f MB\n", double(compactTotalSize) / 1e6);
 

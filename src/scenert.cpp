@@ -326,11 +326,11 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	clusterBuild.dstImplicitData = getBufferAddress(clasBuffer, device);
 	clusterBuild.scratchData = getBufferAddress(scratchBuffer, device);
 	clusterBuild.dstAddressesArray.deviceAddress = getBufferAddress(rangeBuffer, device);
-	clusterBuild.dstAddressesArray.size = clusterInfo.maxAccelerationStructureCount * 16;
-	clusterBuild.dstAddressesArray.stride = 16;
-	clusterBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + 8;
-	clusterBuild.dstSizesArray.size = clusterInfo.maxAccelerationStructureCount * 16 - 8;
-	clusterBuild.dstSizesArray.stride = 16;
+	clusterBuild.dstAddressesArray.size = clusterInfo.maxAccelerationStructureCount * 8;
+	clusterBuild.dstAddressesArray.stride = 8;
+	clusterBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 8;
+	clusterBuild.dstSizesArray.size = clusterInfo.maxAccelerationStructureCount * 8;
+	clusterBuild.dstSizesArray.stride = 8;
 	clusterBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
 	clusterBuild.srcInfosArray.size = clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV);
 
@@ -354,14 +354,7 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 
 	size_t totalClusterSize = 0;
 	for (size_t i = 0; i < clusterInfo.maxAccelerationStructureCount; ++i)
-	{
-		uint64_t addr = ((uint64_t*)rangeBuffer.data)[i * 2];
-		uint32_t size = ((uint32_t*)rangeBuffer.data)[i * 4 + 2];
-
-		// printf("cluster %d: %16lx %08x\n", int(i), addr, size);
-
-		totalClusterSize += ((uint32_t*)rangeBuffer.data)[i * 4 + 2];
-	}
+		totalClusterSize += ((uint32_t*)rangeBuffer.data)[clusterInfo.maxAccelerationStructureCount * 2 + i * 2];
 
 	printf("CLAS actual total accelerationStructureSize: %.2f MB\n", double(totalClusterSize) / 1e6);
 
@@ -374,30 +367,8 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	{
 		VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV accel = {};
 		accel.clusterReferencesCount = uint32_t(mesh.lods[0].meshletCount);
-		accel.clusterReferencesStride = 16;
-		accel.clusterReferences = getBufferAddress(rangeBuffer, device) + accelOffset * 16;
-
-		// NOTE: HUGE HACK!!!
-		// ON NV 3050 we have a single mesh with over 2000 clusters in Bistro scene
-		// if we keep the entire cluster set in the build, the GPU will hang during build
-		// we will print here the first cluster we skip from the mesh; not sure what is going on really.
-		if (accel.clusterReferencesCount > 2000)
-		{
-			// IMPORTANT:
-			// This is definitely not a "broken" cluster: we can shift the range of clusters we build here by a couple clusters forward, and it still works
-			// accel.clusterReferences += 32;
-			// ... but if we get just one extra cluster (1537 below), GPU hangs
-			// It's suspicious that 1536 == 1024 + 512 but who knows what's going on.
-			accel.clusterReferencesCount = 1536;
-			printf("HACK: in mesh %d we are going to skip clusters starting from %d\n", int(&mesh - meshes.data()), int(accel.clusterReferencesCount));
-			printf("SKIP: cluster blas %016lx size %04x tris %d vertices %d\n",
-			    ((uint64_t*)rangeBuffer.data)[(accelOffset + accel.clusterReferencesCount) * 2],
-			    ((uint32_t*)rangeBuffer.data)[(accelOffset + accel.clusterReferencesCount) * 4 + 2],
-			    meshlets[mesh.lods[0].meshletOffset + accel.clusterReferencesCount].triangleCount,
-			    meshlets[mesh.lods[0].meshletOffset + accel.clusterReferencesCount].vertexCount);
-		}
-
-		// printf("mesh %d: offset %d count %d\n", int(&mesh - meshes.data()), int(accelOffset), mesh.lods[0].meshletCount);
+		accel.clusterReferencesStride = 8;
+		accel.clusterReferences = getBufferAddress(rangeBuffer, device) + accelOffset * 8;
 
 		memcpy(accelData, &accel, sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV));
 		accelData++;
@@ -409,11 +380,11 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	accelBuild.dstImplicitData = getBufferAddress(blasBuffer, device);
 	accelBuild.scratchData = getBufferAddress(scratchBuffer, device);
 	accelBuild.dstAddressesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 16;
-	accelBuild.dstAddressesArray.size = accelInfo.maxAccelerationStructureCount * 16;
-	accelBuild.dstAddressesArray.stride = 16;
-	accelBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 16 + 8;
-	accelBuild.dstSizesArray.size = accelInfo.maxAccelerationStructureCount * 16 - 8;
-	accelBuild.dstSizesArray.stride = 16;
+	accelBuild.dstAddressesArray.size = accelInfo.maxAccelerationStructureCount * 8;
+	accelBuild.dstAddressesArray.stride = 8;
+	accelBuild.dstSizesArray.deviceAddress = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 16 + accelInfo.maxAccelerationStructureCount * 8;
+	accelBuild.dstSizesArray.size = accelInfo.maxAccelerationStructureCount * 8;
+	accelBuild.dstSizesArray.stride = 8;
 	accelBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
 	accelBuild.srcInfosArray.size = accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV);
 
@@ -435,8 +406,8 @@ void buildCLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vect
 	{
 		VkAccelerationStructureCreateInfoKHR accelerationInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
 		accelerationInfo.buffer = blasBuffer.buffer;
-		accelerationInfo.offset = ((uint64_t*)rangeAccel)[i * 2] - blasAddress;
-		accelerationInfo.size = rangeAccel[i * 4 + 2];
+		accelerationInfo.offset = ((uint64_t*)rangeAccel)[i] - blasAddress;
+		accelerationInfo.size = rangeAccel[accelInfo.maxAccelerationStructureCount * 2 + i * 2];
 		accelerationInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 
 		VK_CHECK(vkCreateAccelerationStructureKHR(device, &accelerationInfo, nullptr, &blas[i]));

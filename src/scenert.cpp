@@ -228,7 +228,7 @@ void compactBLAS(VkDevice device, std::vector<VkAccelerationStructureKHR>& blas,
 
 void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vector<Meshlet>& meshlets, const Buffer& vxb, const Buffer& mdb, std::vector<VkAccelerationStructureKHR>& blas, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
 {
-#ifdef VK_NV_acceleration_structure
+#ifdef VK_NV_cluster_acceleration_structure
 	const size_t kAlignment = 256;        // required by spec for acceleration structures
 	const size_t kClusterAlignment = 128; // required by spec for cluster acceleration structures
 

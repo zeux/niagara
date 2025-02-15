@@ -821,7 +821,7 @@ int main(int argc, const char** argv)
 	Buffer tlasInstanceBuffer = {};
 	if (raytracingSupported)
 	{
-		if (clusterrtSupported)
+		if (clusterrtSupported && getenv("CLRT") && atoi(getenv("CLRT")))
 		{
 			Buffer vxb = {};
 			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

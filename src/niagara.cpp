@@ -359,6 +359,8 @@ int main(int argc, const char** argv)
 	VkPhysicalDevice physicalDevice = pickPhysicalDevice(physicalDevices, physicalDeviceCount);
 	if (!physicalDevice)
 	{
+		if (debugCallback) 
+		vkDestroyDebugReportCallbackEXT(instance, debugCallback, 0);
 		vkDestroyInstance(instance, 0);
 		return -1;
 	}

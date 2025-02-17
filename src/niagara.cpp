@@ -373,11 +373,16 @@ int main(int argc, const char** argv)
 
 	bool meshShadingSupported = false;
 	bool raytracingSupported = false;
+	bool clusterrtSupported = false;
 
 	for (auto& ext : extensions)
 	{
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
 		raytracingSupported = raytracingSupported || strcmp(ext.extensionName, VK_KHR_RAY_QUERY_EXTENSION_NAME) == 0;
+
+#ifdef VK_NV_cluster_acceleration_structure
+		clusterrtSupported = clusterrtSupported || strcmp(ext.extensionName, VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME) == 0;
+#endif
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -389,7 +394,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -761,7 +766,7 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		createBuffer(mlb, device, memoryProperties, geometry.meshlets.size() * sizeof(Meshlet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
@@ -818,9 +823,22 @@ int main(int argc, const char** argv)
 	Buffer tlasInstanceBuffer = {};
 	if (raytracingSupported)
 	{
-		std::vector<VkDeviceSize> compactedSizes;
-		buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
-		compactBLAS(device, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+		if (clusterrtSupported && getenv("CLRT") && atoi(getenv("CLRT")))
+		{
+			Buffer vxb = {};
+			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			memcpy(vxb.data, geometry.meshletvtx0.data(), geometry.meshletvtx0.size() * sizeof(uint16_t));
+
+			buildCBLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+
+			destroyBuffer(vxb, device);
+		}
+		else
+		{
+			std::vector<VkDeviceSize> compactedSizes;
+			buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+			compactBLAS(device, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+		}
 
 		blasAddresses.resize(blas.size());
 

@@ -141,18 +141,10 @@ void main()
 	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
 	dir = normalize(dir);
 
-	// On AMDVLK + RDNA3, two shadow traces are faster in practice than one; this may be different on other vendors/drivers
-	// For example, for now on radv + RDNA3 one trace is faster, but radv is missing pointer flags optimizations
-#if 1
-	bool shadowhit = shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT);
-
-	if (!shadowhit && QUALITY != 0)
-		shadowhit = shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullOpaqueEXT);
-#else
+	// On AMDVLK + RDNA3, two shadow traces are faster in practice than one; however, on NV and radv one trace is noticeably faster
 	bool shadowhit = QUALITY == 0
 		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT)
 		: shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT);
-#endif
 
 	float shadow = shadowhit ? 0.0 : 1.0;
 

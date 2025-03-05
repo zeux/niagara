@@ -138,8 +138,8 @@ https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/32417
 * radv: VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR is not supported for TLAS \
 https://gitlab.freedesktop.org/mesa/mesa/-/issues/12346
 
-* Missing synchronization validation for ray tracing acceleration updates & uses \
+* ✔️ Missing synchronization validation for ray tracing acceleration updates & uses \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/9076
 
-* anv: Mesh shaders with two OpSetMeshOutputsEXT instructions are not supported \
+* ✔️ anv: Mesh shaders with two OpSetMeshOutputsEXT instructions are not supported \
 https://gitlab.freedesktop.org/mesa/mesa/-/issues/12388

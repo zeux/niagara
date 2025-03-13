@@ -1087,7 +1087,7 @@ int main(int argc, const char** argv)
 
 			VkBufferMemoryBarrier2 fillBarrier = bufferBarrier(mvb.buffer,
 			    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-			    VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 			pipelineBarrier(commandBuffer, 0, 1, &fillBarrier, 0, nullptr);
 
 			mvbCleared = true;
@@ -1165,7 +1165,7 @@ int main(int argc, const char** argv)
 		{
 			uint32_t rasterizationStage =
 			    taskSubmit
-			        ? VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
+			        ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_MESH_SHADER_BIT_EXT
 			        : VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);

@@ -1693,19 +1693,21 @@ int main(int argc, const char** argv)
 				    pyramidGpuTime,
 				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
 				    shadeGpuTime);
-				debugtext(3, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
+				debugtext(3, ~0u, "render breakdown: early %.2f ms, late %.2f ms, post %.2f ms",
+				    renderGpuTime, renderlateGpuTime, renderpostGpuTime);
+				debugtext(4, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
 				    tlasGpuTime,
 				    shadowsGpuTime, shadowblurGpuTime);
-				debugtext(4, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
+				debugtext(5, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
 				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
 
-				debugtext(6, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
+				debugtext(7, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
 				    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
-				debugtext(7, ~0u, "mesh shading %s, task shading %s, cluster occlusion culling %s",
+				debugtext(8, ~0u, "mesh shading %s, task shading %s, cluster occlusion culling %s",
 				    taskSubmit ? "ON" : "OFF", taskSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(9, ~0u, "RT shadows: %s, blur %s, quality %d, checkerboard %s",
+				debugtext(10, ~0u, "RT shadows: %s, blur %s, quality %d, checkerboard %s",
 				    raytracingSupported && shadowsEnabled ? "ON" : "OFF",
 				    raytracingSupported && shadowblurEnabled ? "ON" : "OFF",
 				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");

@@ -564,7 +564,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		assert(image->uri);
 
 		std::string ipath = path;
-		std::string::size_type pos = ipath.find_last_of('/');
+		std::string::size_type pos = ipath.find_last_of("/\\");
 		if (pos == std::string::npos)
 			ipath = "";
 		else

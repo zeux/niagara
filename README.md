@@ -13,9 +13,9 @@ The renderer was originally written using Visual Studio and targeted Windows des
 
 To build and run the project, clone this repository using --recursive flag:
 
-	git clone https://github.com/zeux/niagara.git --recursive
+	git clone https://github.com/zeux/niagara --recursive
 
-Make sure you have Vulkan SDK installed; open the folder niagara in Visual Studio (as a CMake project) and build it. On Linux, you can use CMake with your build generator of choice.
+Make sure you have Vulkan 1.4 SDK and drivers installed; open the folder niagara in Visual Studio (as a CMake project) and build it. On Linux, you can use CMake with your build generator of choice.
 
 To run the program, command line should contain arguments with paths to .obj files or a .gltf scene; you can use kitten.obj from data/ folder for testing.
 

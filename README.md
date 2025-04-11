@@ -5,6 +5,8 @@ This is a Vulkan renderer that is written on stream from scratch - without using
 The goal is to experiment with a few modern Vulkan rendering techniques, such as GPU culling & scene submission, cone culling, automatic occlusion culling, task/mesh shading, and whatever else it is that we will want to experiment with.
 The code will be written on stream.
 
+![image](https://github.com/user-attachments/assets/b102622e-fbe7-4e9c-b575-e4d4533eadfe)
+
 # Requirements
 
 The renderer was originally written using Visual Studio and targeted Windows desktops with modern Vulkan drivers. Since then the development platform has switched to Linux, but you can still build and run it on Windows - via CMake.

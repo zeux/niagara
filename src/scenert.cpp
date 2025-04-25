@@ -8,9 +8,9 @@
 
 #include <string.h>
 
-const VkBuildAccelerationStructureFlagBitsKHR kBuildBLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-const VkBuildAccelerationStructureFlagBitsKHR kBuildCLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-const VkBuildAccelerationStructureFlagBitsKHR kBuildTLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+const VkBuildAccelerationStructureFlagsKHR kBuildBLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+const VkBuildAccelerationStructureFlagsKHR kBuildCLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+const VkBuildAccelerationStructureFlagsKHR kBuildTLAS = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 
 void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& vb, const Buffer& ib, std::vector<VkAccelerationStructureKHR>& blas, std::vector<VkDeviceSize>& compactedSizes, Buffer& blasBuffer, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties)
 {
@@ -386,6 +386,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	compactTotalSize = (compactTotalSize + kAlignment - 1) & ~(kAlignment - 1);
 
 	printf("CLAS compacted accelerationStructureSize: %.2f MB\n", double(compactTotalSize) / 1e6);
+	printf("CLAS+CBLAS accelerationStructureSize: %.2f MB\n", double(compactTotalSize + bsizeInfo.accelerationStructureSize) / 1e6);
 
 	createBuffer(blasBuffer, device, memoryProperties, compactTotalSize + bsizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 

@@ -39,6 +39,21 @@ static bool isLayerSupported(const char* name)
 	return false;
 }
 
+static bool isInstanceExtensionSupported(const char* name)
+{
+	uint32_t propertyCount = 0;
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(NULL, &propertyCount, 0));
+
+	std::vector<VkExtensionProperties> properties(propertyCount);
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(NULL, &propertyCount, properties.data()));
+
+	for (uint32_t i = 0; i < propertyCount; ++i)
+		if (strcmp(name, properties[i].extensionName) == 0)
+			return true;
+
+	return false;
+}
+
 VkInstance createInstance()
 {
 	if (volkGetInstanceVersion() < API_VERSION)
@@ -82,28 +97,30 @@ VkInstance createInstance()
 #endif
 #endif
 
-	const char* extensions[] = {
-		VK_KHR_SURFACE_EXTENSION_NAME,
+	std::vector<const char*> extensions;
+	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-		VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME,
+	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_METAL_EXT
-		VK_EXT_METAL_SURFACE_EXTENSION_NAME,
-		VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+	extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
+	extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
 #endif
 #ifndef NDEBUG
-		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+	extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif
-	};
 
-	createInfo.ppEnabledExtensionNames = extensions;
-	createInfo.enabledExtensionCount = sizeof(extensions) / sizeof(extensions[0]);
+	if (isInstanceExtensionSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+	createInfo.ppEnabledExtensionNames = extensions.data();
+	createInfo.enabledExtensionCount = extensions.size();
 
 #ifdef VK_USE_PLATFORM_METAL_EXT
 	createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;

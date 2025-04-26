@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 project(niagara)
 
 option(USE_WAYLAND "Use Wayland instead of X11" OFF)
+option(SHADER_DEBUG "Embed debug information into SPIV shaders" OFF)
 
 file(GLOB_RECURSE GLSL_SOURCE_FILES "src/shaders/*.glsl")
 file(GLOB_RECURSE GLSL_HEADER_FILES "src/shaders/*.h" "src/config.h")
@@ -68,6 +69,12 @@ else()
   set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin32/glslangValidator.exe")
 endif()
 
+set(GLSL_FLAGS --target-env vulkan1.3)
+
+if (SHADER_DEBUG)
+  list(APPEND GLSL_FLAGS -gVS)
+endif()
+
 # Thanks to: https://gist.github.com/evilactually/a0d191701cb48f157b05be7f74d79396
 set(SPIRV_OUTPUT_DIR "${PROJECT_BINARY_DIR}/spirv/")
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -76,7 +83,7 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_OUTPUT_DIR}"
-    COMMAND ${GLSL_VALIDATOR} -V --target-env vulkan1.3 --quiet ${GLSL} -o ${SPIRV}
+    COMMAND ${GLSL_VALIDATOR} -V ${GLSL_FLAGS} --quiet ${GLSL} -o ${SPIRV}
     DEPENDS ${GLSL} ${GLSL_HEADER_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach()

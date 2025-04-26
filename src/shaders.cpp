@@ -600,6 +600,26 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateGraphicsPipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
 
+	if (vkSetDebugUtilsObjectNameEXT)
+	{
+		std::string name;
+
+		for (size_t i = 0; i < program.shaderCount; ++i)
+		{
+			const Shader* shader = program.shaders[i];
+
+			name += shader->name;
+			if (i + 1 < program.shaderCount)
+				name += " / ";
+		}
+
+		VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+		nameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
+		nameInfo.objectHandle = uint64_t(pipeline);
+		nameInfo.pObjectName = name.c_str();
+		vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+	}
+
 	return pipeline;
 }
 
@@ -630,6 +650,15 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateComputePipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));
+
+	if (vkSetDebugUtilsObjectNameEXT)
+	{
+		VkDebugUtilsObjectNameInfoEXT nameInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+		nameInfo.objectType = VK_OBJECT_TYPE_PIPELINE;
+		nameInfo.objectHandle = uint64_t(pipeline);
+		nameInfo.pObjectName = shader.name.c_str();
+		vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+	}
 
 	return pipeline;
 }

@@ -415,14 +415,17 @@ int main(int argc, const char** argv)
 	VkFormat swapchainFormat = getSwapchainFormat(physicalDevice, surface);
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	VkSemaphore acquireSemaphore = createSemaphore(device);
-	assert(acquireSemaphore);
+	VkSemaphore acquireSemaphores[MAX_FRAMES] = {};
+	VkSemaphore releaseSemaphores[MAX_FRAMES] = {};
+	VkFence frameFences[MAX_FRAMES] = {};
 
-	VkSemaphore releaseSemaphore = createSemaphore(device);
-	assert(releaseSemaphore);
-
-	VkFence frameFence = createFence(device);
-	assert(frameFence);
+	for (int i = 0; i < MAX_FRAMES; ++i)
+	{
+		acquireSemaphores[i] = createSemaphore(device);
+		releaseSemaphores[i] = createSemaphore(device);
+		frameFences[i] = createFence(device);
+		assert(acquireSemaphores[i] && releaseSemaphores[i] && frameFences[i]);
+	}
 
 	VkQueue queue = 0;
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
@@ -567,22 +570,31 @@ int main(int argc, const char** argv)
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
 
-	VkQueryPool queryPoolTimestamp = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
-	assert(queryPoolTimestamp);
+	VkQueryPool queryPoolsTimestamp[MAX_FRAMES] = {};
+	VkQueryPool queryPoolsPipeline[MAX_FRAMES] = {};
 
-	VkQueryPool queryPoolPipeline = createQueryPool(device, 4, VK_QUERY_TYPE_PIPELINE_STATISTICS);
-	assert(queryPoolPipeline);
+	for (int i = 0; i < MAX_FRAMES; ++i)
+	{
+		queryPoolsTimestamp[i] = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
+		queryPoolsPipeline[i] = createQueryPool(device, 4, VK_QUERY_TYPE_PIPELINE_STATISTICS);
+		assert(queryPoolsTimestamp[i] && queryPoolsPipeline[i]);
+	}
 
-	VkCommandPool commandPool = createCommandPool(device, familyIndex);
-	assert(commandPool);
+	VkCommandPool commandPools[MAX_FRAMES] = {};
+	VkCommandBuffer commandBuffers[MAX_FRAMES] = {};
 
-	VkCommandBufferAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-	allocateInfo.commandPool = commandPool;
-	allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocateInfo.commandBufferCount = 1;
+	for (int i = 0; i < MAX_FRAMES; ++i)
+	{
+		commandPools[i] = createCommandPool(device, familyIndex);
+		assert(commandPools[i]);
 
-	VkCommandBuffer commandBuffer = 0;
-	VK_CHECK(vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer));
+		VkCommandBufferAllocateInfo allocateInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+		allocateInfo.commandPool = commandPools[i];
+		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocateInfo.commandBufferCount = 1;
+
+		VK_CHECK(vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffers[i]));
+	}
 
 	VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
@@ -626,6 +638,9 @@ int main(int argc, const char** argv)
 		}
 	}
 
+	VkCommandPool initCommandPool = commandPools[0];
+	VkCommandBuffer initCommandBuffer = commandBuffers[0];
+
 	std::vector<Image> images;
 	size_t imageMemory = 0;
 	double imageTimer = glfwGetTime();
@@ -633,7 +648,7 @@ int main(int argc, const char** argv)
 	for (size_t i = 0; i < texturePaths.size(); ++i)
 	{
 		Image image;
-		if (!loadImage(image, device, commandPool, commandBuffer, queue, memoryProperties, scratch, texturePaths[i].c_str()))
+		if (!loadImage(image, device, initCommandPool, initCommandBuffer, queue, memoryProperties, scratch, texturePaths[i].c_str()))
 		{
 			printf("Error: image %s failed to load\n", texturePaths[i].c_str());
 			return 1;
@@ -769,16 +784,16 @@ int main(int argc, const char** argv)
 		createBuffer(mdb, device, memoryProperties, geometry.meshletdata.size() * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
-	uploadBuffer(device, commandPool, commandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
-	uploadBuffer(device, commandPool, commandBuffer, queue, mtb, scratch, materials.data(), materials.size() * sizeof(Material));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, mb, scratch, geometry.meshes.data(), geometry.meshes.size() * sizeof(Mesh));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, mtb, scratch, materials.data(), materials.size() * sizeof(Material));
 
-	uploadBuffer(device, commandPool, commandBuffer, queue, vb, scratch, geometry.vertices.data(), geometry.vertices.size() * sizeof(Vertex));
-	uploadBuffer(device, commandPool, commandBuffer, queue, ib, scratch, geometry.indices.data(), geometry.indices.size() * sizeof(uint32_t));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, vb, scratch, geometry.vertices.data(), geometry.vertices.size() * sizeof(Vertex));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, ib, scratch, geometry.indices.data(), geometry.indices.size() * sizeof(uint32_t));
 
 	if (meshShadingSupported)
 	{
-		uploadBuffer(device, commandPool, commandBuffer, queue, mlb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
-		uploadBuffer(device, commandPool, commandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
+		uploadBuffer(device, initCommandPool, initCommandBuffer, queue, mlb, scratch, geometry.meshlets.data(), geometry.meshlets.size() * sizeof(Meshlet));
+		uploadBuffer(device, initCommandPool, initCommandBuffer, queue, mdb, scratch, geometry.meshletdata.data(), geometry.meshletdata.size() * sizeof(uint32_t));
 	}
 
 	Buffer db = {};
@@ -811,7 +826,7 @@ int main(int argc, const char** argv)
 		createBuffer(ccb, device, memoryProperties, 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
-	uploadBuffer(device, commandPool, commandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
 
 	std::vector<VkAccelerationStructureKHR> blas;
 	std::vector<VkDeviceAddress> blasAddresses;
@@ -829,15 +844,15 @@ int main(int argc, const char** argv)
 			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 			memcpy(vxb.data, geometry.meshletvtx0.data(), geometry.meshletvtx0.size() * sizeof(uint16_t));
 
-			buildCBLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+			buildCBLAS(device, geometry.meshes, geometry.meshlets, vxb, mdb, blas, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties);
 
 			destroyBuffer(vxb, device);
 		}
 		else
 		{
 			std::vector<VkDeviceSize> compactedSizes;
-			buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
-			compactBLAS(device, blas, compactedSizes, blasBuffer, commandPool, commandBuffer, queue, memoryProperties);
+			buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties);
+			compactBLAS(device, blas, compactedSizes, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties);
 		}
 
 		blasAddresses.resize(blas.size());
@@ -865,6 +880,10 @@ int main(int argc, const char** argv)
 
 		tlas = createTLAS(device, tlasBuffer, tlasScratchBuffer, tlasInstanceBuffer, draws.size(), memoryProperties);
 	}
+
+	// Make sure we don't accidentally reuse the init command pool because that would require extra synchronization
+	initCommandPool = VK_NULL_HANDLE;
+	initCommandBuffer = VK_NULL_HANDLE;
 
 	Image gbufferTargets[gbufferCount] = {};
 	Image depthTarget = {};
@@ -1012,6 +1031,7 @@ int main(int argc, const char** argv)
 			}
 		}
 
+		// TODO: this code races the GPU reading the transforms from both TLAS and draw buffers, which can cause rendering issues
 		if (animationEnabled)
 		{
 			animationTime += frameDelta;
@@ -1050,6 +1070,15 @@ int main(int argc, const char** argv)
 				}
 			}
 		}
+
+		VkCommandPool commandPool = commandPools[frameIndex % MAX_FRAMES];
+		VkCommandBuffer commandBuffer = commandBuffers[frameIndex % MAX_FRAMES];
+		VkSemaphore acquireSemaphore = acquireSemaphores[frameIndex % MAX_FRAMES];
+		VkSemaphore releaseSemaphore = releaseSemaphores[frameIndex % MAX_FRAMES];
+		VkFence frameFence = frameFences[frameIndex % MAX_FRAMES];
+
+		VkQueryPool queryPoolTimestamp = queryPoolsTimestamp[frameIndex % MAX_FRAMES];
+		VkQueryPool queryPoolPipeline = queryPoolsPipeline[frameIndex % MAX_FRAMES];
 
 		uint32_t imageIndex = 0;
 		VkResult acquireResult = vkAcquireNextImageKHR(device, swapchain.swapchain, ~0ull, acquireSemaphore, VK_NULL_HANDLE, &imageIndex);
@@ -1746,11 +1775,16 @@ int main(int argc, const char** argv)
 
 		VK_CHECK_SWAPCHAIN(vkQueuePresentKHR(queue, &presentInfo));
 
-		VK_CHECK(vkWaitForFences(device, 1, &frameFence, VK_TRUE, ~0ull));
-		VK_CHECK(vkResetFences(device, 1, &frameFence));
+		if (frameIndex >= MAX_FRAMES - 1)
+		{
+			VkFence waitFence = frameFences[(frameIndex - (MAX_FRAMES - 1)) % MAX_FRAMES];
 
-		VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-		VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+			VK_CHECK(vkWaitForFences(device, 1, &waitFence, VK_TRUE, ~0ull));
+			VK_CHECK(vkResetFences(device, 1, &waitFence));
+
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+		}
 
 		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
 		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
@@ -1835,10 +1869,13 @@ int main(int argc, const char** argv)
 
 	destroyBuffer(scratch, device);
 
-	vkDestroyCommandPool(device, commandPool, 0);
+	for (VkCommandPool pool : commandPools)
+		vkDestroyCommandPool(device, pool, 0);
 
-	vkDestroyQueryPool(device, queryPoolTimestamp, 0);
-	vkDestroyQueryPool(device, queryPoolPipeline, 0);
+	for (VkQueryPool pool : queryPoolsTimestamp)
+		vkDestroyQueryPool(device, pool, 0);
+	for (VkQueryPool pool : queryPoolsPipeline)
+		vkDestroyQueryPool(device, pool, 0);
 
 	destroySwapchain(device, swapchain);
 
@@ -1874,9 +1911,12 @@ int main(int argc, const char** argv)
 	vkDestroySampler(device, readSampler, 0);
 	vkDestroySampler(device, depthSampler, 0);
 
-	vkDestroyFence(device, frameFence, 0);
-	vkDestroySemaphore(device, releaseSemaphore, 0);
-	vkDestroySemaphore(device, acquireSemaphore, 0);
+	for (VkFence fence : frameFences)
+		vkDestroyFence(device, fence, 0);
+	for (VkSemaphore semaphore : acquireSemaphores)
+		vkDestroySemaphore(device, semaphore, 0);
+	for (VkSemaphore semaphore : releaseSemaphores)
+		vkDestroySemaphore(device, semaphore, 0);
 
 	vkDestroySurfaceKHR(instance, surface, 0);
 

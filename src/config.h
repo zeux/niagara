@@ -23,6 +23,12 @@
 // Maximum number of total visible clusters; 16M meshlets ~= 64MB buffer with cluster indices
 #define CLUSTER_LIMIT (1 << 24)
 
+// Maximum number of frames in flight
+#define MAX_FRAMES 2
+
+// Minimum number of images in flight
+#define MIN_IMAGES 3
+
 // Should we enable vertical sync during presentation? Worth setting to 0 when doing perf profiling to avoid GPU downclock during idle
 #define CONFIG_VSYNC 1
 

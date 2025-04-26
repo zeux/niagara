@@ -57,6 +57,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 26. Materials and shadows: https://youtu.be/iZTUjRntMbM
 27. Transparent shadows: https://youtu.be/233jxF7irmE
 28. Moving objects: https://youtu.be/TcuUz1ib35c
+29. Performance nsights: https://youtu.be/qlxrRyRdOcY
 
 # Issues
 

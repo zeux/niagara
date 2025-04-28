@@ -1782,8 +1782,8 @@ int main(int argc, const char** argv)
 			VK_CHECK(vkWaitForFences(device, 1, &waitFence, VK_TRUE, ~0ull));
 			VK_CHECK(vkResetFences(device, 1, &waitFence));
 
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
 		}
 
 		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;

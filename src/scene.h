@@ -110,5 +110,5 @@ struct Animation
 	std::vector<Keyframe> keyframes;
 };
 
-bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false);
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false);
+bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);

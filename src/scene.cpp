@@ -77,11 +77,13 @@ static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, cons
 	result.meshlets.push_back(m);
 }
 
-static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, std::vector<uint32_t>& indices, uint32_t baseVertex, bool lod0, bool fast = false)
+static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, std::vector<uint32_t>& indices, uint32_t baseVertex, bool lod0, bool fast, bool clrt)
 {
 	const size_t max_vertices = MESH_MAXVTX;
+	const size_t min_triangles = MESH_MAXTRI / 4;
 	const size_t max_triangles = MESH_MAXTRI;
 	const float cone_weight = 0.25f;
+	const float fill_weight = 0.5f;
 
 	std::vector<meshopt_Meshlet> meshlets(indices.size() / 3);
 	std::vector<unsigned int> meshlet_vertices(meshlets.size() * max_vertices);
@@ -89,6 +91,8 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 
 	if (fast)
 		meshlets.resize(meshopt_buildMeshletsScan(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
+	else if (clrt && lod0) // only use split algo for lod0 as this is the only lod that is used for raytracing
+		meshlets.resize(meshopt_buildMeshletsSplit(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, min_triangles, max_triangles, fill_weight));
 	else
 		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, max_triangles, cone_weight));
 
@@ -155,7 +159,7 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 	return true;
 }
 
-static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets, bool fast = false)
+static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets, bool fast, bool clrt)
 {
 	std::vector<uint32_t> remap(vertices.size());
 	size_t uniqueVertices = meshopt_generateVertexRemap(remap.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
@@ -225,7 +229,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 		result.indices.insert(result.indices.end(), lodIndices.begin(), lodIndices.end());
 
 		lod.meshletOffset = uint32_t(result.meshlets.size());
-		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, positions, lodIndices, mesh.vertexOffset, &lod == mesh.lods, fast)) : 0;
+		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, positions, lodIndices, mesh.vertexOffset, &lod == mesh.lods, fast, clrt)) : 0;
 
 		lod.error = lodError * lodScale;
 
@@ -261,7 +265,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 	result.meshes.push_back(mesh);
 }
 
-bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast)
+bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast, bool clrt)
 {
 	std::vector<Vertex> vertices;
 	if (!loadObj(vertices, path))
@@ -271,7 +275,7 @@ bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fas
 	for (size_t i = 0; i < indices.size(); ++i)
 		indices[i] = uint32_t(i);
 
-	appendMesh(geometry, vertices, indices, buildMeshlets, fast);
+	appendMesh(geometry, vertices, indices, buildMeshlets, fast, clrt);
 	return true;
 }
 
@@ -385,7 +389,7 @@ static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& p
 	}
 }
 
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast)
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast, bool clrt)
 {
 	clock_t timer = clock();
 
@@ -428,7 +432,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 			std::vector<uint32_t> indices(prim.indices->count);
 			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());
 
-			appendMesh(geometry, vertices, indices, buildMeshlets, fast);
+			appendMesh(geometry, vertices, indices, buildMeshlets, fast, clrt);
 			primitiveMaterials.push_back(prim.material);
 		}
 

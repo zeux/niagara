@@ -622,13 +622,14 @@ int main(int argc, const char** argv)
 
 	bool sceneMode = false;
 	bool fastMode = getenv("FAST") && atoi(getenv("FAST"));
+	bool clrtMode = getenv("CLRT") && atoi(getenv("CLRT"));
 
 	if (argc == 2)
 	{
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
-			if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], meshShadingSupported, fastMode))
+			if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], meshShadingSupported, fastMode, clrtMode))
 			{
 				printf("Error: scene %s failed to load\n", argv[1]);
 				return 1;
@@ -687,7 +688,7 @@ int main(int argc, const char** argv)
 	{
 		for (int i = 1; i < argc; ++i)
 		{
-			if (!loadMesh(geometry, argv[i], meshShadingSupported, fastMode))
+			if (!loadMesh(geometry, argv[i], meshShadingSupported, fastMode, clrtMode))
 			{
 				printf("Error: mesh %s failed to load\n", argv[i]);
 				return 1;
@@ -838,7 +839,7 @@ int main(int argc, const char** argv)
 	Buffer tlasInstanceBuffer = {};
 	if (raytracingSupported)
 	{
-		if (clusterrtSupported && getenv("CLRT") && atoi(getenv("CLRT")))
+		if (clusterrtSupported && clrtMode)
 		{
 			Buffer vxb = {};
 			createBuffer(vxb, device, memoryProperties, geometry.meshletvtx0.size() * sizeof(uint16_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | raytracingBufferFlags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

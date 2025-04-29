@@ -244,7 +244,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			animationEnabled = !animationEnabled;
 		}
-		if (key == GLFW_KEY_APOSTROPHE)
+		if (key == GLFW_KEY_Z)
 		{
 			debugSleep = !debugSleep;
 		}

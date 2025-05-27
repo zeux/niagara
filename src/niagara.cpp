@@ -416,15 +416,13 @@ int main(int argc, const char** argv)
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
 	VkSemaphore acquireSemaphores[MAX_FRAMES] = {};
-	VkSemaphore releaseSemaphores[MAX_FRAMES] = {};
 	VkFence frameFences[MAX_FRAMES] = {};
 
 	for (int i = 0; i < MAX_FRAMES; ++i)
 	{
 		acquireSemaphores[i] = createSemaphore(device);
-		releaseSemaphores[i] = createSemaphore(device);
 		frameFences[i] = createFence(device);
-		assert(acquireSemaphores[i] && releaseSemaphores[i] && frameFences[i]);
+		assert(acquireSemaphores[i] && frameFences[i]);
 	}
 
 	VkQueue queue = 0;
@@ -569,6 +567,14 @@ int main(int argc, const char** argv)
 
 	Swapchain swapchain;
 	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
+
+	std::vector<VkSemaphore> presentSemaphores(swapchain.imageCount);
+
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+	{
+		presentSemaphores[i] = createSemaphore(device);
+		assert(presentSemaphores[i]);
+	}
 
 	VkQueryPool queryPoolsTimestamp[MAX_FRAMES] = {};
 	VkQueryPool queryPoolsPipeline[MAX_FRAMES] = {};
@@ -1075,7 +1081,6 @@ int main(int argc, const char** argv)
 		VkCommandPool commandPool = commandPools[frameIndex % MAX_FRAMES];
 		VkCommandBuffer commandBuffer = commandBuffers[frameIndex % MAX_FRAMES];
 		VkSemaphore acquireSemaphore = acquireSemaphores[frameIndex % MAX_FRAMES];
-		VkSemaphore releaseSemaphore = releaseSemaphores[frameIndex % MAX_FRAMES];
 		VkFence frameFence = frameFences[frameIndex % MAX_FRAMES];
 
 		VkQueryPool queryPoolTimestamp = queryPoolsTimestamp[frameIndex % MAX_FRAMES];
@@ -1754,6 +1759,8 @@ int main(int argc, const char** argv)
 
 		VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
+		VkSemaphore presentSemaphore = presentSemaphores[imageIndex];
+
 		VkPipelineStageFlags submitStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
 		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -1763,13 +1770,13 @@ int main(int argc, const char** argv)
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &commandBuffer;
 		submitInfo.signalSemaphoreCount = 1;
-		submitInfo.pSignalSemaphores = &releaseSemaphore;
+		submitInfo.pSignalSemaphores = &presentSemaphore;
 
 		VK_CHECK_FORCE(vkQueueSubmit(queue, 1, &submitInfo, frameFence));
 
 		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
 		presentInfo.waitSemaphoreCount = 1;
-		presentInfo.pWaitSemaphores = &releaseSemaphore;
+		presentInfo.pWaitSemaphores = &presentSemaphore;
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = &swapchain.swapchain;
 		presentInfo.pImageIndices = &imageIndex;
@@ -1878,6 +1885,9 @@ int main(int argc, const char** argv)
 	for (VkQueryPool pool : queryPoolsPipeline)
 		vkDestroyQueryPool(device, pool, 0);
 
+	for (VkSemaphore semaphore : presentSemaphores)
+		vkDestroySemaphore(device, semaphore, 0);
+
 	destroySwapchain(device, swapchain);
 
 	for (VkPipeline pipeline : pipelines)
@@ -1915,8 +1925,6 @@ int main(int argc, const char** argv)
 	for (VkFence fence : frameFences)
 		vkDestroyFence(device, fence, 0);
 	for (VkSemaphore semaphore : acquireSemaphores)
-		vkDestroySemaphore(device, semaphore, 0);
-	for (VkSemaphore semaphore : releaseSemaphores)
 		vkDestroySemaphore(device, semaphore, 0);
 
 	vkDestroySurfaceKHR(instance, surface, 0);

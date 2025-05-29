@@ -1785,22 +1785,22 @@ int main(int argc, const char** argv)
 
 		if (frameIndex >= MAX_FRAMES - 1)
 		{
-			VkFence waitFence = frameFences[(frameIndex - (MAX_FRAMES - 1)) % MAX_FRAMES];
+			int waitIndex = (frameIndex + 1) % MAX_FRAMES;
+			VkFence waitFence = frameFences[waitIndex];
 
 			VK_CHECK(vkWaitForFences(device, 1, &waitFence, VK_TRUE, ~0ull));
 			VK_CHECK(vkResetFences(device, 1, &waitFence));
 
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolTimestamp, 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPipeline, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsTimestamp[waitIndex], 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
+			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsPipeline[waitIndex], 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+
+			double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
+			double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
+			frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 		}
 
-		double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
-		double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;
-
 		double frameCpuEnd = glfwGetTime() * 1000;
-
 		frameCpuAvg = frameCpuAvg * 0.95 + (frameCpuEnd - frameCpuBegin) * 0.05;
-		frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 
 		frameIndex++;
 

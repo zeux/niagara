@@ -91,8 +91,8 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 
 	if (fast)
 		meshlets.resize(meshopt_buildMeshletsScan(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
-	else if (clrt && lod0) // only use split algo for lod0 as this is the only lod that is used for raytracing
-		meshlets.resize(meshopt_buildMeshletsSplit(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, min_triangles, max_triangles, fill_weight));
+	else if (clrt && lod0) // only use spatial algo for lod0 as this is the only lod that is used for raytracing
+		meshlets.resize(meshopt_buildMeshletsSpatial(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, min_triangles, max_triangles, fill_weight));
 	else
 		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, max_triangles, cone_weight));
 

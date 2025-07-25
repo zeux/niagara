@@ -323,6 +323,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features13.dynamicRendering = true;
 	features13.synchronization2 = true;
 	features13.maintenance4 = true;
+	features13.shaderDemoteToHelperInvocation = true; // required for discard; under new glslang rules
 
 	VkPhysicalDeviceVulkan14Features features14 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES };
 	features14.maintenance5 = true;

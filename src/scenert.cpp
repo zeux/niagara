@@ -113,10 +113,6 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-	VkBufferMemoryBarrier2 scratchBarrier = bufferBarrier(scratchBuffer.buffer,
-	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
-	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
-
 	for (size_t start = 0; start < meshes.size();)
 	{
 		size_t scratchOffset = 0;
@@ -138,7 +134,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		vkCmdBuildAccelerationStructuresKHR(commandBuffer, uint32_t(i - start), &buildInfos[start], &buildRangePtrs[start]);
 		start = i;
 
-		pipelineBarrier(commandBuffer, 0, 1, &scratchBarrier, 0, nullptr);
+		stageBarrier(commandBuffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR);
 	}
 
 	vkCmdResetQueryPool(commandBuffer, queryPool, 0, blas.size());
@@ -437,11 +433,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 
 	vkCmdBuildClusterAccelerationStructureIndirectNV(commandBuffer, &clusterMove);
 
-	VkBufferMemoryBarrier2 barrier = bufferBarrier(blasBuffer.buffer,
-	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
-	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
-
-	pipelineBarrier(commandBuffer, 0, 1, &barrier, 0, nullptr);
+	stageBarrier(commandBuffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR);
 
 	vkCmdBuildClusterAccelerationStructureIndirectNV(commandBuffer, &accelBuild);
 

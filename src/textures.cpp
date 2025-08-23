@@ -198,7 +198,7 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 
 	VkImageMemoryBarrier2 preBarrier = imageBarrier(image.image,
 	    0, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-	    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 	pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &preBarrier);
 
 	size_t bufferOffset = 0;
@@ -214,7 +214,7 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 			{ 0, 0, 0 },
 			{ mipWidth, mipHeight, 1 },
 		};
-		vkCmdCopyBufferToImage(commandBuffer, scratch.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+		vkCmdCopyBufferToImage(commandBuffer, scratch.buffer, image.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
 
 		bufferOffset += ((mipWidth + 3) / 4) * ((mipHeight + 3) / 4) * blockSize;
 
@@ -224,10 +224,7 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 
 	assert(bufferOffset == imageSize);
 
-	VkImageMemoryBarrier2 postBarrier = imageBarrier(image.image,
-	    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	pipelineBarrier(commandBuffer, 0, 0, nullptr, 1, &postBarrier);
+	stageBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT);
 
 	VK_CHECK(vkEndCommandBuffer(commandBuffer));
 

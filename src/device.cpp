@@ -134,11 +134,6 @@ VkInstance createInstance()
 
 static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
 {
-	// This silences warnings like "For optimal performance image layout should be VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL instead of GENERAL."
-	// We'll assume other performance warnings are also not useful.
-	if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
-		return VK_FALSE;
-
 	const char* type =
 	    (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 	        ? "ERROR"

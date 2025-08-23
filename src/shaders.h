@@ -85,7 +85,7 @@ struct DescriptorInfo
 		accelerationStructure = structure;
 	}
 
-	DescriptorInfo(VkImageView imageView, VkImageLayout imageLayout)
+	DescriptorInfo(VkImageView imageView, VkImageLayout imageLayout = VK_IMAGE_LAYOUT_GENERAL)
 	{
 		image.sampler = VK_NULL_HANDLE;
 		image.imageView = imageView;
@@ -99,7 +99,7 @@ struct DescriptorInfo
 		image.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 
-	DescriptorInfo(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout)
+	DescriptorInfo(VkSampler sampler, VkImageView imageView, VkImageLayout imageLayout = VK_IMAGE_LAYOUT_GENERAL)
 	{
 		image.sampler = sampler;
 		image.imageView = imageView;

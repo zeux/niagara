@@ -58,6 +58,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 27. Transparent shadows: https://youtu.be/233jxF7irmE
 28. Moving objects: https://youtu.be/TcuUz1ib35c
 29. Performance nsights: https://youtu.be/qlxrRyRdOcY
+30. Simplifying synchronization: https://youtu.be/0rqWe1M2HiE
 
 # Issues
 
@@ -135,7 +136,7 @@ https://github.com/KhronosGroup/glslang/issues/3103
 * ✔️ Incomplete mip data is encoded for non-power-of-two textures \
 https://github.com/wolfpld/etcpak/pull/43
 
-* radv should use pointer flags on RDNA3 during BVH traversal \
+* ✔️ radv should use pointer flags on RDNA3 during BVH traversal \
 https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/32417
 
 * radv: VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR is not supported for TLAS \
@@ -146,3 +147,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/9076
 
 * ✔️ anv: Mesh shaders with two OpSetMeshOutputsEXT instructions are not supported \
 https://gitlab.freedesktop.org/mesa/mesa/-/issues/12388
+
+* Possible synchronization validation false positive for ray tracing acceleration updates \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/10577

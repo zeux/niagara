@@ -538,11 +538,24 @@ void buildTLAS(VkDevice device, VkCommandBuffer commandBuffer, VkAccelerationStr
 	buildRange.primitiveCount = primitiveCount;
 	const VkAccelerationStructureBuildRangeInfoKHR* buildRangePtr = &buildRange;
 
+	// TODO: the #if 0 branch produces a WRITE_AFTER_WRITE hazard on validation layers from 1.4.321 SDK; it's not clear if the code is wrong or if the validation layers are wrong
+#if 1
+	vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &buildRangePtr);
+
+	stageBarrier(commandBuffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+#else
+	VkBufferMemoryBarrier2 preBarrier = bufferBarrier(tlasBuffer.buffer,
+	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+
+	pipelineBarrier(commandBuffer, 0, 1, &preBarrier, 0, nullptr);
+
 	vkCmdBuildAccelerationStructuresKHR(commandBuffer, 1, &buildInfo, &buildRangePtr);
 
 	VkBufferMemoryBarrier2 barrier = bufferBarrier(tlasBuffer.buffer,
-	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
-	    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+	    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
 
 	pipelineBarrier(commandBuffer, 0, 1, &barrier, 0, nullptr);
+#endif
 }

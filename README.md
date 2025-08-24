@@ -147,6 +147,3 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/9076
 
 * ✔️ anv: Mesh shaders with two OpSetMeshOutputsEXT instructions are not supported \
 https://gitlab.freedesktop.org/mesa/mesa/-/issues/12388
-
-* Possible synchronization validation false positive for ray tracing acceleration updates \
-https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/10577

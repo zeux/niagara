@@ -1388,32 +1388,10 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		};
 
-		// horrible barrier! transitions everything from undefined to general, because KHR_unified_image_layouts doesn't give us an alternative nicer API
-		VkImageMemoryBarrier2 renderBeginBarriers[gbufferCount + 5] = {
-			// note: even though the source image has previous state as undef, we need to specify COMPUTE_SHADER to synchronize with submitStageMask below
-			imageBarrier(swapchain.images[imageIndex],
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
-			imageBarrier(depthTarget.image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
-			    VK_IMAGE_ASPECT_DEPTH_BIT),
-			imageBarrier(depthPyramid.image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
-			imageBarrier(shadowTarget.image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
-			imageBarrier(shadowblurTarget.image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL),
-		};
-		for (uint32_t i = 0; i < gbufferCount; ++i)
-			renderBeginBarriers[i + 5] = imageBarrier(gbufferTargets[i].image,
-			    VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, VK_IMAGE_LAYOUT_UNDEFINED,
-			    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL);
-
-		pipelineBarrier(commandBuffer, VK_DEPENDENCY_BY_REGION_BIT, 0, nullptr, COUNTOF(renderBeginBarriers), renderBeginBarriers);
+		// transition everything we write to during the frame from undefined to general
+		invalidateBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+		    { swapchain.images[imageIndex], depthPyramid.image, shadowTarget.image, shadowblurTarget.image, gbufferTargets[0].image, gbufferTargets[1].image },
+		    { depthTarget.image });
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 

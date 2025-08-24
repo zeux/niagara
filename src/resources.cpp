@@ -53,6 +53,26 @@ void pipelineBarrier(VkCommandBuffer commandBuffer, VkDependencyFlags dependency
 	vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 }
 
+void invalidateBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stageMask, std::initializer_list<VkImage> colorImages, std::initializer_list<VkImage> depthImages)
+{
+	VkImageMemoryBarrier2 imageBarriers[32];
+	assert(colorImages.size() + depthImages.size() <= sizeof(imageBarriers) / sizeof(imageBarriers[0]));
+
+	VkAccessFlags2 accessFlags = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+
+	size_t imageBarrierCount = 0;
+	for (VkImage image : colorImages)
+		imageBarriers[imageBarrierCount++] = imageBarrier(image, stageMask, 0, VK_IMAGE_LAYOUT_UNDEFINED, stageMask, accessFlags, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
+	for (VkImage image : depthImages)
+		imageBarriers[imageBarrierCount++] = imageBarrier(image, stageMask, 0, VK_IMAGE_LAYOUT_UNDEFINED, stageMask, accessFlags, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	VkDependencyInfo dependencyInfo = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependencyInfo.imageMemoryBarrierCount = unsigned(imageBarrierCount);
+	dependencyInfo.pImageMemoryBarriers = imageBarriers;
+
+	vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+}
+
 void stageBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 dstAccessMask)
 {
 	VkMemoryBarrier2 memoryBarrier = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };

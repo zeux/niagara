@@ -249,11 +249,11 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 				break;
 
 			// while we could keep this LOD, it's too close to the last one (and it can't go below that due to constant error bound above)
-			if (nextIndices >= size_t(double(lodIndices.size()) * 0.95))
+			if (nextIndices >= size_t(double(lodIndices.size()) * 0.85))
 				break;
 
 			lodIndices.resize(nextIndices);
-			lodError = std::max(lodError, nextError); // important! since we start from last LOD, we need to accumulate the error
+			lodError = std::max(lodError * 1.5f, nextError); // important! since we start from last LOD, we need to accumulate the error
 
 			if (fast)
 				meshopt_optimizeVertexCacheFifo(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size(), 16);

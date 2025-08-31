@@ -248,6 +248,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugSleep = !debugSleep;
 		}
+		if (key == GLFW_KEY_ESCAPE)
+		{
+			glfwSetWindowShouldClose(window, true);
+		}
 	}
 }
 

@@ -248,6 +248,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			debugSleep = !debugSleep;
 		}
+		if (key == GLFW_KEY_ESCAPE)
+		{
+			glfwSetWindowShouldClose(window, true);
+		}
 	}
 }
 
@@ -404,22 +408,6 @@ int main(int argc, const char** argv)
 
 	volkLoadDevice(device);
 
-	GLFWwindow* window = glfwCreateWindow(1024, 768, "niagara", 0, 0);
-	assert(window);
-
-	glfwSetKeyCallback(window, keyCallback);
-	glfwSetMouseButtonCallback(window, mouseCallback);
-
-	VkSurfaceKHR surface = createSurface(instance, window);
-	assert(surface);
-
-	VkBool32 presentSupported = 0;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, familyIndex, surface, &presentSupported));
-	assert(presentSupported);
-
-	VkFormat swapchainFormat = getSwapchainFormat(physicalDevice, surface);
-	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
-
 	VkSemaphore acquireSemaphores[MAX_FRAMES] = {};
 	VkFence frameFences[MAX_FRAMES] = {};
 
@@ -441,6 +429,8 @@ int main(int argc, const char** argv)
 
 	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
 	assert(depthSampler);
+
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
 	static const size_t gbufferCount = 2;
 	const VkFormat gbufferFormats[gbufferCount] = {
@@ -570,17 +560,6 @@ int main(int argc, const char** argv)
 
 	createPipelines();
 
-	Swapchain swapchain;
-	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
-
-	std::vector<VkSemaphore> presentSemaphores(swapchain.imageCount);
-
-	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
-	{
-		presentSemaphores[i] = createSemaphore(device);
-		assert(presentSemaphores[i]);
-	}
-
 	VkQueryPool queryPoolsTimestamp[MAX_FRAMES] = {};
 	VkQueryPool queryPoolsPipeline[MAX_FRAMES] = {};
 
@@ -640,6 +619,7 @@ int main(int argc, const char** argv)
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
+			printf("Loading scene from %s\n", argv[1]);
 			if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], meshShadingSupported, fastMode, clrtMode))
 			{
 				printf("Error: scene %s failed to load\n", argv[1]);
@@ -907,6 +887,32 @@ int main(int argc, const char** argv)
 	uint32_t depthPyramidWidth = 0;
 	uint32_t depthPyramidHeight = 0;
 	uint32_t depthPyramidLevels = 0;
+
+	GLFWwindow* window = glfwCreateWindow(1024, 768, "niagara", 0, 0);
+	assert(window);
+
+	glfwSetKeyCallback(window, keyCallback);
+	glfwSetMouseButtonCallback(window, mouseCallback);
+
+	VkSurfaceKHR surface = createSurface(instance, window);
+	assert(surface);
+
+	VkBool32 presentSupported = 0;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, familyIndex, surface, &presentSupported));
+	assert(presentSupported);
+
+	VkFormat swapchainFormat = getSwapchainFormat(physicalDevice, surface);
+
+	Swapchain swapchain;
+	createSwapchain(swapchain, physicalDevice, device, surface, familyIndex, window, swapchainFormat);
+
+	std::vector<VkSemaphore> presentSemaphores(swapchain.imageCount);
+
+	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
+	{
+		presentSemaphores[i] = createSemaphore(device);
+		assert(presentSemaphores[i]);
+	}
 
 	std::vector<VkImageView> swapchainImageViews(swapchain.imageCount);
 

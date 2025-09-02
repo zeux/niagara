@@ -85,7 +85,7 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 	const float cone_weight = 0.25f;
 	const float fill_weight = 0.5f;
 
-	std::vector<meshopt_Meshlet> meshlets(indices.size() / 3);
+	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, min_triangles));
 	std::vector<unsigned int> meshlet_vertices(meshlets.size() * max_vertices);
 	std::vector<unsigned char> meshlet_triangles(meshlets.size() * max_triangles * 3);
 

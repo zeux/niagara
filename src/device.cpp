@@ -39,7 +39,7 @@ static bool isLayerSupported(const char* name)
 	return false;
 }
 
-static bool isInstanceExtensionSupported(const char* name)
+bool isInstanceExtensionSupported(const char* name)
 {
 	uint32_t propertyCount = 0;
 	VK_CHECK(vkEnumerateInstanceExtensionProperties(NULL, &propertyCount, 0));

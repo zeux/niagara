@@ -335,10 +335,16 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
+	VK_CHECK(volkInitialize());
+
+#if defined(VK_USE_PLATFORM_XLIB_KHR) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	// If both Wayland & X11 are supported, GLFW will default to Wayland; ask it for X11 if we can't use Wayland extension (when launched via RenderDoc)
+	if (!isInstanceExtensionSupported(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
+		glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
+
 	int rc = glfwInit();
 	assert(rc);
-
-	VK_CHECK(volkInitialize());
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 

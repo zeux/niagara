@@ -1,5 +1,7 @@
 #pragma once
 
+bool isInstanceExtensionSupported(const char* name);
+
 VkInstance createInstance();
 VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance);
 

@@ -335,12 +335,6 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-	glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
-#endif
-
 	int rc = glfwInit();
 	assert(rc);
 

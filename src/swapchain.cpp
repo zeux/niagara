@@ -13,36 +13,45 @@
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 {
 	// Note: GLFW has a helper glfwCreateWindowSurface but we're going to do this the hard way to reduce our reliance on GLFW Vulkan specifics
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-	VkWin32SurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-	createInfo.hinstance = GetModuleHandle(0);
-	createInfo.hwnd = glfwGetWin32Window(window);
+	VkSurfaceKHR surface = 0;
 
-	VkSurfaceKHR surface = 0;
-	VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
-	return surface;
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	VkWaylandSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR };
-	createInfo.display = glfwGetWaylandDisplay();
-	createInfo.surface = glfwGetWaylandWindow(window);
-
-	VkSurfaceKHR surface = 0;
-	VK_CHECK(vkCreateWaylandSurfaceKHR(instance, &createInfo, 0, &surface));
-	return surface;
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-	VkXlibSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
-	createInfo.dpy = glfwGetX11Display();
-	createInfo.window = glfwGetX11Window(window);
-
-	VkSurfaceKHR surface = 0;
-	VK_CHECK(vkCreateXlibSurfaceKHR(instance, &createInfo, 0, &surface));
-	return surface;
-#else
-	// fallback to GLFW
-	VkSurfaceKHR surface = 0;
-	VK_CHECK(glfwCreateWindowSurface(instance, window, 0, &surface));
-	return surface;
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+	if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+	{
+		VkWin32SurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+		createInfo.hinstance = GetModuleHandle(0);
+		createInfo.hwnd = glfwGetWin32Window(window);
+		VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
+	}
 #endif
+
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+	if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+	{
+		VkWaylandSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR };
+		createInfo.display = glfwGetWaylandDisplay();
+		createInfo.surface = glfwGetWaylandWindow(window);
+		VK_CHECK(vkCreateWaylandSurfaceKHR(instance, &createInfo, 0, &surface));
+	}
+#endif
+
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+	if (glfwGetPlatform() == GLFW_PLATFORM_X11)
+	{
+		VkXlibSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
+		createInfo.dpy = glfwGetX11Display();
+		createInfo.window = glfwGetX11Window(window);
+		VK_CHECK(vkCreateXlibSurfaceKHR(instance, &createInfo, 0, &surface));
+	}
+#endif
+
+#ifdef VK_USE_PLATFORM_METAL_EXT
+	// fallback to GLFW
+	if (!surface)
+		VK_CHECK(glfwCreateWindowSurface(instance, window, 0, &surface));
+#endif
+
+	return surface;
 }
 
 VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
@@ -64,8 +73,40 @@ VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfac
 	return formats[0].format;
 }
 
-static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR surfaceCaps, uint32_t familyIndex, VkFormat format, uint32_t width, uint32_t height, VkSwapchainKHR oldSwapchain)
+static VkPresentModeKHR getPresentMode(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
 {
+	if (VSYNC)
+		return VK_PRESENT_MODE_FIFO_KHR; // guaranteed to be available
+
+	uint32_t presentModeCount = 0;
+	VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, 0));
+	assert(presentModeCount > 0);
+
+	std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+	VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModeCount, presentModes.data()));
+
+	for (VkPresentModeKHR mode : presentModes)
+	{
+		if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+			return mode;
+		if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+			return mode;
+	}
+
+	// fall back to fifo
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format, VkSwapchainKHR oldSwapchain)
+{
+	VkSurfaceCapabilitiesKHR surfaceCaps;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
+
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+
+	VkPresentModeKHR presentMode = getPresentMode(physicalDevice, surface);
+
 	VkCompositeAlphaFlagBitsKHR surfaceComposite =
 	    (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
 	        ? VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
@@ -74,13 +115,6 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 	    : (surfaceCaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
 	        ? VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
 	        : VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
-
-	// TODO: dynamically select present mode based on supported list
-#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	VkPresentModeKHR presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_MAILBOX_KHR;
-#else
-	VkPresentModeKHR presentMode = VSYNC ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR;
-#endif
 
 	VkSwapchainCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
 	createInfo.surface = surface;
@@ -100,20 +134,6 @@ static VkSwapchainKHR createSwapchain(VkDevice device, VkSurfaceKHR surface, VkS
 
 	VkSwapchainKHR swapchain = 0;
 	VK_CHECK(vkCreateSwapchainKHR(device, &createInfo, 0, &swapchain));
-
-	return swapchain;
-}
-
-void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, GLFWwindow* window, VkFormat format, VkSwapchainKHR oldSwapchain)
-{
-	VkSurfaceCapabilitiesKHR surfaceCaps;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
-
-	int width = 0, height = 0;
-	glfwGetFramebufferSize(window, &width, &height);
-
-	VkSwapchainKHR swapchain = createSwapchain(device, surface, surfaceCaps, familyIndex, format, width, height, oldSwapchain);
-	assert(swapchain);
 
 	uint32_t imageCount = 0;
 	VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, 0));

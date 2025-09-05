@@ -103,10 +103,12 @@ VkInstance createInstance()
 	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-	extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+	if (isInstanceExtensionSupported(VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
+		extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+	if (isInstanceExtensionSupported(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
+		extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
 #ifdef VK_USE_PLATFORM_METAL_EXT
 	extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);

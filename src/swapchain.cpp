@@ -4,7 +4,10 @@
 #include "config.h"
 
 #include <GLFW/glfw3.h>
+
+#ifdef VK_USE_PLATFORM_WIN32_KHR
 #include <GLFW/glfw3native.h>
+#endif
 
 #include <algorithm>
 
@@ -12,43 +15,17 @@
 
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 {
-	// Note: GLFW has a helper glfwCreateWindowSurface but we're going to do this the hard way to reduce our reliance on GLFW Vulkan specifics
 	VkSurfaceKHR surface = 0;
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-	if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
-	{
-		VkWin32SurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-		createInfo.hinstance = GetModuleHandle(0);
-		createInfo.hwnd = glfwGetWin32Window(window);
-		VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
-	}
-#endif
-
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-	if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
-	{
-		VkWaylandSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR };
-		createInfo.display = glfwGetWaylandDisplay();
-		createInfo.surface = glfwGetWaylandWindow(window);
-		VK_CHECK(vkCreateWaylandSurfaceKHR(instance, &createInfo, 0, &surface));
-	}
-#endif
-
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-	if (glfwGetPlatform() == GLFW_PLATFORM_X11)
-	{
-		VkXlibSurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
-		createInfo.dpy = glfwGetX11Display();
-		createInfo.window = glfwGetX11Window(window);
-		VK_CHECK(vkCreateXlibSurfaceKHR(instance, &createInfo, 0, &surface));
-	}
-#endif
-
-#ifdef VK_USE_PLATFORM_METAL_EXT
-	// fallback to GLFW
-	if (!surface)
-		VK_CHECK(glfwCreateWindowSurface(instance, window, 0, &surface));
+	// Note: GLFW has a helper glfwCreateWindowSurface but we're going to do this the hard way to demonstrate the platform-specific surface creation
+	assert(glfwGetPlatform() == GLFW_PLATFORM_WIN32);
+	VkWin32SurfaceCreateInfoKHR createInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+	createInfo.hinstance = GetModuleHandle(0);
+	createInfo.hwnd = glfwGetWin32Window(window);
+	VK_CHECK(vkCreateWin32SurfaceKHR(instance, &createInfo, 0, &surface));
+#else
+	VK_CHECK(glfwCreateWindowSurface(instance, window, 0, &surface));
 #endif
 
 	return surface;

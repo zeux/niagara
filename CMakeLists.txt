@@ -19,16 +19,13 @@ target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY
 target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
 
 if(APPLE)
-  target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_METAL_EXT)
-  target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_COCOA)
   set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_METAL_EXT)
 elseif(UNIX)
-  target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_WAYLAND GLFW_EXPOSE_NATIVE_X11)
   set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WAYLAND_KHR VK_USE_PLATFORM_XLIB_KHR)
 elseif(WIN32)
-  target_compile_definitions(niagara PRIVATE VK_USE_PLATFORM_WIN32_KHR GLFW_EXPOSE_NATIVE_WIN32)
+  target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_WIN32)
   target_compile_definitions(niagara PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-  set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_WIN32_KHR")
+  set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 endif()
 
 if(UNIX)

@@ -20,7 +20,6 @@
 #include <vector>
 
 #include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -342,6 +341,8 @@ int main(int argc, const char** argv)
 	if (!isInstanceExtensionSupported(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
 		glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
 #endif
+
+	glfwInitVulkanLoader(vkGetInstanceProcAddr); // used for glfwCreateWindowSurface
 
 	int rc = glfwInit();
 	assert(rc);

@@ -235,11 +235,11 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 
 		if (mesh.lodCount < COUNTOF(mesh.lods))
 		{
-			// note: we're using the same value for all LODs; if this changes, we need to remove/change 95% exit criteria below
+			// note: we're using the same value for all LODs; if this changes, we need to remove/change 85% exit criteria below
 			const float maxError = 1e-1f;
-			const unsigned int options = 0;
+			const unsigned int options = meshopt_SimplifySparse;
 
-			size_t nextIndicesTarget = (size_t(double(lodIndices.size()) * 0.65) / 3) * 3;
+			size_t nextIndicesTarget = (size_t(double(lodIndices.size()) * 0.6) / 3) * 3;
 			float nextError = 0.f;
 			size_t nextIndices = meshopt_simplifyWithAttributes(lodIndices.data(), lodIndices.data(), lodIndices.size(), &positions[0].x, vertices.size(), sizeof(vec3), &normals[0].x, sizeof(vec3), normalWeights, 3, NULL, nextIndicesTarget, maxError, options, &nextError);
 			assert(nextIndices <= lodIndices.size());

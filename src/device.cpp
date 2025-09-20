@@ -2,12 +2,11 @@
 #include "device.h"
 
 #include "config.h"
+#include "swapchain.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <GLFW/glfw3.h>
 
 // Validation is enabled by default in Debug
 #ifndef NDEBUG
@@ -102,11 +101,9 @@ VkInstance createInstance()
 	std::vector<const char*> extensions;
 
 	// Query Vulkan instance extensions required by GLFW for creating Vulkan surfaces for GLFW windows.
-	uint32_t instanceCount;
-	const char** reqInstanceExtensions = glfwGetRequiredInstanceExtensions(&instanceCount);
-	if (instanceCount) {
-		extensions.assign(reqInstanceExtensions, reqInstanceExtensions + instanceCount);
-	}
+	uint32_t swapchainExtensionCount;
+	if (const char** swapchainExtensions = getSwapchainExtensions(&swapchainExtensionCount))
+		extensions.insert(extensions.end(), swapchainExtensions, swapchainExtensions + swapchainExtensionCount);
 
 #ifndef NDEBUG
 	extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);

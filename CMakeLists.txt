@@ -18,11 +18,7 @@ set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED Y
 target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW GLM_FORCE_QUAT_CTOR_XYZW)
 target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
 
-if(APPLE)
-  set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_METAL_EXT)
-elseif(UNIX)
-  set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WAYLAND_KHR VK_USE_PLATFORM_XLIB_KHR)
-elseif(WIN32)
+if(WIN32)
   target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_WIN32)
   target_compile_definitions(niagara PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)

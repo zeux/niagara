@@ -184,6 +184,11 @@ struct alignas(16) TextData
 	char data[112];
 };
 
+void errorCallback(int error_code, const char* description)
+{
+	fprintf(stderr, "GLFW ERROR (%d): %s\n", error_code, description);
+}
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	if (action == GLFW_PRESS)
@@ -345,6 +350,7 @@ int main(int argc, const char** argv)
 #endif
 
 	glfwInitVulkanLoader(vkGetInstanceProcAddr); // used for glfwCreateWindowSurface
+	glfwSetErrorCallback(errorCallback);
 
 	int rc = glfwInit();
 	assert(rc);

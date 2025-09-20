@@ -13,6 +13,17 @@
 
 #define VSYNC CONFIG_VSYNC
 
+const char** getSwapchainExtensions(uint32_t* count)
+{
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+	static const char* extensions[] = { VK_KHR_WIN32_SURFACE_EXTENSION_NAME };
+	*count = sizeof(extensions) / sizeof(extensions[0]);
+	return extensions;
+#else
+	return glfwGetRequiredInstanceExtensions(count);
+#endif
+}
+
 VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window)
 {
 	VkSurfaceKHR surface = 0;

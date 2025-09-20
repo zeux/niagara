@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <GLFW/glfw3.h>
+
 // Validation is enabled by default in Debug
 #ifndef NDEBUG
 #define KHR_VALIDATION 1
@@ -98,22 +100,14 @@ VkInstance createInstance()
 #endif
 
 	std::vector<const char*> extensions;
-	extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-	extensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#endif
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-	if (isInstanceExtensionSupported(VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
-		extensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
-#endif
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-	if (isInstanceExtensionSupported(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
-		extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-#endif
-#ifdef VK_USE_PLATFORM_METAL_EXT
-	extensions.push_back(VK_EXT_METAL_SURFACE_EXTENSION_NAME);
-	extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-#endif
+
+	// Query Vulkan instance extensions required by GLFW for creating Vulkan surfaces for GLFW windows.
+	uint32_t instanceCount;
+	const char** reqInstanceExtensions = glfwGetRequiredInstanceExtensions(&instanceCount);
+	if (instanceCount) {
+		extensions.assign(reqInstanceExtensions, reqInstanceExtensions + instanceCount);
+	}
+
 #ifndef NDEBUG
 	extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif

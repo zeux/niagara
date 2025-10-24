@@ -343,9 +343,9 @@ int main(int argc, const char** argv)
 
 	VK_CHECK(volkInitialize());
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR) && defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#ifdef __linux
 	// If both Wayland & X11 are supported, GLFW will default to Wayland; ask it for X11 if we can't use Wayland extension (when launched via RenderDoc)
-	if (!isInstanceExtensionSupported(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
+	if (!isInstanceExtensionSupported("VK_KHR_wayland_surface"))
 		glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
 #endif
 

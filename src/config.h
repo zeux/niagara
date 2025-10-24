@@ -14,6 +14,10 @@
 #define MESH_MAXVTX 64
 #define MESH_MAXTRI 96
 
+// Meshlet build configuration for raster/RT
+#define MESHLET_CONE_WEIGHT 0.25f
+#define MESHLET_FILL_WEIGHT 0.5f
+
 // Number of clusters along X dimension in a 3D tiled dispatch (must be a divisor of 256)
 #define CLUSTER_TILE 16
 

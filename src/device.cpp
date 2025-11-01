@@ -331,6 +331,10 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresAccelerationStructure = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	featuresAccelerationStructure.accelerationStructure = true;
 
+	// This will only be used if clusterrtSupported=true (see below)
+	VkPhysicalDeviceClusterAccelerationStructureFeaturesNV featuresClusterAcceleration = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV };
+	featuresClusterAcceleration.clusterAccelerationStructure = true;
+
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
 	createInfo.pQueueCreateInfos = &queueInfo;
@@ -359,6 +363,12 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 		*ppNext = &featuresAccelerationStructure;
 		ppNext = &featuresAccelerationStructure.pNext;
+	}
+
+	if (clusterrtSupported)
+	{
+		*ppNext = &featuresClusterAcceleration;
+		ppNext = &featuresClusterAcceleration.pNext;
 	}
 
 	VkDevice device = 0;

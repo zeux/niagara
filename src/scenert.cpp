@@ -304,7 +304,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	createBuffer(scratchBuffer, device, memoryProperties, std::max(std::max(bsizeInfo.buildScratchSize, csizeInfo.buildScratchSize), msizeInfo.updateScratchSize), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer infosBuffer;
-	createBuffer(infosBuffer, device, memoryProperties, std::max(clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV), accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV)), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	createBuffer(infosBuffer, device, memoryProperties, std::max(clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV), accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV)), VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	VkDeviceAddress mdbAddress = getBufferAddress(mdb, device);
 	VkDeviceAddress vxbAddress = getBufferAddress(vxb, device);
@@ -337,7 +337,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	Buffer rangeBuffer;
 	// todo host vis -> device local?
 	// todo merge with infos and suballocate more cleanly
-	createBuffer(rangeBuffer, device, memoryProperties, (clusterInfo.maxAccelerationStructureCount + accelInfo.maxAccelerationStructureCount) * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	createBuffer(rangeBuffer, device, memoryProperties, (clusterInfo.maxAccelerationStructureCount + accelInfo.maxAccelerationStructureCount) * 16, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	VkClusterAccelerationStructureCommandsInfoNV clusterBuild = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_COMMANDS_INFO_NV };
 	clusterBuild.input = clusterInfo;
@@ -351,6 +351,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	clusterBuild.dstSizesArray.stride = 8;
 	clusterBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
 	clusterBuild.srcInfosArray.size = clusterInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV);
+	clusterBuild.srcInfosArray.stride = sizeof(VkClusterAccelerationStructureBuildTriangleClusterInfoNV); // TODO: redundant, validation layers bug
 
 	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 
@@ -427,6 +428,7 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	accelBuild.dstSizesArray.stride = 8;
 	accelBuild.srcInfosArray.deviceAddress = getBufferAddress(infosBuffer, device);
 	accelBuild.srcInfosArray.size = accelInfo.maxAccelerationStructureCount * sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV);
+	accelBuild.srcInfosArray.stride = sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV); // TODO: redundant, validation layers bug
 
 	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));

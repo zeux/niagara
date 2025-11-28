@@ -127,6 +127,10 @@ VkInstance createInstance()
 
 static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
 {
+	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
+	if (strstr(pMessage, "vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosCount is zero"))
+		return VK_FALSE;
+
 	const char* type =
 	    (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
 	        ? "ERROR"

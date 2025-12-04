@@ -16,7 +16,7 @@
 const char** getSwapchainExtensions(uint32_t* count)
 {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-	static const char* extensions[] = { VK_KHR_WIN32_SURFACE_EXTENSION_NAME };
+	static const char* extensions[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME };
 	*count = sizeof(extensions) / sizeof(extensions[0]);
 	return extensions;
 #else

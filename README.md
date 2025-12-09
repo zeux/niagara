@@ -151,5 +151,5 @@ https://gitlab.freedesktop.org/mesa/mesa/-/issues/12388
 * vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosCount may be zero \
 https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
 
-* vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosArray.stride may be zero \
+* ✔️ vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosArray.stride may be zero \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/10975

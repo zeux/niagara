@@ -51,6 +51,10 @@ static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
 		return VK_SHADER_STAGE_TASK_BIT_EXT;
 	case SpvExecutionModelMeshEXT:
 		return VK_SHADER_STAGE_MESH_BIT_EXT;
+	case SpvExecutionModelTaskNV:
+		return VK_SHADER_STAGE_TASK_BIT_NV;
+	case SpvExecutionModelMeshNV:
+		return VK_SHADER_STAGE_MESH_BIT_NV;
 
 	default:
 		assert(!"Unsupported execution model");

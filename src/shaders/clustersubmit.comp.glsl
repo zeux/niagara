@@ -15,6 +15,9 @@ layout(binding = 0) buffer ClusterCount
 	uint groupCountX;
 	uint groupCountY;
 	uint groupCountZ;
+	// for NV_MESH
+	uint taskCount;
+	uint firstTask;
 };
 
 layout(binding = 1) writeonly buffer ClusterIndices
@@ -35,6 +38,10 @@ void main()
 		groupCountX = CLUSTER_TILE;
 		groupCountY = min((count + 255) / 256, 65535);
 		groupCountZ = 256 / CLUSTER_TILE;
+
+		// for NV_MESH
+		taskCount = count;
+		firstTask = 0;
 	}
 
 	// the above may result in reading command data that was never written; as such, pad the excess entries with dummy commands (up to 63)

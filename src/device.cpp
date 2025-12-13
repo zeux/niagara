@@ -261,7 +261,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	};
 
 	if (meshShadingSupported)
+#if NV_MESH
+		extensions.push_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
+#else
 		extensions.push_back(VK_EXT_MESH_SHADER_EXTENSION_NAME);
+#endif
 
 	if (raytracingSupported)
 	{
@@ -318,9 +322,15 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features14.pushDescriptor = true;
 
 	// This will only be used if meshShadingSupported=true (see below)
+#if NV_MESH
+	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
+	featuresMesh.taskShader = true;
+	featuresMesh.meshShader = true;
+#else
 	VkPhysicalDeviceMeshShaderFeaturesEXT featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT };
 	featuresMesh.taskShader = true;
 	featuresMesh.meshShader = true;
+#endif
 
 	// This will only be used if raytracingSupported=true (see below)
 	VkPhysicalDeviceRayQueryFeaturesKHR featuresRayQueries = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };

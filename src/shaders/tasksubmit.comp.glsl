@@ -17,6 +17,9 @@ layout(binding = 0) buffer CommandCount
 	uint groupCountX;
 	uint groupCountY;
 	uint groupCountZ;
+	// for NV_MESH
+	uint taskCount;
+	uint firstTask;
 };
 
 layout(binding = 1) writeonly buffer TaskCommands
@@ -36,6 +39,10 @@ void main()
 		groupCountX = min((count + 63) / 64, 65535);
 		groupCountY = 64;
 		groupCountZ = 1;
+
+		// for NV_MESH
+		taskCount = count;
+		firstTask = 0;
 	}
 
 	// the above may result in reading command data that was never written; as such, pad the excess entries with dummy commands (up to 63)

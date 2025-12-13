@@ -1,10 +1,16 @@
 #version 450
 
+#extension GL_GOOGLE_include_directive: require
+#include "../config.h"
+
 #extension GL_EXT_shader_16bit_storage: require
 #extension GL_EXT_shader_8bit_storage: require
+#if NV_MESH
+#extension GL_NV_mesh_shader: require
+#extension GL_KHR_shader_subgroup_ballot: require
+#else
 #extension GL_EXT_mesh_shader: require
-
-#extension GL_GOOGLE_include_directive: require
+#endif
 
 #include "mesh.h"
 #include "math.h"
@@ -42,16 +48,25 @@ layout(binding = 5) buffer MeshletVisibility
 
 layout(binding = 6) uniform sampler2D depthPyramid;
 
+#if NV_MESH
+out taskNV block { MeshTaskPayload payload; };
+#else
 taskPayloadSharedEXT MeshTaskPayload payload;
+#endif
 
-#if CULL
+#if CULL && !NV_MESH
 shared int sharedCount;
 #endif
 
 void main()
 {
+#if NV_MESH
+	uint commandId = gl_WorkGroupID.x;
+#else
 	// we convert 2D index to 1D index using a fixed *64 factor, see tasksubmit.comp.glsl
 	uint commandId = gl_WorkGroupID.x * 64 + gl_WorkGroupID.y;
+#endif
+
 	MeshTaskCommand command = taskCommands[commandId];
 	uint drawId = command.drawId;
 	MeshDraw meshDraw = draws[drawId];
@@ -64,8 +79,10 @@ void main()
 	uint mvi = mgi + command.meshletVisibilityOffset;
 
 #if CULL
+#if !NV_MESH
 	sharedCount = 0;
 	barrier(); // for sharedCount
+#endif
 
 	CullData cullData = globals.cullData;
 
@@ -132,7 +149,22 @@ void main()
 			atomicAnd(meshletVisibility[mvi >> 5], ~(1u << (mvi & 31)));
 	}
 
-	if (visible && !skip)
+	bool emit = visible && !skip;
+
+#if NV_MESH
+	uvec4 emitb = subgroupBallot(emit);
+
+	if (emit)
+	{
+		uint index = subgroupBallotExclusiveBitCount(emitb);
+
+		payload.clusterIndices[index] = commandId | (mgi << 24);
+	}
+
+	if (gl_LocalInvocationIndex == 0)
+		gl_TaskCountNV = subgroupBallotBitCount(emitb);
+#else
+	if (emit)
 	{
 		uint index = atomicAdd(sharedCount, 1);
 
@@ -141,9 +173,14 @@ void main()
 
 	barrier(); // for sharedCount
 	EmitMeshTasksEXT(sharedCount, 1, 1);
+#endif
 #else
 	payload.clusterIndices[gl_LocalInvocationID.x] = commandId | (mgi << 24);
 
+#if NV_MESH
+	gl_TaskCountNV = taskCount;
+#else
 	EmitMeshTasksEXT(taskCount, 1, 1);
+#endif
 #endif
 }

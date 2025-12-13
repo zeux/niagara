@@ -1,8 +1,11 @@
 // Workgroup size for task shader; each task shader thread produces up to one meshlet
-#define TASK_WGSIZE 64
+#define TASK_WGSIZE 32
 
 // Workgroup size for mesh shader; mesh shader workgroup processes the entire meshlet in parallel
-#define MESH_WGSIZE 64
+#define MESH_WGSIZE 32
+
+// Should we use NV_mesh_shader instead of EXT_mesh_shader? NV extension has different indirect dispatch layout.
+#define NV_MESH 1
 
 // Should we do meshlet frustum, occlusion and backface culling in task shader?
 #define TASK_CULL 1

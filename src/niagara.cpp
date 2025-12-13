@@ -391,7 +391,11 @@ int main(int argc, const char** argv)
 
 	for (auto& ext : extensions)
 	{
+#if NV_MESH
+		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_NV_MESH_SHADER_EXTENSION_NAME) == 0;
+#else
 		meshShadingSupported = meshShadingSupported || strcmp(ext.extensionName, VK_EXT_MESH_SHADER_EXTENSION_NAME) == 0;
+#endif
 		raytracingSupported = raytracingSupported || strcmp(ext.extensionName, VK_KHR_RAY_QUERY_EXTENSION_NAME) == 0;
 		unifiedlayoutsSupported = unifiedlayoutsSupported || strcmp(ext.extensionName, "VK_KHR_unified_image_layouts") == 0;
 
@@ -808,7 +812,7 @@ int main(int argc, const char** argv)
 	createBuffer(dcb, device, memoryProperties, TASK_WGLIMIT * sizeof(MeshTaskCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Buffer dccb = {};
-	createBuffer(dccb, device, memoryProperties, 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	createBuffer(dccb, device, memoryProperties, 32, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	// TODO: there's a way to implement cluster visibility persistence *without* using bitwise storage at all, which may be beneficial on the balance, so we should try that.
 	// *if* we do that, we can drop meshletVisibilityOffset et al from everywhere
@@ -824,7 +828,7 @@ int main(int argc, const char** argv)
 	if (meshShadingSupported)
 	{
 		createBuffer(cib, device, memoryProperties, CLUSTER_LIMIT * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		createBuffer(ccb, device, memoryProperties, 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(ccb, device, memoryProperties, 32, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
@@ -1334,7 +1338,11 @@ int main(int argc, const char** argv)
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
+#if NV_MESH
+				vkCmdDrawMeshTasksIndirectNV(commandBuffer, ccb.buffer, 16, 1, 0);
+#else
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
+#endif
 			}
 			else if (taskSubmit)
 			{
@@ -1348,7 +1356,11 @@ int main(int argc, const char** argv)
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
+#if NV_MESH
+				vkCmdDrawMeshTasksIndirectNV(commandBuffer, dccb.buffer, 16, 1, 0);
+#else
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
+#endif
 			}
 			else
 			{

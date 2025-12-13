@@ -3,7 +3,7 @@
 bool isInstanceExtensionSupported(const char* name);
 
 VkInstance createInstance();
-VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance);
+VkDebugUtilsMessengerEXT registerDebugCallback(VkInstance instance);
 
 uint32_t getGraphicsFamilyIndex(VkPhysicalDevice physicalDevice);
 VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t physicalDeviceCount);

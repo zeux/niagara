@@ -105,10 +105,6 @@ VkInstance createInstance()
 	if (const char** swapchainExtensions = getSwapchainExtensions(&swapchainExtensionCount))
 		extensions.insert(extensions.end(), swapchainExtensions, swapchainExtensions + swapchainExtensionCount);
 
-#ifndef NDEBUG
-	extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-#endif
-
 	if (isInstanceExtensionSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
@@ -125,21 +121,19 @@ VkInstance createInstance()
 	return instance;
 }
 
-static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
+static VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types, const VkDebugUtilsMessengerCallbackDataEXT* callbackData, void* userData)
 {
-	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
-	if (strstr(pMessage, "vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosCount is zero"))
+	if (severity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
 		return VK_FALSE;
 
-	const char* type =
-	    (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
-	        ? "ERROR"
-	    : (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT)
-	        ? "WARNING"
-	        : "INFO";
+	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
+	if (strstr(callbackData->pMessage, "vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosCount is zero"))
+		return VK_FALSE;
+
+	const char* type = (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) ? "ERROR" : "WARNING";
 
 	char message[4096];
-	snprintf(message, COUNTOF(message), "%s: %s\n", type, pMessage);
+	snprintf(message, COUNTOF(message), "%s: %s\n", type, callbackData->pMessage);
 
 	printf("%s", message);
 
@@ -147,25 +141,26 @@ static VkBool32 VKAPI_CALL debugReportCallback(VkDebugReportFlagsEXT flags, VkDe
 	OutputDebugStringA(message);
 #endif
 
-	if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
+	if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		assert(!"Validation error encountered!");
 
 	return VK_FALSE;
 }
 
-VkDebugReportCallbackEXT registerDebugCallback(VkInstance instance)
+VkDebugUtilsMessengerEXT registerDebugCallback(VkInstance instance)
 {
-	if (!vkCreateDebugReportCallbackEXT)
+	if (!vkCreateDebugUtilsMessengerEXT)
 		return nullptr;
 
-	VkDebugReportCallbackCreateInfoEXT createInfo = { VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT };
-	createInfo.flags = VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT;
-	createInfo.pfnCallback = debugReportCallback;
+	VkDebugUtilsMessengerCreateInfoEXT createInfo = { VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
+	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	createInfo.pfnUserCallback = debugUtilsCallback;
 
-	VkDebugReportCallbackEXT callback = 0;
-	VK_CHECK(vkCreateDebugReportCallbackEXT(instance, &createInfo, 0, &callback));
+	VkDebugUtilsMessengerEXT messenger = 0;
+	VK_CHECK(vkCreateDebugUtilsMessengerEXT(instance, &createInfo, 0, &messenger));
 
-	return callback;
+	return messenger;
 }
 
 uint32_t getGraphicsFamilyIndex(VkPhysicalDevice physicalDevice)

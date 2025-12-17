@@ -19,6 +19,7 @@ layout (constant_id = 1) const bool TASK = false;
 
 #define DEBUG 0
 #define CULL MESH_CULL
+#define FASTCULL 1
 
 layout(local_size_x = MESH_WGSIZE, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = MESH_MAXVTX, max_primitives = MESH_MAXTRI) out;
@@ -186,7 +187,11 @@ void main()
 	}
 
 #if CULL
+#if NV_MESH
+	subgroupMemoryBarrier();
+#else
 	barrier();
+#endif
 #endif
 
 #if CULL && NV_MESH
@@ -209,6 +214,9 @@ void main()
 	#if CULL
 		bool culled = false;
 
+#if NV_MESH && FASTCULL
+		culled = determinant(mat3(gl_MeshVerticesNV[a].gl_Position.xyw, gl_MeshVerticesNV[b].gl_Position.xyw, gl_MeshVerticesNV[c].gl_Position.xyw)) <= 0;
+#else
 #if NV_MESH
 		vec3 ca = gl_MeshVerticesNV[a].gl_Position.xyw;
 		vec3 cb = gl_MeshVerticesNV[b].gl_Position.xyw;
@@ -244,6 +252,7 @@ void main()
 
 		// the computations above are only valid if all vertices are in front of perspective plane
 		culled = culled && (ca.z > 0 && cb.z > 0 && cc.z > 0);
+#endif
 
 #if NV_MESH
 		uvec4 cballot = subgroupBallot(!culled);

@@ -2,6 +2,8 @@
 #include "scene.h"
 #include "config.h"
 
+#include "fileutils.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -85,22 +87,31 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 	return true;
 }
 
+static void read(void* data, size_t size, size_t count, void* fileMemory, size_t& fileOffset)
+{
+	memcpy(data, (char*)fileMemory + fileOffset, size * count);
+	fileOffset += size * count;
+}
+
 bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode)
 {
-	FILE* file = fopen(path, "rb");
-	if (!file)
+	size_t fileSize;
+	void* file = mmapFile(path, &fileSize);
+	if (!file || fileSize < sizeof(SceneHeader))
 		return false;
 
 	SceneHeader header = {};
-	fread(&header, sizeof(header), 1, file);
+	memcpy(&header, file, sizeof(header));
 
 	if (header.magic != kSceneCacheMagic || header.version != kSceneCacheVersion ||
 	    header.meshletMaxVertices != MESH_MAXVTX || header.meshletMaxTriangles != MESH_MAXTRI ||
 	    header.clrtMode != clrtMode)
 	{
-		fclose(file);
+		unmapFile(file, fileSize);
 		return false;
 	}
+
+	size_t fileOffset = sizeof(header);
 
 	geometry.vertices.resize(header.vertexCount);
 	geometry.indices.resize(header.indexCount);
@@ -112,25 +123,25 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	draws.resize(header.drawCount);
 	texturePaths.resize(header.texturePathCount);
 
-	fread(geometry.vertices.data(), sizeof(Vertex), geometry.vertices.size(), file);
-	fread(geometry.indices.data(), sizeof(uint32_t), geometry.indices.size(), file);
-	fread(geometry.meshlets.data(), sizeof(Meshlet), geometry.meshlets.size(), file);
-	fread(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file);
-	fread(geometry.meshletvtx0.data(), sizeof(uint16_t), geometry.meshletvtx0.size(), file);
-	fread(geometry.meshes.data(), sizeof(Mesh), geometry.meshes.size(), file);
-	fread(materials.data(), sizeof(Material), materials.size(), file);
-	fread(draws.data(), sizeof(MeshDraw), draws.size(), file);
+	read(geometry.vertices.data(), sizeof(Vertex), geometry.vertices.size(), file, fileOffset);
+	read(geometry.indices.data(), sizeof(uint32_t), geometry.indices.size(), file, fileOffset);
+	read(geometry.meshlets.data(), sizeof(Meshlet), geometry.meshlets.size(), file, fileOffset);
+	read(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file, fileOffset);
+	read(geometry.meshletvtx0.data(), sizeof(uint16_t), geometry.meshletvtx0.size(), file, fileOffset);
+	read(geometry.meshes.data(), sizeof(Mesh), geometry.meshes.size(), file, fileOffset);
+	read(materials.data(), sizeof(Material), materials.size(), file, fileOffset);
+	read(draws.data(), sizeof(MeshDraw), draws.size(), file, fileOffset);
 
 	for (std::string& path : texturePaths)
 	{
 		char buf[128] = {};
-		fread(buf, sizeof(buf), 1, file);
+		read(buf, sizeof(buf), 1, file, fileOffset);
 		buf[sizeof(buf) - 1] = 0;
 
 		path = buf;
 	}
 
-	fclose(file);
+	unmapFile(file, fileSize);
 
 	camera = header.camera;
 	sunDirection = header.sunDirection;

@@ -59,6 +59,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 28. Moving objects: https://youtu.be/TcuUz1ib35c
 29. Performance nsights: https://youtu.be/qlxrRyRdOcY
 30. Simplifying synchronization: https://youtu.be/0rqWe1M2HiE
+31. Cooking geometry: https://youtu.be/d04h0sZPwFU
 
 # Issues
 

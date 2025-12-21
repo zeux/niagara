@@ -628,11 +628,22 @@ int main(int argc, const char** argv)
 		const char* ext = strrchr(argv[1], '.');
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
-			printf("Loading scene from %s\n", argv[1]);
-			if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], meshShadingSupported, fastMode, clrtMode))
+			std::string cachePath = std::string(argv[1]) + ".cache";
+
+			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode))
 			{
-				printf("Error: scene %s failed to load\n", argv[1]);
-				return 1;
+				printf("Loading scene from %s\n", argv[1]);
+				if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], /* buildMeshlets= */ true, /* fastMode= */ false, clrtMode))
+				{
+					printf("Error: scene %s failed to load\n", argv[1]);
+					return 1;
+				}
+
+				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode))
+				{
+					printf("Error: scene cache %s failed to save\n", cachePath.c_str());
+					return 1;
+				}
 			}
 
 			sceneMode = true;

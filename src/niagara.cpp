@@ -622,6 +622,8 @@ int main(int argc, const char** argv)
 	bool sceneMode = false;
 	bool fastMode = getenv("FAST") && atoi(getenv("FAST"));
 	bool clrtMode = getenv("CLRT") && atoi(getenv("CLRT"));
+	bool compressed = !getenv("COMPRESSED") || atoi(getenv("COMPRESSED")); // enabled by default
+	bool verbose = getenv("VERBOSE") && atoi(getenv("VERBOSE"));
 
 	if (argc == 2)
 	{
@@ -639,7 +641,7 @@ int main(int argc, const char** argv)
 					return 1;
 				}
 
-				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode))
+				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, compressed, verbose))
 				{
 					printf("Error: scene cache %s failed to save\n", cachePath.c_str());
 					return 1;

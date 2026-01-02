@@ -86,8 +86,12 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 	const float fill_weight = MESHLET_FILL_WEIGHT;
 
 	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, min_triangles));
-	std::vector<unsigned int> meshlet_vertices(meshlets.size() * max_vertices);
-	std::vector<unsigned char> meshlet_triangles(meshlets.size() * max_triangles * 3);
+	std::vector<unsigned int> meshlet_vertices(indices.size());
+#if MESHOPTIMIZER_VERSION < 1000
+	std::vector<unsigned char> meshlet_triangles(indices.size() + max_meshlets * 3); // account for 4b alignment
+#else
+	std::vector<unsigned char> meshlet_triangles(indices.size());
+#endif
 
 	if (fast)
 		meshlets.resize(meshopt_buildMeshletsScan(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));

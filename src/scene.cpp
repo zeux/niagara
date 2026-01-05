@@ -144,7 +144,7 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 			v.tp = 0;
 			v.np = (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 0], 10) + 511) |
 			       (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 1], 10) + 511) << 10 |
-			       (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 1], 10) + 511) << 20;
+			       (meshopt_quantizeSnorm(obj->normals[gi.n * 3 + 2], 10) + 511) << 20;
 			v.tu = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 0]);
 			v.tv = meshopt_quantizeHalf(obj->texcoords[gi.t * 2 + 1]);
 		}

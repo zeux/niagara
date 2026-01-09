@@ -632,6 +632,8 @@ int main(int argc, const char** argv)
 		{
 			std::string cachePath = std::string(argv[1]) + ".cache";
 
+			double sceneTimer = glfwGetTime();
+
 			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode))
 			{
 				printf("Loading scene from %s\n", argv[1]);
@@ -646,6 +648,10 @@ int main(int argc, const char** argv)
 					printf("Error: scene cache %s failed to save\n", cachePath.c_str());
 					return 1;
 				}
+			}
+			else
+			{
+				printf("Loaded scene from cache %s in %.2f sec\n", cachePath.c_str(), glfwGetTime() - sceneTimer);
 			}
 
 			sceneMode = true;

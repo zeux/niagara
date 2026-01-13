@@ -8,6 +8,7 @@ struct Swapchain
 
 	uint32_t width, height;
 	uint32_t imageCount;
+	bool dirty;
 };
 
 typedef struct GLFWwindow GLFWwindow;

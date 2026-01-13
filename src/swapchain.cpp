@@ -134,6 +134,7 @@ void createSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevic
 	result.width = width;
 	result.height = height;
 	result.imageCount = imageCount;
+	result.dirty = false;
 }
 
 void destroySwapchain(VkDevice device, const Swapchain& swapchain)
@@ -149,7 +150,7 @@ SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevi
 	if (width == 0 || height == 0)
 		return Swapchain_NotReady;
 
-	if (result.width == width && result.height == height)
+	if (result.width == width && result.height == height && !result.dirty)
 		return Swapchain_Ready;
 
 	Swapchain old = result;

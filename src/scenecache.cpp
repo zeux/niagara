@@ -10,7 +10,7 @@
 #include <string.h>
 
 const uint32_t kSceneCacheMagic = 0x434E4353; // 'SCNC'
-const uint32_t kSceneCacheVersion = 2;
+const uint32_t kSceneCacheVersion = 3;
 
 struct SceneHeader
 {
@@ -25,6 +25,7 @@ struct SceneHeader
 
 	uint32_t compressedVertexBytes;
 	uint32_t compressedIndexBytes;
+	uint32_t compressedMeshletDataBytes;
 	uint32_t compressedMeshletVtx0Bytes;
 
 	uint32_t vertexCount;
@@ -60,6 +61,41 @@ static size_t writeIndexCompressed(const uint32_t* indices, size_t count, FILE* 
 
 	fwrite(buf.data(), 1, buf.size(), file);
 	return buf.size();
+}
+
+static size_t writeMeshletDataCompressed(const std::vector<Meshlet>& meshlets, const std::vector<uint32_t>& meshletdata, FILE* file)
+{
+	std::vector<unsigned char> encoded(meshopt_encodeMeshletBound(MESH_MAXVTX, MESH_MAXTRI));
+	std::vector<unsigned int> refs(MESH_MAXVTX);
+
+	size_t total = 0;
+
+	for (const Meshlet& meshlet : meshlets)
+	{
+		const uint32_t* data = meshletdata.data() + meshlet.dataOffset;
+		size_t vertexWords = meshlet.shortRefs ? (meshlet.vertexCount + 1) / 2 : meshlet.vertexCount;
+
+		const unsigned int* vertices = data;
+		if (meshlet.shortRefs)
+		{
+			const uint16_t* refs16 = reinterpret_cast<const uint16_t*>(data);
+			for (unsigned int i = 0; i < meshlet.vertexCount; ++i)
+				refs[i] = refs16[i];
+
+			vertices = refs.data();
+		}
+
+		const unsigned char* triangles = reinterpret_cast<const unsigned char*>(data + vertexWords);
+		size_t encodedSize = meshopt_encodeMeshlet(encoded.data(), encoded.size(), vertices, meshlet.vertexCount, triangles, meshlet.triangleCount);
+		uint16_t encodedSize16 = uint16_t(encodedSize);
+
+		fwrite(&encodedSize16, sizeof(encodedSize16), 1, file);
+		fwrite(encoded.data(), 1, encodedSize, file);
+
+		total += sizeof(encodedSize16) + encodedSize;
+	}
+
+	return total;
 }
 
 bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose)
@@ -105,7 +141,10 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 		fwrite(geometry.indices.data(), sizeof(uint32_t), geometry.indices.size(), file);
 
 	fwrite(geometry.meshlets.data(), sizeof(Meshlet), geometry.meshlets.size(), file);
-	fwrite(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file);
+	if (compressed)
+		header.compressedMeshletDataBytes = writeMeshletDataCompressed(geometry.meshlets, geometry.meshletdata, file);
+	else
+		fwrite(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file);
 
 	if (compressed)
 		header.compressedMeshletVtx0Bytes = writeVertexCompressed(geometry.meshletvtx0.data(), sizeof(uint16_t) * 4, geometry.meshletvtx0.size() / 4, file);
@@ -143,7 +182,12 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 		else
 			printf("Index data: %.2f MB\n", double(geometry.indices.size() * sizeof(uint32_t)) / 1e6);
 
-		printf("Meshlet data: %.2f MB\n", double(geometry.meshlets.size() * sizeof(Meshlet) + geometry.meshletdata.size() * sizeof(uint32_t)) / 1e6);
+		printf("Meshlet headers: %.2f MB\n", double(geometry.meshlets.size() * sizeof(Meshlet)) / 1e6);
+
+		if (compressed)
+			printf("Meshlet data: %.2f MB (%.2f MB compressed)\n", double(geometry.meshletdata.size() * sizeof(uint32_t)) / 1e6, double(header.compressedMeshletDataBytes) / 1e6);
+		else
+			printf("Meshlet data: %.2f MB\n", double(geometry.meshletdata.size() * sizeof(uint32_t)) / 1e6);
 
 		if (compressed)
 			printf("Meshlet RT data: %.2f MB (%.2f MB compressed)\n", double(geometry.meshletvtx0.size() * sizeof(uint16_t)) / 1e6, double(header.compressedMeshletVtx0Bytes) / 1e6);
@@ -170,6 +214,23 @@ static void readIndexCompressed(unsigned int* data, size_t count, size_t compres
 {
 	meshopt_decodeIndexBuffer(data, count, (unsigned char*)fileMemory + fileOffset, compressedBytes);
 	fileOffset += compressedBytes;
+}
+
+static void readMeshletDataCompressed(const std::vector<Meshlet>& meshlets, std::vector<uint32_t>& meshletdata, void* fileMemory, size_t& fileOffset)
+{
+	for (const Meshlet& meshlet : meshlets)
+	{
+		uint16_t encodedSize = 0;
+		read(&encodedSize, sizeof(encodedSize), 1, fileMemory, fileOffset);
+
+		uint32_t* data = meshletdata.data() + meshlet.dataOffset;
+
+		size_t vertexWords = meshlet.shortRefs ? (meshlet.vertexCount + 1) / 2 : meshlet.vertexCount;
+		size_t vertexSize = meshlet.shortRefs ? 2 : 4;
+
+		meshopt_decodeMeshlet(data, meshlet.vertexCount, vertexSize, data + vertexWords, meshlet.triangleCount, 3, (unsigned char*)fileMemory + fileOffset, encodedSize);
+		fileOffset += encodedSize;
+	}
 }
 
 bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode)
@@ -213,7 +274,10 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 		read(geometry.indices.data(), sizeof(uint32_t), geometry.indices.size(), file, fileOffset);
 
 	read(geometry.meshlets.data(), sizeof(Meshlet), geometry.meshlets.size(), file, fileOffset);
-	read(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file, fileOffset);
+	if (header.compressed)
+		readMeshletDataCompressed(geometry.meshlets, geometry.meshletdata, file, fileOffset);
+	else
+		read(geometry.meshletdata.data(), sizeof(uint32_t), geometry.meshletdata.size(), file, fileOffset);
 
 	if (header.compressed)
 		readVertexCompressed(geometry.meshletvtx0.data(), sizeof(uint16_t) * 4, geometry.meshletvtx0.size() / 4, header.compressedMeshletVtx0Bytes, file, fileOffset);

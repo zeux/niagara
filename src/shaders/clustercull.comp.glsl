@@ -67,10 +67,11 @@ void main()
 	uint mvi = mgi + command.meshletVisibilityOffset;
 
 #if CULL
-	vec3 center = rotateQuat(meshlets[mi].center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
+	vec3 center = vec3(meshlets[mi].center[0], meshlets[mi].center[1], meshlets[mi].center[2]);
+	center = rotateQuat(center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
 	center = (cullData.view * vec4(center, 1)).xyz;
 
-	float radius = meshlets[mi].radius * meshDraw.scale;
+	float radius = float(meshlets[mi].radius) * meshDraw.scale;
 
 	vec3 cone_axis = rotateQuat(vec3(int(meshlets[mi].cone_axis[0]) / 127.0, int(meshlets[mi].cone_axis[1]) / 127.0, int(meshlets[mi].cone_axis[2]) / 127.0), meshDraw.orientation);
 	cone_axis = mat3(cullData.view) * cone_axis;

@@ -7,10 +7,10 @@
 #include <string>
 #include <vector>
 
-struct alignas(16) Meshlet
+struct alignas(8) Meshlet
 {
-	vec3 center;
-	float radius;
+	uint16_t center[3];
+	uint16_t radius;
 	int8_t cone_axis[3];
 	int8_t cone_cutoff;
 

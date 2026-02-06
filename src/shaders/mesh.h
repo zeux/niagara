@@ -10,9 +10,8 @@ struct Vertex
 
 struct Meshlet
 {
-	// vec3 keeps Meshlet aligned to 16 bytes which is important because C++ has an alignas() directive
-	vec3 center;
-	float radius;
+	float16_t center[3];
+	float16_t radius;
 	int8_t cone_axis[3];
 	int8_t cone_cutoff;
 
@@ -21,6 +20,7 @@ struct Meshlet
 	uint8_t vertexCount;
 	uint8_t triangleCount;
 	uint8_t shortRefs;
+	uint8_t padding;
 };
 
 struct CullData

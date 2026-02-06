@@ -27,6 +27,13 @@
 #include <unistd.h>
 #endif
 
+#define NIAGARA_ENABLE_IMGUI 1
+
+#if NIAGARA_ENABLE_IMGUI
+#include "imgui_utils.h"
+#include <imgui.h>
+#endif
+
 bool meshShadingEnabled = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
@@ -955,6 +962,10 @@ int main(int argc, const char** argv)
 	uint64_t timestampResults[23] = {};
 	uint64_t pipelineResults[3] = {};
 
+#if NIAGARA_ENABLE_IMGUI
+	imInit(window, instance, physicalDevice, device, familyIndex, queue, swapchain.imageCount, swapchainFormat);
+#endif
+
 	while (!glfwWindowShouldClose(window))
 	{
 		double frameDelta = glfwGetTime() - frameTimestamp;
@@ -987,8 +998,14 @@ int main(int argc, const char** argv)
 		if (reloadShaders && glfwGetTime() >= reloadShadersTimer)
 		{
 			bool changed = false;
-			int rc = system("ninja --quiet compile_shaders");
-			if (rc == 0)
+
+#if defined(CMAKE_BINARY_DIR)
+			int rr = system("cmake --build " CMAKE_BINARY_DIR " --target compile_shaders");
+#else
+			int rr = system("ninja --quiet compile_shaders");
+#endif
+
+			if (rr == 0)
 			{
 				for (Shader& shader : shaders.shaders)
 				{
@@ -1639,6 +1656,54 @@ int main(int argc, const char** argv)
 			}
 		}
 
+#if NIAGARA_ENABLE_IMGUI
+		imBeginFrame();
+		ImGui::SetNextWindowCollapsed(true, ImGuiCond_Appearing);
+		if (ImGui::Begin("niagara", nullptr))
+		{
+			ImGui::BeginDisabled(!meshShadingSupported);
+			ImGui::Checkbox("Enable mesh shading (M)", &meshShadingEnabled);
+			ImGui::Checkbox("Enable task shader (T)", &taskShadingEnabled);
+			ImGui::EndDisabled();
+
+			ImGui::Checkbox("Enable frustum culling (C)", &cullingEnabled);
+			ImGui::Checkbox("Enable mesh occlusion culling (O)", &occlusionEnabled);
+			ImGui::Checkbox("Enable cluster occlusion culling (K)", &clusterOcclusionEnabled);
+			ImGui::Checkbox("Enable LODs (L)", &lodEnabled);
+			ImGui::Checkbox("Enable animation (Space)", &animationEnabled);
+			ImGui::Checkbox("Debug sleep (Z)", &debugSleep);
+
+			ImGui::Checkbox("Enable RT shadows (F)", &shadowsEnabled);
+			ImGui::Checkbox("Enable RT shadows blur (B)", &shadowblurEnabled);
+			ImGui::Checkbox("Enable RT shadows checkerboard (X)", &shadowCheckerboard);
+
+			ImGui::SliderInt("Set RT shadows quality (Q)", &shadowQuality, 0, 1);
+			ImGui::SliderInt("Set LOD step (0-9)", &debugLodStep, 0, COUNTOF(Mesh::lods));
+
+			debugGuiMode = debugGuiMode % 3;
+			ImGui::SliderInt("GUI debug level (G)", &debugGuiMode, 0, 2);
+
+#if !defined(CMAKE_BINARY_DIR)
+			ImGui::Text("CMAKE_BINARY_DIR not defined: shaders reload may not work as expected");
+#endif
+
+			if (!reloadShaders && ImGui::Button("Enable shaders live reload"))
+			{
+				reloadShaders = !reloadShaders;
+				reloadShadersTimer = 0;
+			}
+			else if (reloadShaders)
+			{
+				ImGui::Text("Shaders live reload active...");
+				if (ImGui::Button("Stop"))
+					reloadShaders = !reloadShaders;
+			}
+		}
+		ImGui::End();
+
+		imEndAndRender(commandBuffer, swapchainImageViews[imageIndex], { { 0, 0 }, { uint32_t(swapchain.width), uint32_t(swapchain.height) } });
+#endif
+
 		VkImageMemoryBarrier2 presentBarrier = imageBarrier(swapchain.images[imageIndex],
 		    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL,
 		    0, 0, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -1705,6 +1770,10 @@ int main(int argc, const char** argv)
 	}
 
 	VK_CHECK(vkDeviceWaitIdle(device));
+
+#if NIAGARA_ENABLE_IMGUI
+	imShutdown();
+#endif
 
 	vkDestroyDescriptorPool(device, textureSet.first, 0);
 

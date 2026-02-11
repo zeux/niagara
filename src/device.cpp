@@ -126,8 +126,8 @@ static VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeverityFlagBit
 	if (severity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
 		return VK_FALSE;
 
-	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
-	if (strstr(callbackData->pMessage, "vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosCount is zero"))
+	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2677 - unclear if we'll need a deeper fix
+	if (strstr(callbackData->pMessage, "VUID-RuntimeSpirv-MeshEXT-10883"))
 		return VK_FALSE;
 
 	const char* type = (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) ? "ERROR" : "WARNING";

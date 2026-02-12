@@ -7,3 +7,5 @@ build.ninja
 .ninja_*
 compile_commands.json
 *.cmake
+
+imgui.ini

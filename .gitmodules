@@ -16,3 +16,6 @@
 [submodule "extern/cgltf"]
 	path = extern/cgltf
 	url = https://github.com/jkuhlmann/cgltf
+[submodule "extern/imgui"]
+	path = extern/imgui
+	url = https://github.com/ocornut/imgui.git

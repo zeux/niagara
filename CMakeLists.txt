@@ -15,7 +15,13 @@ add_executable(niagara
 
 set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 
-target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW GLM_FORCE_QUAT_CTOR_XYZW)
+target_compile_definitions(niagara PRIVATE
+        GLFW_INCLUDE_NONE
+        GLM_FORCE_XYZW_ONLY
+        GLM_FORCE_QUAT_DATA_XYZW
+        GLM_FORCE_QUAT_CTOR_XYZW
+        CMAKE_BINARY_DIR="${CMAKE_BINARY_DIR}"
+)
 target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
 
 if(WIN32)
@@ -40,10 +46,23 @@ endif()
 add_subdirectory(extern/volk)
 add_subdirectory(extern/meshoptimizer)
 
+file(GLOB IMGUI_SOURCES "extern/imgui/*.cpp" "extern/imgui/*.c")
+
+list(APPEND IMGUI_SOURCES "extern/imgui/misc/cpp/imgui_stdlib.cpp")
+list(APPEND IMGUI_SOURCES "extern/imgui/backends/imgui_impl_glfw.cpp")
+list(APPEND IMGUI_SOURCES "extern/imgui/backends/imgui_impl_vulkan.cpp")
+
+add_library(imgui STATIC ${IMGUI_SOURCES})
+
+target_link_libraries(imgui PUBLIC glfw volk)
+target_include_directories(imgui PUBLIC "extern/imgui")
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_USE_VOLK)
+
 target_link_libraries(niagara
   PRIVATE
     glfw
     volk
+    imgui
     meshoptimizer)
 
 if(UNIX)

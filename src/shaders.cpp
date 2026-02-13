@@ -32,6 +32,7 @@ struct Id
 	uint32_t storageClass;
 	uint32_t binding;
 	uint32_t set;
+	uint32_t imageSampled;
 	uint32_t constant;
 };
 
@@ -58,14 +59,14 @@ static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
 	}
 }
 
-static VkDescriptorType getDescriptorType(SpvOp op)
+static VkDescriptorType getDescriptorType(SpvOp op, uint32_t imageSampled = 0)
 {
 	switch (op)
 	{
 	case SpvOpTypeStruct:
 		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	case SpvOpTypeImage:
-		return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		return imageSampled == 1 ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	case SpvOpTypeSampler:
 		return VK_DESCRIPTOR_TYPE_SAMPLER;
 	case SpvOpTypeSampledImage:
@@ -158,7 +159,6 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 		}
 		break;
 		case SpvOpTypeStruct:
-		case SpvOpTypeImage:
 		case SpvOpTypeSampler:
 		case SpvOpTypeSampledImage:
 		case SpvOpTypeAccelerationStructureKHR:
@@ -170,6 +170,18 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 			assert(ids[id].opcode == 0);
 			ids[id].opcode = opcode;
+		}
+		break;
+		case SpvOpTypeImage:
+		{
+			assert(wordCount >= 9);
+
+			uint32_t id = insn[1];
+			assert(id < idBound);
+
+			assert(ids[id].opcode == 0);
+			ids[id].opcode = opcode;
+			ids[id].imageSampled = insn[7];
 		}
 		break;
 		case SpvOpTypePointer:
@@ -225,8 +237,8 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			assert(id.binding < 32);
 			assert(ids[id.typeId].opcode == SpvOpTypePointer);
 
-			uint32_t typeKind = ids[ids[id.typeId].typeId].opcode;
-			VkDescriptorType resourceType = getDescriptorType(SpvOp(typeKind));
+			const Id& type = ids[ids[id.typeId].typeId];
+			VkDescriptorType resourceType = getDescriptorType(SpvOp(type.opcode), type.imageSampled);
 
 			assert((shader.resourceMask & (1 << id.binding)) == 0 || shader.resourceTypes[id.binding] == resourceType);
 

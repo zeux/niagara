@@ -60,6 +60,7 @@ Playlist: https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugY
 29. Performance nsights: https://youtu.be/qlxrRyRdOcY
 30. Simplifying synchronization: https://youtu.be/0rqWe1M2HiE
 31. Cooking geometry: https://youtu.be/d04h0sZPwFU
+32. Descriptor heaps: https://youtu.be/VXN4Gewjk4k
 
 # Issues
 

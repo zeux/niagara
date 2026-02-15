@@ -48,7 +48,8 @@ layout(binding = 4) buffer DrawVisibility
 	uint drawVisibility[];
 };
 
-layout(binding = 5) uniform sampler2D depthPyramid;
+layout(binding = 5) uniform texture2D depthPyramid;
+layout(binding = 6) uniform sampler depthSampler;
 
 void main()
 {
@@ -96,7 +97,7 @@ void main()
 			float level = ceil(log2(max(width, height)));
 
 			// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
-			float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
+			float depth = textureLod(sampler2D(depthPyramid, depthSampler), (aabb.xy + aabb.zw) * 0.5, level).x;
 			float depthSphere = cullData.znear / (center.z - radius);
 
 			visible = visible && depthSphere > depth;

@@ -39,7 +39,7 @@ layout(binding = 3) buffer MeshletVisibility
 	uint meshletVisibility[];
 };
 
-layout(binding = 4) uniform sampler2D depthPyramid;
+layout(binding = 4) uniform texture2D depthPyramid;
 
 layout(binding = 5) writeonly buffer ClusterIndices
 {
@@ -50,6 +50,8 @@ layout(binding = 6) buffer ClusterCount
 {
 	uint clusterCount;
 };
+
+layout(binding = 7) uniform sampler depthSampler;
 
 void main()
 {
@@ -116,7 +118,7 @@ void main()
 			float level = floor(log2(max(width, height)));
 
 			// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
-			float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
+			float depth = textureLod(sampler2D(depthPyramid, depthSampler), (aabb.xy + aabb.zw) * 0.5, level).x;
 			float depthSphere = cullData.znear / (center.z - radius);
 
 			visible = visible && depthSphere > depth;

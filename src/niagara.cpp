@@ -144,7 +144,7 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 
 				const Image* image = static_cast<const Image*>(info.resource);
 				char descriptor[128];
-				getDescriptor(framedesc.device, image->image, image->format, 0, 1, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+				getDescriptor(framedesc.device, image->image, image->format, 0, VK_REMAINING_MIP_LEVELS, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
 
 				memcpy(static_cast<char*>(framedesc.descriptorHeap) + (framedesc.descriptorOffset + i) * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
 			}
@@ -1370,8 +1370,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
-				DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
+				DescriptorInfo descriptors[] = { db, mb, dcb, dccb, dvb, depthPyramid, depthSampler };
 
 				dispatch(commandBuffer, framedesc, drawcullProgram, uint32_t(draws.size()), 1, passData, descriptors);
 			}
@@ -1382,7 +1381,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, tasksubmitPipeline);
 
-				DescriptorInfo descriptors[] = { dccb.buffer, dcb.buffer };
+				DescriptorInfo descriptors[] = { dccb, dcb };
 				pushDescriptors(commandBuffer, framedesc, tasksubmitProgram, descriptors);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
@@ -1409,8 +1408,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, late ? clusterculllatePipeline : clustercullPipeline);
 
-				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mvb.buffer, pyramidDesc, cib.buffer, ccb.buffer };
+				DescriptorInfo descriptors[] = { dcb, db, mlb, mvb, depthPyramid, cib, ccb, depthSampler };
 				pushDescriptors(commandBuffer, framedesc, clustercullProgram, descriptors);
 
 				CullData passData = cullData;
@@ -1423,7 +1421,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clustersubmitPipeline);
 
-				DescriptorInfo descriptors2[] = { ccb.buffer, cib.buffer };
+				DescriptorInfo descriptors2[] = { ccb, cib };
 				pushDescriptors(commandBuffer, framedesc, clustersubmitProgram, descriptors2);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
@@ -1475,7 +1473,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? clusterpostPipeline : clusterPipeline);
 
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer, DescriptorInfo(), textureSampler, mtb.buffer };
+				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, cib, DescriptorInfo(), textureSampler, mtb };
 				pushDescriptors(commandBuffer, framedesc, clusterProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1488,8 +1486,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshtaskpostPipeline : late ? meshtasklatePipeline
 				                                                                                                              : meshtaskPipeline);
 
-				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc, textureSampler, mtb.buffer };
+				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, mvb, depthPyramid, textureSampler, mtb, depthSampler };
 				pushDescriptors(commandBuffer, framedesc, meshtaskProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1501,7 +1498,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshpostPipeline : meshPipeline);
 
-				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler, mtb.buffer };
+				DescriptorInfo descriptors[] = { dcb, db, vb, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler, mtb };
 				pushDescriptors(commandBuffer, framedesc, meshProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
@@ -1529,11 +1526,9 @@ int main(int argc, const char** argv)
 
 			for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 			{
-				DescriptorInfo sourceDepth = (i == 0)
-				                                 ? DescriptorInfo(depthSampler, depthTarget.imageView)
-				                                 : DescriptorInfo(depthSampler, depthPyramidMips[i - 1]);
+				VkImageView sourceDepth = (i == 0) ? depthTarget.imageView : depthPyramidMips[i - 1];
 
-				DescriptorInfo descriptors[] = { depthPyramidMips[i], sourceDepth };
+				DescriptorInfo descriptors[] = { depthPyramidMips[i], sourceDepth, depthSampler };
 
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);

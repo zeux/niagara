@@ -3,6 +3,7 @@
 #define BLUR 1
 
 #extension GL_GOOGLE_include_directive: require
+#extension GL_EXT_samplerless_texture_functions: require
 
 #include "math.h"
 
@@ -17,8 +18,8 @@ layout(push_constant) uniform block
 
 layout(binding = 0) uniform writeonly image2D outImage;
 
-layout(binding = 1) uniform sampler2D shadowImage;
-layout(binding = 2) uniform sampler2D depthImage;
+layout(binding = 1) uniform texture2D shadowImage;
+layout(binding = 2) uniform texture2D depthImage;
 
 void main()
 {

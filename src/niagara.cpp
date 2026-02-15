@@ -139,7 +139,7 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 			{
 				const DescriptorInfo& info = descriptors[i];
 
-				assert(program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+				assert(program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
 				assert(info.resource);
 
 				const Image* image = static_cast<const Image*>(info.resource);
@@ -170,8 +170,7 @@ void dispatch(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc, const 
 	assert(program.pushConstantSize == sizeof(constants));
 	assert(program.pushDescriptorCount == PushDescriptors);
 
-	if (program.pushConstantStages)
-		pushConstants(commandBuffer, framedesc, program, constants);
+	pushConstants(commandBuffer, framedesc, program, constants);
 
 	if (program.pushDescriptorCount)
 		pushDescriptors(commandBuffer, framedesc, program, descriptors);
@@ -571,17 +570,17 @@ int main(int argc, const char** argv)
 	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustersubmit.comp"] }, 0);
 	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustercull.comp"] }, sizeof(CullData));
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["depthreduce.comp"] }, sizeof(vec4));
-	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), 0, textureSetLayout);
 
 	Program meshtaskProgram = {};
 	Program clusterProgram = {};
 	if (meshShadingSupported)
 	{
-		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
-		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
+		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), 0, textureSetLayout);
+		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), 0, textureSetLayout);
 	}
 
-	Program finalProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["final.comp"] }, sizeof(ShadeData));
+	Program finalProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["final.comp"] }, sizeof(ShadeData), resourceDescriptorSize);
 
 	Program shadowProgram = {};
 	Program shadowfillProgram = {};
@@ -1603,7 +1602,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
-				DescriptorInfo descriptors[] = { shadowTarget.imageView, { readSampler, depthTarget.imageView }, tlas, db.buffer, mb.buffer, mtb.buffer, vb.buffer, ib.buffer, textureSampler };
+				DescriptorInfo descriptors[] = { shadowTarget, depthTarget, tlas, db, mb, mtb, vb, ib, textureSampler };
 
 				ShadowData shadowData = {};
 				shadowData.sunDirection = sunDirection;
@@ -1623,7 +1622,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowfillPipeline);
 
-				DescriptorInfo descriptors[] = { { shadowTarget.imageView }, { readSampler, depthTarget.imageView } };
+				DescriptorInfo descriptors[] = { shadowTarget, depthTarget };
 
 				vec4 fillData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
 				memcpy(&fillData.z, &shadowCheckerboardF, sizeof(shadowCheckerboardF));
@@ -1640,7 +1639,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowblurPipeline);
 
-				DescriptorInfo descriptors[] = { blurTo.imageView, { readSampler, blurFrom.imageView }, { readSampler, depthTarget.imageView } };
+				DescriptorInfo descriptors[] = { blurTo, blurFrom, depthTarget };
 
 				vec4 blurData = vec4(float(swapchain.width), float(swapchain.height), pass == 0 ? 1 : 0, camera.znear);
 
@@ -1657,29 +1656,6 @@ int main(int argc, const char** argv)
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 2);
-		}
-
-		{
-			uint32_t timestamp = 19;
-
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
-
-			{
-				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, finalPipeline);
-
-				DescriptorInfo descriptors[] = { swapchainImageViews[imageIndex], { readSampler, gbufferTargets[0].imageView }, { readSampler, gbufferTargets[1].imageView }, { readSampler, depthTarget.imageView }, { readSampler, shadowTarget.imageView } };
-
-				ShadeData shadeData = {};
-				shadeData.cameraPosition = camera.position;
-				shadeData.sunDirection = sunDirection;
-				shadeData.shadowsEnabled = shadowsEnabled;
-				shadeData.inverseViewProjection = inverse(projection * view);
-				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
-
-				dispatch(commandBuffer, framedesc, finalProgram, swapchain.width, swapchain.height, shadeData, descriptors);
-			}
-
-			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		}
 
 #ifdef VK_EXT_descriptor_heap
@@ -1701,6 +1677,31 @@ int main(int argc, const char** argv)
 			vkCmdBindResourceHeapEXT(commandBuffer, &bindResourceHeap);
 		}
 #endif
+
+		Image fakeSwapchainImage = { swapchain.images[imageIndex], swapchainFormat, swapchainImageViews[imageIndex], VK_NULL_HANDLE };
+
+		{
+			uint32_t timestamp = 19;
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
+
+			{
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, finalPipeline);
+
+				DescriptorInfo descriptors[] = { fakeSwapchainImage, gbufferTargets[0], gbufferTargets[1], depthTarget, shadowTarget };
+
+				ShadeData shadeData = {};
+				shadeData.cameraPosition = camera.position;
+				shadeData.sunDirection = sunDirection;
+				shadeData.shadowsEnabled = shadowsEnabled;
+				shadeData.inverseViewProjection = inverse(projection * view);
+				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
+
+				dispatch(commandBuffer, framedesc, finalProgram, swapchain.width, swapchain.height, shadeData, descriptors);
+			}
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
+		}
 
 		if (debugGuiMode % 3)
 		{
@@ -1728,7 +1729,6 @@ int main(int argc, const char** argv)
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, debugtextPipeline);
 
-			Image fakeSwapchainImage = { swapchain.images[imageIndex], swapchainFormat, swapchainImageViews[imageIndex], VK_NULL_HANDLE };
 			DescriptorInfo descriptors[] = { fakeSwapchainImage };
 			pushDescriptors(commandBuffer, framedesc, debugtextProgram, descriptors);
 

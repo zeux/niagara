@@ -1,6 +1,7 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive: require
+#extension GL_EXT_samplerless_texture_functions: require
 
 #include "math.h"
 
@@ -24,20 +25,20 @@ layout(push_constant) uniform block
 
 layout(binding = 0) uniform writeonly image2D outImage;
 
-layout(binding = 1) uniform sampler2D gbufferImage0;
-layout(binding = 2) uniform sampler2D gbufferImage1;
-layout(binding = 3) uniform sampler2D depthImage;
+layout(binding = 1) uniform texture2D gbufferImage0;
+layout(binding = 2) uniform texture2D gbufferImage1;
+layout(binding = 3) uniform texture2D depthImage;
 
-layout(binding = 4) uniform sampler2D shadowImage;
+layout(binding = 4) uniform texture2D shadowImage;
 
 void main()
 {
 	uvec2 pos = gl_GlobalInvocationID.xy;
 	vec2 uv = (vec2(pos) + 0.5) / shadeData.imageSize;
 
-	vec4 gbuffer0 = texture(gbufferImage0, uv);
-	vec4 gbuffer1 = texture(gbufferImage1, uv);
-	float depth = texture(depthImage, uv).r;
+	vec4 gbuffer0 = texelFetch(gbufferImage0, ivec2(pos), 0);
+	vec4 gbuffer1 = texelFetch(gbufferImage1, ivec2(pos), 0);
+	float depth = texelFetch(depthImage, ivec2(pos), 0).r;
 
 	vec3 albedo = fromsrgb(gbuffer0.rgb);
 	vec3 emissive = albedo * (exp2(gbuffer0.a * 5) - 1);
@@ -59,7 +60,7 @@ void main()
 
 	float shadow = 1;
 	if (shadeData.shadowsEnabled == 1)
-		shadow = texture(shadowImage, uv).r;
+		shadow = texelFetch(shadowImage, ivec2(pos), 0).r;
 
 	float ambient = 0.07;
 	float shadowAmbient = 0.05;

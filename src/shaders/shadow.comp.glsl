@@ -4,6 +4,7 @@
 #extension GL_EXT_shader_16bit_storage: require
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_EXT_nonuniform_qualifier: require
+#extension GL_EXT_samplerless_texture_functions: require
 
 #extension GL_GOOGLE_include_directive: require
 
@@ -32,7 +33,7 @@ layout(push_constant) uniform block
 
 layout(binding = 0) uniform writeonly image2D outImage;
 
-layout(binding = 1) uniform sampler2D depthImage;
+layout(binding = 1) uniform texture2D depthImage;
 layout(binding = 2) uniform accelerationStructureEXT tlas;
 
 layout(binding = 3) readonly buffer Draws
@@ -125,7 +126,7 @@ void main()
 	}
 
 	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
-	float depth = texture(depthImage, uv).r;
+	float depth = texelFetch(depthImage, ivec2(pos), 0).r;
 
 	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1);
 	vec4 wposh = shadowData.inverseViewProjection * clip;

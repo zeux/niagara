@@ -419,7 +419,7 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 			mapping.bindingCount = 1;
 			mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
 			mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
-			mapping.sourceData.pushIndex.heapOffset = 0;
+			mapping.sourceData.pushIndex.heapOffset = i * descriptorSize;
 			mapping.sourceData.pushIndex.pushOffset = pushConstantSize;
 			mapping.sourceData.pushIndex.heapIndexStride = descriptorSize;
 			mapping.sourceData.pushIndex.heapArrayStride = descriptorSize;

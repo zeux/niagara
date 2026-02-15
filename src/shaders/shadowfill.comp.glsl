@@ -1,6 +1,7 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive: require
+#extension GL_EXT_samplerless_texture_functions: require
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -11,7 +12,7 @@ layout(push_constant) uniform block
 };
 
 layout(binding = 0, r8) uniform image2D shadowImage;
-layout(binding = 1) uniform sampler2D depthImage;
+layout(binding = 1) uniform texture2D depthImage;
 
 void main()
 {

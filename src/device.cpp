@@ -339,9 +339,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceClusterAccelerationStructureFeaturesNV featuresClusterAcceleration = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV };
 	featuresClusterAcceleration.clusterAccelerationStructure = true;
 
+#if VK_EXT_descriptor_heap
 	// This will only be used if descheapSupported=true (see below)
 	VkPhysicalDeviceDescriptorHeapFeaturesEXT featuresDescriptorHeap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT };
 	featuresDescriptorHeap.descriptorHeap = true;
+#endif
 
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;

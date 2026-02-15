@@ -113,7 +113,7 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 {
 	VkBufferCreateInfo createInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	createInfo.size = size;
-	createInfo.usage = usage;
+	createInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
 	VkBuffer buffer = 0;
 	VK_CHECK(vkCreateBuffer(device, &createInfo, 0, &buffer));
@@ -129,13 +129,9 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 	allocateInfo.memoryTypeIndex = memoryTypeIndex;
 
 	VkMemoryAllocateFlagsInfo flagInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
-
-	if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
-	{
-		allocateInfo.pNext = &flagInfo;
-		flagInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-		flagInfo.deviceMask = 1;
-	}
+	flagInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+	flagInfo.deviceMask = 1;
+	allocateInfo.pNext = &flagInfo;
 
 	VkDeviceMemory memory = 0;
 	VK_CHECK(vkAllocateMemory(device, &allocateInfo, 0, &memory));
@@ -150,6 +146,7 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 	result.memory = memory;
 	result.data = data;
 	result.size = size;
+	result.address = getBufferAddress(result, device);
 }
 
 void uploadBuffer(VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const Buffer& buffer, const Buffer& scratch, const void* data, size_t size)
@@ -187,6 +184,7 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 	vkFreeMemory(device, buffer.memory, 0);
 }
 
+// TODO: replace this with direct access to Buffer::address
 VkDeviceAddress getBufferAddress(const Buffer& buffer, VkDevice device)
 {
 	VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
@@ -250,6 +248,7 @@ void createImage(Image& result, VkDevice device, const VkPhysicalDeviceMemoryPro
 	VK_CHECK(vkBindImageMemory(device, image, memory, 0));
 
 	result.image = image;
+	result.format = format;
 	result.imageView = createImageView(device, image, format, 0, mipLevels);
 	result.memory = memory;
 }
@@ -303,3 +302,44 @@ VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mi
 	VK_CHECK(vkCreateSampler(device, &createInfo, 0, &sampler));
 	return sampler;
 }
+
+#if VK_EXT_descriptor_heap
+void getDescriptor(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount, VkDescriptorType type, void* descriptor, size_t descriptorSize)
+{
+	VkImageAspectFlags aspectMask = (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+	VkImageViewCreateInfo viewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = aspectMask;
+	viewInfo.subresourceRange.baseMipLevel = mipLevel;
+	viewInfo.subresourceRange.levelCount = levelCount;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VkImageDescriptorInfoEXT imageInfo = { VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT };
+	imageInfo.pView = &viewInfo;
+	imageInfo.layout = VK_IMAGE_LAYOUT_GENERAL;
+
+	VkResourceDescriptorInfoEXT resourceInfo = { VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT };
+	resourceInfo.type = type;
+	resourceInfo.data.pImage = &imageInfo;
+
+	VkHostAddressRangeEXT descriptorRange = { descriptor, descriptorSize };
+
+	VK_CHECK(vkWriteResourceDescriptorsEXT(device, 1, &resourceInfo, &descriptorRange));
+}
+
+void getDescriptor(VkDevice device, VkDeviceAddress address, VkDeviceSize size, VkDescriptorType type, void* descriptor, size_t descriptorSize)
+{
+	VkDeviceAddressRangeEXT addressRange = { address, size };
+
+	VkResourceDescriptorInfoEXT resourceInfo = { VK_STRUCTURE_TYPE_RESOURCE_DESCRIPTOR_INFO_EXT };
+	resourceInfo.type = type;
+	resourceInfo.data.pAddressRange = &addressRange;
+
+	VkHostAddressRangeEXT descriptorRange = { descriptor, descriptorSize };
+
+	VK_CHECK(vkWriteResourceDescriptorsEXT(device, 1, &resourceInfo, &descriptorRange));
+}
+#endif

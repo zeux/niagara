@@ -385,9 +385,10 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 			entry.stride = sizeof(DescriptorInfo);
 
 			entries.push_back(entry);
-		}
 
-	*pushDescriptorCount = uint32_t(entries.size());
+			// track descriptor count including gaps
+			*pushDescriptorCount = i + 1;
+		}
 
 	VkDescriptorUpdateTemplateCreateInfo createInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO };
 
@@ -403,6 +404,34 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 
 	return updateTemplate;
 }
+
+#if VK_EXT_descriptor_heap
+static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType resourceTypes[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT mappings[32])
+{
+	uint32_t mappingOffset = 0;
+
+	for (uint32_t i = 0; i < 32; ++i)
+		if (resourceMask & (1 << i))
+		{
+			VkDescriptorSetAndBindingMappingEXT& mapping = mappings[mappingOffset++];
+			mapping.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+			mapping.firstBinding = i;
+			mapping.bindingCount = 1;
+			mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
+			mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
+			mapping.sourceData.pushIndex.heapOffset = 0;
+			mapping.sourceData.pushIndex.pushOffset = pushConstantSize;
+			mapping.sourceData.pushIndex.heapIndexStride = descriptorSize;
+			mapping.sourceData.pushIndex.heapArrayStride = descriptorSize;
+		}
+
+	VkShaderDescriptorSetAndBindingMappingInfoEXT result = { VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT };
+	result.mappingCount = mappingOffset;
+	result.pMappings = mappings;
+
+	return result;
+}
+#endif
 
 bool loadShader(Shader& shader, const char* path)
 {
@@ -538,6 +567,20 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 
+	VkPipelineCreateFlags2CreateInfo extraFlags = { VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO };
+	createInfo.pNext = &extraFlags;
+
+#if VK_EXT_descriptor_heap
+	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[32] = {};
+
+	if (program.descriptorSize)
+	{
+		extraFlags.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.pushConstantSize, program.descriptorSize, heapMappingTable);
+	}
+#endif
+
 	std::vector<VkPipelineShaderStageCreateInfo> stages(program.shaderCount);
 	std::vector<VkShaderModuleCreateInfo> modules(program.shaderCount);
 	for (size_t i = 0; i < program.shaderCount; ++i)
@@ -555,6 +598,11 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 		stage.pName = "main";
 		stage.pSpecializationInfo = &specializationInfo;
 		stage.pNext = &module;
+
+#if VK_EXT_descriptor_heap
+		if (program.descriptorSize)
+			module.pNext = &heapMapping;
+#endif
 	}
 
 	createInfo.stageCount = uint32_t(stages.size());
@@ -644,12 +692,31 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 
 	VkComputePipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
 
+	VkPipelineCreateFlags2CreateInfo extraFlags = { VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO };
+	createInfo.pNext = &extraFlags;
+
+#if VK_EXT_descriptor_heap
+	if (program.descriptorSize)
+		extraFlags.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+#endif
+
 	std::vector<VkSpecializationMapEntry> specializationEntries;
 	VkSpecializationInfo specializationInfo = fillSpecializationInfo(specializationEntries, constants);
 
 	VkShaderModuleCreateInfo module = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
 	module.codeSize = shader.spirv.size(); // note: this needs to be a number of bytes!
 	module.pCode = reinterpret_cast<const uint32_t*>(shader.spirv.data());
+
+#if VK_EXT_descriptor_heap
+	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[32] = {};
+
+	if (program.descriptorSize)
+	{
+		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.pushConstantSize, program.descriptorSize, heapMappingTable);
+		module.pNext = &heapMapping;
+	}
+#endif
 
 	VkPipelineShaderStageCreateInfo stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 	stage.stage = shader.stage;
@@ -675,7 +742,7 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 	return pipeline;
 }
 
-Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, VkDescriptorSetLayout arrayLayout)
+Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetLayout arrayLayout)
 {
 	VkShaderStageFlags pushConstantStages = 0;
 	for (const Shader* shader : shaders)
@@ -692,17 +759,31 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 
 	program.bindPoint = bindPoint;
 
-	program.setLayout = createSetLayout(device, shaders);
-	assert(program.setLayout);
+	if (descriptorSize)
+	{
+		program.resourceMask = gatherResources(shaders, program.resourceTypes);
 
-	program.layout = createPipelineLayout(device, program.setLayout, arrayLayout, pushConstantStages, pushConstantSize);
-	assert(program.layout);
+		// track descriptor count including gaps
+		for (uint32_t i = 0; i < 32; ++i)
+			if (program.resourceMask & (1 << i))
+				program.pushDescriptorCount = i + 1;
+	}
+	else
+	{
+		program.setLayout = createSetLayout(device, shaders);
+		assert(program.setLayout);
 
-	program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders, &program.pushDescriptorCount);
-	assert(program.updateTemplate);
+		program.layout = createPipelineLayout(device, program.setLayout, arrayLayout, pushConstantStages, pushConstantSize);
+		assert(program.layout);
+
+		program.updateTemplate = createUpdateTemplate(device, bindPoint, program.layout, shaders, &program.pushDescriptorCount);
+		assert(program.updateTemplate);
+	}
 
 	program.pushConstantStages = pushConstantStages;
 	program.pushConstantSize = uint32_t(pushConstantSize);
+
+	program.descriptorSize = descriptorSize;
 
 	const Shader* shader = shaders.size() == 1 ? *shaders.begin() : nullptr;
 
@@ -724,9 +805,12 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 
 void destroyProgram(VkDevice device, const Program& program)
 {
-	vkDestroyDescriptorUpdateTemplate(device, program.updateTemplate, 0);
-	vkDestroyPipelineLayout(device, program.layout, 0);
-	vkDestroyDescriptorSetLayout(device, program.setLayout, 0);
+	if (program.descriptorSize == 0)
+	{
+		vkDestroyDescriptorUpdateTemplate(device, program.updateTemplate, 0);
+		vkDestroyPipelineLayout(device, program.layout, 0);
+		vkDestroyDescriptorSetLayout(device, program.setLayout, 0);
+	}
 }
 
 VkDescriptorSetLayout createDescriptorArrayLayout(VkDevice device)

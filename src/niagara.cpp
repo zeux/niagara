@@ -95,17 +95,86 @@ VkQueryPool createQueryPool(VkDevice device, uint32_t queryCount, VkQueryType qu
 	return queryPool;
 }
 
-template <typename PushConstants, size_t PushDescriptors>
-void dispatch(VkCommandBuffer commandBuffer, const Program& program, uint32_t threadCountX, uint32_t threadCountY, const PushConstants& pushConstants, const DescriptorInfo (&pushDescriptors)[PushDescriptors])
+struct FrameDescriptors
 {
-	assert(program.pushConstantSize == sizeof(pushConstants));
+	VkDevice device;
+	void* descriptorHeap;
+	size_t descriptorSize;
+
+	uint32_t descriptorOffset;
+	uint32_t descriptorOffsetEnd;
+};
+
+template <typename PushConstants>
+void pushConstants(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc, const Program& program, const PushConstants& constants)
+{
+	assert(program.pushConstantSize == sizeof(constants));
+
+	if (program.descriptorSize)
+	{
+#if VK_EXT_descriptor_heap
+		VkPushDataInfoEXT pushDataInfo = { VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT };
+		pushDataInfo.data.address = &constants;
+		pushDataInfo.data.size = sizeof(constants);
+
+		vkCmdPushDataEXT(commandBuffer, &pushDataInfo);
+#endif
+	}
+	else
+		vkCmdPushConstants(commandBuffer, program.layout, program.pushConstantStages, 0, sizeof(constants), &constants);
+}
+
+template <size_t PushDescriptors>
+void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc, const Program& program, const DescriptorInfo (&descriptors)[PushDescriptors])
+{
+	assert(program.pushDescriptorCount == PushDescriptors);
+
+	if (program.descriptorSize)
+	{
+#if VK_EXT_descriptor_heap
+		assert(framedesc.descriptorOffset + program.pushDescriptorCount <= framedesc.descriptorOffsetEnd);
+
+		for (int i = 0; i < 32; ++i)
+			if (program.resourceMask & (1 << i))
+			{
+				const DescriptorInfo& info = descriptors[i];
+
+				assert(program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+				assert(info.resource);
+
+				const Image* image = static_cast<const Image*>(info.resource);
+				char descriptor[128];
+				getDescriptor(framedesc.device, image->image, image->format, 0, 1, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+
+				memcpy(static_cast<char*>(framedesc.descriptorHeap) + (framedesc.descriptorOffset + i) * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
+			}
+
+		uint32_t descriptorOffset = framedesc.descriptorOffset;
+		VkPushDataInfoEXT pushDataInfo = { VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT };
+		pushDataInfo.offset = program.pushConstantSize;
+		pushDataInfo.data.address = &descriptorOffset;
+		pushDataInfo.data.size = sizeof(descriptorOffset);
+
+		vkCmdPushDataEXT(commandBuffer, &pushDataInfo);
+
+		framedesc.descriptorOffset += program.pushDescriptorCount;
+#endif
+	}
+	else
+		vkCmdPushDescriptorSetWithTemplate(commandBuffer, program.updateTemplate, program.layout, 0, descriptors);
+}
+
+template <typename PushConstants, size_t PushDescriptors>
+void dispatch(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc, const Program& program, uint32_t threadCountX, uint32_t threadCountY, const PushConstants& constants, const DescriptorInfo (&descriptors)[PushDescriptors])
+{
+	assert(program.pushConstantSize == sizeof(constants));
 	assert(program.pushDescriptorCount == PushDescriptors);
 
 	if (program.pushConstantStages)
-		vkCmdPushConstants(commandBuffer, program.layout, program.pushConstantStages, 0, sizeof(pushConstants), &pushConstants);
+		pushConstants(commandBuffer, framedesc, program, constants);
 
 	if (program.pushDescriptorCount)
-		vkCmdPushDescriptorSetWithTemplate(commandBuffer, program.updateTemplate, program.layout, 0, pushDescriptors);
+		pushDescriptors(commandBuffer, framedesc, program, descriptors);
 
 	vkCmdDispatch(commandBuffer, getGroupCount(threadCountX, program.localSizeX), getGroupCount(threadCountY, program.localSizeY), 1);
 }
@@ -183,6 +252,18 @@ struct alignas(16) TextData
 
 	char data[112];
 };
+
+DescriptorInfo::DescriptorInfo(const struct Buffer& buffer)
+    : DescriptorInfo(buffer.buffer)
+{
+	resource = &buffer;
+}
+
+DescriptorInfo::DescriptorInfo(const struct Image& image)
+    : DescriptorInfo(image.imageView)
+{
+	resource = &image;
+}
 
 void errorCallback(int error_code, const char* description)
 {
@@ -387,6 +468,7 @@ int main(int argc, const char** argv)
 	bool meshShadingSupported = false;
 	bool raytracingSupported = false;
 	bool clusterrtSupported = false;
+	bool descheapSupported = false;
 	bool unifiedlayoutsSupported = false;
 
 	for (auto& ext : extensions)
@@ -398,21 +480,43 @@ int main(int argc, const char** argv)
 #ifdef VK_NV_cluster_acceleration_structure
 		clusterrtSupported = clusterrtSupported || strcmp(ext.extensionName, VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME) == 0;
 #endif
+
+#ifdef VK_EXT_descriptor_heap
+		descheapSupported = descheapSupported || strcmp(ext.extensionName, VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME) == 0;
+#endif
 	}
 
 	if (!unifiedlayoutsSupported)
 		printf("WARNING: KHR_unified_image_layouts is not supported; barrier setup may be inefficient\n");
 
+	if (descheapSupported)
+		printf("WARNING: EXT_descriptor_heap support code is being used\n");
+
 	meshShadingEnabled = meshShadingSupported;
 
-	VkPhysicalDeviceProperties props = {};
-	vkGetPhysicalDeviceProperties(physicalDevice, &props);
+	VkPhysicalDeviceProperties2 props2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+
+#if VK_EXT_descriptor_heap
+	VkPhysicalDeviceDescriptorHeapPropertiesEXT descheapProperties = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT };
+	if (descheapSupported)
+		props2.pNext = &descheapProperties;
+#endif
+
+	vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
+
+#if VK_EXT_descriptor_heap
+	size_t resourceDescriptorSize = std::max(descheapProperties.imageDescriptorSize, descheapProperties.bufferDescriptorSize);
+#else
+	size_t resourceDescriptorSize = 0;
+#endif
+
+	VkPhysicalDeviceProperties props = props2.properties;
 	assert(props.limits.timestampComputeAndGraphics);
 
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported, descheapSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -460,21 +564,21 @@ int main(int argc, const char** argv)
 
 	VkPipelineCache pipelineCache = 0;
 
-	Program debugtextProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["debugtext.comp"] }, sizeof(TextData));
+	Program debugtextProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["debugtext.comp"] }, sizeof(TextData), resourceDescriptorSize);
 
 	Program drawcullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["drawcull.comp"] }, sizeof(CullData));
 	Program tasksubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["tasksubmit.comp"] }, 0);
 	Program clustersubmitProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustersubmit.comp"] }, 0);
 	Program clustercullProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["clustercull.comp"] }, sizeof(CullData));
 	Program depthreduceProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["depthreduce.comp"] }, sizeof(vec4));
-	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
+	Program meshProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["mesh.vert"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
 
 	Program meshtaskProgram = {};
 	Program clusterProgram = {};
 	if (meshShadingSupported)
 	{
-		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
-		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), textureSetLayout);
+		meshtaskProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.task"], &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
+		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), false, textureSetLayout);
 	}
 
 	Program finalProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["final.comp"] }, sizeof(ShadeData));
@@ -484,7 +588,7 @@ int main(int argc, const char** argv)
 	Program shadowblurProgram = {};
 	if (raytracingSupported)
 	{
-		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), textureSetLayout);
+		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), false, textureSetLayout);
 		shadowfillProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowfill.comp"] }, sizeof(vec4));
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 	}
@@ -597,6 +701,19 @@ int main(int argc, const char** argv)
 
 	VkPhysicalDeviceMemoryProperties memoryProperties;
 	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+#if VK_EXT_descriptor_heap
+	Buffer resourceHeap = {};
+	Buffer samplerHeap = {};
+
+	if (descheapSupported)
+	{
+		size_t resourceDescriptorCount = DESCRIPTOR_LIMIT + MAX_FRAMES * DESCRIPTOR_LIMIT_FRAME;
+
+		createBuffer(resourceHeap, device, memoryProperties, resourceDescriptorCount * resourceDescriptorSize + descheapProperties.minResourceHeapReservedRange, VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		createBuffer(samplerHeap, device, memoryProperties, DESCRIPTOR_LIMIT_SAMPLERS * descheapProperties.samplerDescriptorSize + descheapProperties.minSamplerHeapReservedRange, VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	}
+#endif
 
 	Buffer scratch = {};
 	createBuffer(scratch, device, memoryProperties, 128 * 1024 * 1024, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -1117,6 +1234,15 @@ int main(int argc, const char** argv)
 			}
 		}
 
+		FrameDescriptors framedesc = {};
+#if VK_EXT_descriptor_heap
+		framedesc.device = device;
+		framedesc.descriptorHeap = resourceHeap.data;
+		framedesc.descriptorSize = resourceDescriptorSize;
+		framedesc.descriptorOffset = DESCRIPTOR_LIMIT + (frameIndex % MAX_FRAMES) * DESCRIPTOR_LIMIT_FRAME;
+		framedesc.descriptorOffsetEnd = framedesc.descriptorOffset + DESCRIPTOR_LIMIT_FRAME;
+#endif
+
 		VkCommandPool commandPool = commandPools[frameIndex % MAX_FRAMES];
 		VkCommandBuffer commandBuffer = commandBuffers[frameIndex % MAX_FRAMES];
 		VkSemaphore acquireSemaphore = acquireSemaphores[frameIndex % MAX_FRAMES];
@@ -1248,7 +1374,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
 				DescriptorInfo descriptors[] = { db.buffer, mb.buffer, dcb.buffer, dccb.buffer, dvb.buffer, pyramidDesc };
 
-				dispatch(commandBuffer, drawcullProgram, uint32_t(draws.size()), 1, passData, descriptors);
+				dispatch(commandBuffer, framedesc, drawcullProgram, uint32_t(draws.size()), 1, passData, descriptors);
 			}
 
 			if (taskSubmit)
@@ -1258,7 +1384,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, tasksubmitPipeline);
 
 				DescriptorInfo descriptors[] = { dccb.buffer, dcb.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, tasksubmitProgram.updateTemplate, tasksubmitProgram.layout, 0, descriptors);
+				pushDescriptors(commandBuffer, framedesc, tasksubmitProgram, descriptors);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
 			}
@@ -1286,12 +1412,12 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mvb.buffer, pyramidDesc, cib.buffer, ccb.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, clustercullProgram.updateTemplate, clustercullProgram.layout, 0, descriptors);
+				pushDescriptors(commandBuffer, framedesc, clustercullProgram, descriptors);
 
 				CullData passData = cullData;
 				passData.postPass = postPass;
 
-				vkCmdPushConstants(commandBuffer, clustercullProgram.layout, clustercullProgram.pushConstantStages, 0, sizeof(cullData), &passData);
+				pushConstants(commandBuffer, framedesc, clustercullProgram, passData);
 				vkCmdDispatchIndirect(commandBuffer, dccb.buffer, 4);
 
 				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -1299,7 +1425,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, clustersubmitPipeline);
 
 				DescriptorInfo descriptors2[] = { ccb.buffer, cib.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, clustersubmitProgram.updateTemplate, clustersubmitProgram.layout, 0, descriptors2);
+				pushDescriptors(commandBuffer, framedesc, clustersubmitProgram, descriptors2);
 
 				vkCmdDispatch(commandBuffer, 1, 1, 1);
 
@@ -1351,11 +1477,11 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? clusterpostPipeline : clusterPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, cib.buffer, DescriptorInfo(), textureSampler, mtb.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, clusterProgram.updateTemplate, clusterProgram.layout, 0, descriptors);
+				pushDescriptors(commandBuffer, framedesc, clusterProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
-				vkCmdPushConstants(commandBuffer, clusterProgram.layout, clusterProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
+				pushConstants(commandBuffer, framedesc, clusterProgram, passGlobals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
 			}
 			else if (taskSubmit)
@@ -1365,11 +1491,11 @@ int main(int argc, const char** argv)
 
 				DescriptorInfo pyramidDesc(depthSampler, depthPyramid.imageView);
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, mlb.buffer, mdb.buffer, vb.buffer, mvb.buffer, pyramidDesc, textureSampler, mtb.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, meshtaskProgram.updateTemplate, meshtaskProgram.layout, 0, descriptors);
+				pushDescriptors(commandBuffer, framedesc, meshtaskProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
-				vkCmdPushConstants(commandBuffer, meshtaskProgram.layout, meshtaskProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
+				pushConstants(commandBuffer, framedesc, meshtaskProgram, passGlobals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
 			}
 			else
@@ -1377,13 +1503,13 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshpostPipeline : meshPipeline);
 
 				DescriptorInfo descriptors[] = { dcb.buffer, db.buffer, vb.buffer, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler, mtb.buffer };
-				vkCmdPushDescriptorSetWithTemplate(commandBuffer, meshProgram.updateTemplate, meshProgram.layout, 0, descriptors);
+				pushDescriptors(commandBuffer, framedesc, meshProgram, descriptors);
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
-				vkCmdPushConstants(commandBuffer, meshProgram.layout, meshProgram.pushConstantStages, 0, sizeof(globals), &passGlobals);
+				pushConstants(commandBuffer, framedesc, meshProgram, passGlobals);
 				vkCmdDrawIndexedIndirectCount(commandBuffer, dcb.buffer, offsetof(MeshDrawCommand, indirect), dccb.buffer, 0, uint32_t(draws.size()), sizeof(MeshDrawCommand));
 			}
 
@@ -1415,7 +1541,7 @@ int main(int argc, const char** argv)
 
 				vec4 reduceData = vec4(levelWidth, levelHeight, 0, 0);
 
-				dispatch(commandBuffer, depthreduceProgram, levelWidth, levelHeight, reduceData, descriptors);
+				dispatch(commandBuffer, framedesc, depthreduceProgram, levelWidth, levelHeight, reduceData, descriptors);
 
 				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 			}
@@ -1486,7 +1612,7 @@ int main(int argc, const char** argv)
 				shadowData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
 				shadowData.checkerboard = shadowCheckerboardF;
 
-				dispatch(commandBuffer, shadowProgram, shadowWidthCB, swapchain.height, shadowData, descriptors);
+				dispatch(commandBuffer, framedesc, shadowProgram, shadowWidthCB, swapchain.height, shadowData, descriptors);
 			}
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
@@ -1502,7 +1628,7 @@ int main(int argc, const char** argv)
 				vec4 fillData = vec4(float(swapchain.width), float(swapchain.height), 0, 0);
 				memcpy(&fillData.z, &shadowCheckerboardF, sizeof(shadowCheckerboardF));
 
-				dispatch(commandBuffer, shadowfillProgram, shadowWidthCB, swapchain.height, fillData, descriptors);
+				dispatch(commandBuffer, framedesc, shadowfillProgram, shadowWidthCB, swapchain.height, fillData, descriptors);
 			}
 
 			for (int pass = 0; pass < (shadowblurEnabled ? 2 : 0); ++pass)
@@ -1518,7 +1644,7 @@ int main(int argc, const char** argv)
 
 				vec4 blurData = vec4(float(swapchain.width), float(swapchain.height), pass == 0 ? 1 : 0, camera.znear);
 
-				dispatch(commandBuffer, shadowblurProgram, swapchain.width, swapchain.height, blurData, descriptors);
+				dispatch(commandBuffer, framedesc, shadowblurProgram, swapchain.width, swapchain.height, blurData, descriptors);
 			}
 
 			stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -1550,11 +1676,31 @@ int main(int argc, const char** argv)
 				shadeData.inverseViewProjection = inverse(projection * view);
 				shadeData.imageSize = vec2(float(swapchain.width), float(swapchain.height));
 
-				dispatch(commandBuffer, finalProgram, swapchain.width, swapchain.height, shadeData, descriptors);
+				dispatch(commandBuffer, framedesc, finalProgram, swapchain.width, swapchain.height, shadeData, descriptors);
 			}
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		}
+
+#ifdef VK_EXT_descriptor_heap
+		if (descheapSupported)
+		{
+			VkBindHeapInfoEXT bindSamplerHeap = { VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT };
+			bindSamplerHeap.heapRange.address = samplerHeap.address;
+			bindSamplerHeap.heapRange.size = samplerHeap.size;
+			bindSamplerHeap.reservedRangeOffset = samplerHeap.size - descheapProperties.minSamplerHeapReservedRange;
+			bindSamplerHeap.reservedRangeSize = descheapProperties.minSamplerHeapReservedRange;
+
+			VkBindHeapInfoEXT bindResourceHeap = { VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT };
+			bindResourceHeap.heapRange.address = resourceHeap.address;
+			bindResourceHeap.heapRange.size = resourceHeap.size;
+			bindResourceHeap.reservedRangeOffset = resourceHeap.size - descheapProperties.minResourceHeapReservedRange;
+			bindResourceHeap.reservedRangeSize = descheapProperties.minResourceHeapReservedRange;
+
+			vkCmdBindSamplerHeapEXT(commandBuffer, &bindSamplerHeap);
+			vkCmdBindResourceHeapEXT(commandBuffer, &bindResourceHeap);
+		}
+#endif
 
 		if (debugGuiMode % 3)
 		{
@@ -1574,7 +1720,7 @@ int main(int argc, const char** argv)
 				vsnprintf(textData.data, sizeof(textData.data), format, args);
 				va_end(args);
 
-				vkCmdPushConstants(commandBuffer, debugtextProgram.layout, debugtextProgram.pushConstantStages, 0, sizeof(textData), &textData);
+				pushConstants(commandBuffer, framedesc, debugtextProgram, textData);
 				vkCmdDispatch(commandBuffer, strlen(textData.data), 1, 1);
 			};
 
@@ -1582,8 +1728,9 @@ int main(int argc, const char** argv)
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, debugtextPipeline);
 
-			DescriptorInfo descriptors[] = { swapchainImageViews[imageIndex] };
-			vkCmdPushDescriptorSetWithTemplate(commandBuffer, debugtextProgram.updateTemplate, debugtextProgram.layout, 0, descriptors);
+			Image fakeSwapchainImage = { swapchain.images[imageIndex], swapchainFormat, swapchainImageViews[imageIndex], VK_NULL_HANDLE };
+			DescriptorInfo descriptors[] = { fakeSwapchainImage };
+			pushDescriptors(commandBuffer, framedesc, debugtextProgram, descriptors);
 
 			// debug text goes here!
 			uint64_t triangleCount = pipelineResults[0] + pipelineResults[1] + pipelineResults[2];
@@ -1766,6 +1913,11 @@ int main(int argc, const char** argv)
 	destroyBuffer(vb, device);
 
 	destroyBuffer(scratch, device);
+
+#if VK_EXT_descriptor_heap
+	destroyBuffer(samplerHeap, device);
+	destroyBuffer(resourceHeap, device);
+#endif
 
 	for (VkCommandPool pool : commandPools)
 		vkDestroyCommandPool(device, pool, 0);

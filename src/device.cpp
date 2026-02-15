@@ -247,7 +247,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported, bool descheapSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -275,6 +275,11 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		extensions.push_back(VK_NV_CLUSTER_ACCELERATION_STRUCTURE_EXTENSION_NAME);
 #endif
 
+#ifdef VK_EXT_descriptor_heap
+	if (descheapSupported)
+		extensions.push_back(VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME);
+#endif
+
 	VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features.features.multiDrawIndirect = true;
 	features.features.pipelineStatisticsQuery = true;
@@ -295,8 +300,8 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	features12.samplerFilterMinmax = true;
 	features12.scalarBlockLayout = true;
 
-	if (raytracingSupported)
-		features12.bufferDeviceAddress = true;
+	// required for raytracing & descriptor heaps
+	features12.bufferDeviceAddress = true;
 
 	features12.descriptorIndexing = true;
 	features12.shaderSampledImageArrayNonUniformIndexing = true;
@@ -334,6 +339,10 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceClusterAccelerationStructureFeaturesNV featuresClusterAcceleration = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV };
 	featuresClusterAcceleration.clusterAccelerationStructure = true;
 
+	// This will only be used if descheapSupported=true (see below)
+	VkPhysicalDeviceDescriptorHeapFeaturesEXT featuresDescriptorHeap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT };
+	featuresDescriptorHeap.descriptorHeap = true;
+
 	VkDeviceCreateInfo createInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	createInfo.queueCreateInfoCount = 1;
 	createInfo.pQueueCreateInfos = &queueInfo;
@@ -369,6 +378,14 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		*ppNext = &featuresClusterAcceleration;
 		ppNext = &featuresClusterAcceleration.pNext;
 	}
+
+#if VK_EXT_descriptor_heap
+	if (descheapSupported)
+	{
+		*ppNext = &featuresDescriptorHeap;
+		ppNext = &featuresDescriptorHeap.pNext;
+	}
+#endif
 
 	VkDevice device = 0;
 	VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, 0, &device));

@@ -6,11 +6,14 @@ struct Buffer
 	VkDeviceMemory memory;
 	void* data;
 	size_t size;
+
+	VkDeviceAddress address;
 };
 
 struct Image
 {
 	VkImage image;
+	VkFormat format;
 	VkImageView imageView;
 	VkDeviceMemory memory;
 };
@@ -40,3 +43,6 @@ void destroyImage(const Image& image, VkDevice device);
 uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 
 VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT);
+
+void getDescriptor(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount, VkDescriptorType type, void* descriptor, size_t descriptorSize);
+void getDescriptor(VkDevice device, VkDeviceAddress address, VkDeviceSize size, VkDescriptorType type, void* descriptor, size_t descriptorSize);

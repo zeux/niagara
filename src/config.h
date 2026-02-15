@@ -42,5 +42,11 @@
 // Should we enable synchronization validation? Worth running with 1 occasionally to check correctness.
 #define CONFIG_SYNCVAL 0
 
-// Maximum number of texture descriptors in the pool
+// Maximum number of resource descriptors allocated statically
 #define DESCRIPTOR_LIMIT 65536
+
+// Maximum number of resource descriptors submitted per frame via push
+#define DESCRIPTOR_LIMIT_FRAME 1024
+
+// Maximum number of sampler descriptors
+#define DESCRIPTOR_LIMIT_SAMPLERS 16

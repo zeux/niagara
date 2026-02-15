@@ -38,6 +38,10 @@ struct Program
 	uint32_t pushConstantSize;
 	uint32_t pushDescriptorCount;
 
+	size_t descriptorSize; // only used for descriptor heaps
+	VkDescriptorType resourceTypes[32] = {};
+	uint32_t resourceMask = 0;
+
 	uint32_t localSizeX;
 	uint32_t localSizeY;
 	uint32_t localSizeZ;
@@ -56,7 +60,7 @@ using Constants = std::initializer_list<int>;
 VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache, const VkPipelineRenderingCreateInfo& renderingInfo, const Program& program, Constants constants = {});
 VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache, const Program& program, Constants constants = {});
 
-Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, VkDescriptorSetLayout arrayLayout = nullptr);
+Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders shaders, size_t pushConstantSize, size_t descriptorSize = 0, VkDescriptorSetLayout arrayLayout = nullptr);
 void destroyProgram(VkDevice device, const Program& program);
 
 VkDescriptorSetLayout createDescriptorArrayLayout(VkDevice device);
@@ -75,6 +79,8 @@ struct DescriptorInfo
 		VkDescriptorBufferInfo buffer;
 		VkAccelerationStructureKHR accelerationStructure;
 	};
+
+	const void* resource = NULL;
 
 	DescriptorInfo()
 	{
@@ -106,17 +112,13 @@ struct DescriptorInfo
 		image.imageLayout = imageLayout;
 	}
 
-	DescriptorInfo(VkBuffer buffer_, VkDeviceSize offset, VkDeviceSize range)
-	{
-		buffer.buffer = buffer_;
-		buffer.offset = offset;
-		buffer.range = range;
-	}
-
 	DescriptorInfo(VkBuffer buffer_)
 	{
 		buffer.buffer = buffer_;
 		buffer.offset = 0;
 		buffer.range = VK_WHOLE_SIZE;
 	}
+
+	DescriptorInfo(const struct Buffer& buffer);
+	DescriptorInfo(const struct Image& image);
 };

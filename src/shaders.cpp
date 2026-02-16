@@ -409,6 +409,7 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[33])
 {
 	uint32_t mappingOffset = 0;
+	uint32_t descriptorOffset = 0;
 
 	// push descriptors
 	for (uint32_t i = 0; i < 32; ++i)
@@ -429,10 +430,11 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 			else
 			{
 				mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
-				mapping.sourceData.pushIndex.heapOffset = i * descriptorSize;
+				mapping.sourceData.pushIndex.heapOffset = descriptorOffset * descriptorSize;
 				mapping.sourceData.pushIndex.pushOffset = pushConstantSize;
 				mapping.sourceData.pushIndex.heapIndexStride = descriptorSize;
 				mapping.sourceData.pushIndex.heapArrayStride = descriptorSize;
+				descriptorOffset++;
 			}
 		}
 

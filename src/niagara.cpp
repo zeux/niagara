@@ -188,10 +188,9 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 					assert(!"Unsupported descriptor type");
 				}
 
-				memcpy(static_cast<char*>(framedesc.descriptorHeap) + (framedesc.descriptorOffset + i) * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
+				memcpy(static_cast<char*>(framedesc.descriptorHeap) + framedesc.descriptorOffset * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
+				framedesc.descriptorOffset++;
 			}
-
-		framedesc.descriptorOffset += program.pushDescriptorCount;
 #endif
 	}
 	else

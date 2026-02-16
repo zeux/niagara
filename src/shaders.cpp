@@ -406,24 +406,46 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 }
 
 #if VK_EXT_descriptor_heap
-static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType resourceTypes[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT mappings[32])
+static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[33])
 {
 	uint32_t mappingOffset = 0;
 
+	// push descriptors
 	for (uint32_t i = 0; i < 32; ++i)
 		if (resourceMask & (1 << i))
 		{
 			VkDescriptorSetAndBindingMappingEXT& mapping = mappings[mappingOffset++];
 			mapping.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+			mapping.descriptorSet = 0;
 			mapping.firstBinding = i;
 			mapping.bindingCount = 1;
 			mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
-			mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
-			mapping.sourceData.pushIndex.heapOffset = i * descriptorSize;
-			mapping.sourceData.pushIndex.pushOffset = pushConstantSize;
-			mapping.sourceData.pushIndex.heapIndexStride = descriptorSize;
-			mapping.sourceData.pushIndex.heapArrayStride = descriptorSize;
+
+			if (resourceTypes[i] == VK_DESCRIPTOR_TYPE_SAMPLER)
+			{
+				mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+			}
+			else
+			{
+				mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_PUSH_INDEX_EXT;
+				mapping.sourceData.pushIndex.heapOffset = i * descriptorSize;
+				mapping.sourceData.pushIndex.pushOffset = pushConstantSize;
+				mapping.sourceData.pushIndex.heapIndexStride = descriptorSize;
+				mapping.sourceData.pushIndex.heapArrayStride = descriptorSize;
+			}
 		}
+
+	// texture array descriptor
+	{
+		VkDescriptorSetAndBindingMappingEXT& mapping = mappings[mappingOffset++];
+		mapping.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+		mapping.descriptorSet = 1;
+		mapping.firstBinding = 0;
+		mapping.bindingCount = 1;
+		mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
+		mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+		mapping.sourceData.constantOffset.heapArrayStride = descriptorSize;
+	}
 
 	VkShaderDescriptorSetAndBindingMappingInfoEXT result = { VK_STRUCTURE_TYPE_SHADER_DESCRIPTOR_SET_AND_BINDING_MAPPING_INFO_EXT };
 	result.mappingCount = mappingOffset;
@@ -572,7 +594,7 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 #if VK_EXT_descriptor_heap
 	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
-	VkDescriptorSetAndBindingMappingEXT heapMappingTable[32] = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[33] = {};
 
 	if (program.descriptorSize)
 	{
@@ -709,7 +731,7 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 
 #if VK_EXT_descriptor_heap
 	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
-	VkDescriptorSetAndBindingMappingEXT heapMappingTable[32] = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[33] = {};
 
 	if (program.descriptorSize)
 	{

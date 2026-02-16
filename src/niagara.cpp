@@ -134,21 +134,6 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 #if VK_EXT_descriptor_heap
 		assert(framedesc.descriptorOffset + program.pushDescriptorCount <= framedesc.descriptorOffsetEnd);
 
-		for (int i = 0; i < 32; ++i)
-			if (program.resourceMask & (1 << i))
-			{
-				const DescriptorInfo& info = descriptors[i];
-
-				assert(program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || program.resourceTypes[i] == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-				assert(info.resource);
-
-				const Image* image = static_cast<const Image*>(info.resource);
-				char descriptor[128];
-				getDescriptor(framedesc.device, image->image, image->format, 0, VK_REMAINING_MIP_LEVELS, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
-
-				memcpy(static_cast<char*>(framedesc.descriptorHeap) + (framedesc.descriptorOffset + i) * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
-			}
-
 		uint32_t descriptorOffset = framedesc.descriptorOffset;
 		VkPushDataInfoEXT pushDataInfo = { VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT };
 		pushDataInfo.offset = program.pushConstantSize;
@@ -156,6 +141,53 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 		pushDataInfo.data.size = sizeof(descriptorOffset);
 
 		vkCmdPushDataEXT(commandBuffer, &pushDataInfo);
+
+		for (int i = 0; i < 32; ++i)
+			if (program.resourceMask & (1 << i))
+			{
+				const DescriptorInfo& info = descriptors[i];
+
+				char descriptor[128];
+
+				switch (program.resourceTypes[i])
+				{
+				case VK_DESCRIPTOR_TYPE_SAMPLER:
+				{
+					// mapped via constant offsets... sloppily
+					continue;
+				}
+				case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+				case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+				{
+					const Image* image = static_cast<const Image*>(info.resource);
+					assert(image);
+					getDescriptor(framedesc.device, image->image, image->format, 0, VK_REMAINING_MIP_LEVELS, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+					break;
+				}
+
+				case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+				{
+					const Buffer* buffer = static_cast<const Buffer*>(info.resource);
+					assert(buffer);
+					getDescriptor(framedesc.device, buffer->address, buffer->size, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+					break;
+				}
+
+				case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+				{
+					VkAccelerationStructureDeviceAddressInfoKHR addressInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+					addressInfo.accelerationStructure = info.accelerationStructure;
+					VkDeviceAddress address = vkGetAccelerationStructureDeviceAddressKHR(framedesc.device, &addressInfo);
+					getDescriptor(framedesc.device, address, 0, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+					break;
+				}
+				default:
+					assert(!"Unsupported descriptor type");
+				}
+
+				memcpy(static_cast<char*>(framedesc.descriptorHeap) + (framedesc.descriptorOffset + i) * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
+			}
 
 		framedesc.descriptorOffset += program.pushDescriptorCount;
 #endif
@@ -581,7 +613,7 @@ int main(int argc, const char** argv)
 	Program shadowblurProgram = {};
 	if (raytracingSupported)
 	{
-		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), false, textureSetLayout);
+		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), 0, textureSetLayout);
 		shadowfillProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowfill.comp"] }, sizeof(vec4));
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4));
 	}
@@ -705,6 +737,12 @@ int main(int argc, const char** argv)
 
 		createBuffer(resourceHeap, device, memoryProperties, resourceDescriptorCount * resourceDescriptorSize + descheapProperties.minResourceHeapReservedRange, VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		createBuffer(samplerHeap, device, memoryProperties, DESCRIPTOR_LIMIT_SAMPLERS * descheapProperties.samplerDescriptorSize + descheapProperties.minSamplerHeapReservedRange, VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		// fill sampler[0] with texture sampler and sampler[1] with depth sampler
+		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
+		    static_cast<char*>(samplerHeap.data) + 0 * descheapProperties.samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
+		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN,
+		    static_cast<char*>(samplerHeap.data) + 1 * descheapProperties.samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
 	}
 #endif
 
@@ -1470,7 +1508,8 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, cib, DescriptorInfo(), textureSampler, mtb };
 				pushDescriptors(commandBuffer, framedesc, clusterProgram, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
+				if (!clusterProgram.descriptorSize)
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, clusterProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				pushConstants(commandBuffer, framedesc, clusterProgram, passGlobals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, ccb.buffer, 4, 1, 0);
@@ -1483,7 +1522,8 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, mvb, depthPyramid, textureSampler, mtb, depthSampler };
 				pushDescriptors(commandBuffer, framedesc, meshtaskProgram, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
+				if (!meshtaskProgram.descriptorSize)
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshtaskProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				pushConstants(commandBuffer, framedesc, meshtaskProgram, passGlobals);
 				vkCmdDrawMeshTasksIndirectEXT(commandBuffer, dccb.buffer, 4, 1, 0);
@@ -1495,7 +1535,8 @@ int main(int argc, const char** argv)
 				DescriptorInfo descriptors[] = { dcb, db, vb, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler, mtb };
 				pushDescriptors(commandBuffer, framedesc, meshProgram, descriptors);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
+				if (!meshProgram.descriptorSize)
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, meshProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				vkCmdBindIndexBuffer(commandBuffer, ib.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -1589,7 +1630,8 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowQuality == 0 ? shadowlqPipeline : shadowhqPipeline);
 
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
+				if (!shadowProgram.descriptorSize)
+					vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, shadowProgram.layout, 1, 1, &textureSet.second, 0, nullptr);
 
 				DescriptorInfo descriptors[] = { shadowTarget, depthTarget, tlas, db, mb, mtb, vb, ib, textureSampler };
 

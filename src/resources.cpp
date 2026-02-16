@@ -196,10 +196,9 @@ VkDeviceAddress getBufferAddress(const Buffer& buffer, VkDevice device)
 	return address;
 }
 
-VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount)
+static VkImageViewCreateInfo getImageViewInfo(VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount)
 {
 	VkImageAspectFlags aspectMask = (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
 	VkImageViewCreateInfo createInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	createInfo.image = image;
 	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -208,6 +207,13 @@ VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, uin
 	createInfo.subresourceRange.baseMipLevel = mipLevel;
 	createInfo.subresourceRange.levelCount = levelCount;
 	createInfo.subresourceRange.layerCount = 1;
+
+	return createInfo;
+}
+
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount)
+{
+	VkImageViewCreateInfo createInfo = getImageViewInfo(image, format, mipLevel, levelCount);
 
 	VkImageView view = 0;
 	VK_CHECK(vkCreateImageView(device, &createInfo, 0, &view));
@@ -274,7 +280,7 @@ uint32_t getImageMipLevels(uint32_t width, uint32_t height)
 	return result;
 }
 
-VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode)
+static VkSamplerCreateInfo getSamplerInfo(VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode)
 {
 	VkSamplerCreateInfo createInfo = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
 
@@ -289,14 +295,18 @@ VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mi
 	createInfo.anisotropyEnable = mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	createInfo.maxAnisotropy = mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR ? 4.f : 1.f;
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+	return createInfo;
+}
+
+VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode)
+{
+	VkSamplerCreateInfo createInfo = getSamplerInfo(filter, mipmapMode, addressMode);
+
+	VkSamplerReductionModeCreateInfoEXT reductionInfo = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+	reductionInfo.reductionMode = reductionMode;
 
 	if (reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT)
-	{
-		createInfoReduction.reductionMode = reductionMode;
-
-		createInfo.pNext = &createInfoReduction;
-	}
+		createInfo.pNext = &reductionInfo;
 
 	VkSampler sampler = 0;
 	VK_CHECK(vkCreateSampler(device, &createInfo, 0, &sampler));
@@ -308,14 +318,7 @@ void getDescriptor(VkDevice device, VkImage image, VkFormat format, uint32_t mip
 {
 	VkImageAspectFlags aspectMask = (format == VK_FORMAT_D32_SFLOAT) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-	VkImageViewCreateInfo viewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = aspectMask;
-	viewInfo.subresourceRange.baseMipLevel = mipLevel;
-	viewInfo.subresourceRange.levelCount = levelCount;
-	viewInfo.subresourceRange.layerCount = 1;
+	VkImageViewCreateInfo viewInfo = getImageViewInfo(image, format, mipLevel, levelCount);
 
 	VkImageDescriptorInfoEXT imageInfo = { VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT };
 	imageInfo.pView = &viewInfo;
@@ -341,5 +344,22 @@ void getDescriptor(VkDevice device, VkDeviceAddress address, VkDeviceSize size, 
 	VkHostAddressRangeEXT descriptorRange = { descriptor, descriptorSize };
 
 	VK_CHECK(vkWriteResourceDescriptorsEXT(device, 1, &resourceInfo, &descriptorRange));
+}
+
+void getDescriptor(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode, void* descriptor, size_t descriptorSize)
+{
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	VkSamplerCreateInfo createInfo = getSamplerInfo(filter, mipmapMode, addressMode);
+
+	VkSamplerReductionModeCreateInfoEXT reductionInfo = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+	reductionInfo.reductionMode = reductionMode;
+
+	if (reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT)
+		createInfo.pNext = &reductionInfo;
+
+	VkHostAddressRangeEXT descriptorRange = { descriptor, descriptorSize };
+
+	VK_CHECK(vkWriteSamplerDescriptorsEXT(device, 1, &createInfo, &descriptorRange));
 }
 #endif

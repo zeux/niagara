@@ -46,3 +46,4 @@ VkSampler createSampler(VkDevice device, VkFilter filter, VkSamplerMipmapMode mi
 
 void getDescriptor(VkDevice device, VkImage image, VkFormat format, uint32_t mipLevel, uint32_t levelCount, VkDescriptorType type, void* descriptor, size_t descriptorSize);
 void getDescriptor(VkDevice device, VkDeviceAddress address, VkDeviceSize size, VkDescriptorType type, void* descriptor, size_t descriptorSize);
+void getDescriptor(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode, void* descriptor, size_t descriptorSize);

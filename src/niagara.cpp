@@ -534,13 +534,7 @@ int main(int argc, const char** argv)
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
 
 	VkSampler textureSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-	assert(textureSampler);
-
-	VkSampler readSampler = createSampler(device, VK_FILTER_NEAREST, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-	assert(readSampler);
-
 	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
-	assert(depthSampler);
 
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
 
@@ -1956,7 +1950,6 @@ int main(int argc, const char** argv)
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroySampler(device, textureSampler, 0);
-	vkDestroySampler(device, readSampler, 0);
 	vkDestroySampler(device, depthSampler, 0);
 
 	for (VkFence fence : frameFences)

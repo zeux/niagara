@@ -587,9 +587,10 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	std::vector<VkSpecializationMapEntry> specializationEntries;
 	VkSpecializationInfo specializationInfo = fillSpecializationInfo(specializationEntries, constants);
 
-	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
-
 	VkPipelineCreateFlags2CreateInfo extraFlags = { VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO };
+	extraFlags.pNext = &renderingInfo;
+
+	VkGraphicsPipelineCreateInfo createInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 	createInfo.pNext = &extraFlags;
 
 #if VK_EXT_descriptor_heap
@@ -677,7 +678,6 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 	createInfo.pDynamicState = &dynamicState;
 
 	createInfo.layout = program.layout;
-	createInfo.pNext = &renderingInfo;
 
 	VkPipeline pipeline = 0;
 	VK_CHECK(vkCreateGraphicsPipelines(device, pipelineCache, 1, &createInfo, 0, &pipeline));

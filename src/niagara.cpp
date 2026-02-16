@@ -161,7 +161,9 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 				{
 					const Image* image = static_cast<const Image*>(info.resource);
 					assert(image);
-					getDescriptor(framedesc.device, image->image, image->format, 0, VK_REMAINING_MIP_LEVELS, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+					uint32_t mipLevel = (info.resourceMip < 0) ? 0 : uint32_t(info.resourceMip);
+					uint32_t levelCount = (info.resourceMip < 0) ? VK_REMAINING_MIP_LEVELS : 1;
+					getDescriptor(framedesc.device, image->image, image->format, mipLevel, levelCount, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
 					break;
 				}
 
@@ -294,6 +296,13 @@ DescriptorInfo::DescriptorInfo(const struct Image& image)
     : DescriptorInfo(image.imageView)
 {
 	resource = &image;
+}
+
+DescriptorInfo::DescriptorInfo(const struct Image& image, VkImageView mipView, int mipIndex)
+    : DescriptorInfo(mipView)
+{
+	resource = &image;
+	resourceMip = mipIndex;
 }
 
 void errorCallback(int error_code, const char* description)
@@ -849,6 +858,10 @@ int main(int argc, const char** argv)
 		write.pImageInfo = &imageInfo;
 
 		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+
+		if (descheapSupported)
+			getDescriptor(device, images[i].image, images[i].format, 0, VK_REMAINING_MIP_LEVELS, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			    static_cast<char*>(resourceHeap.data) + (1 + i) * resourceDescriptorSize, resourceDescriptorSize);
 	}
 
 	if (!sceneMode)
@@ -1559,11 +1572,12 @@ int main(int argc, const char** argv)
 
 			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, depthreducePipeline);
 
+			DescriptorInfo mipSource = depthTarget;
+
 			for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 			{
-				VkImageView sourceDepth = (i == 0) ? depthTarget.imageView : depthPyramidMips[i - 1];
-
-				DescriptorInfo descriptors[] = { depthPyramidMips[i], sourceDepth, depthSampler };
+				DescriptorInfo mipTarget(depthPyramid, depthPyramidMips[i], int(i));
+				DescriptorInfo descriptors[] = { mipTarget, mipSource, depthSampler };
 
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);
@@ -1573,6 +1587,8 @@ int main(int argc, const char** argv)
 				dispatch(commandBuffer, framedesc, depthreduceProgram, levelWidth, levelHeight, reduceData, descriptors);
 
 				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
+				mipSource = mipTarget;
 			}
 
 			stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT);

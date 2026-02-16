@@ -348,8 +348,6 @@ void getDescriptor(VkDevice device, VkDeviceAddress address, VkDeviceSize size, 
 
 void getDescriptor(VkDevice device, VkFilter filter, VkSamplerMipmapMode mipmapMode, VkSamplerAddressMode addressMode, VkSamplerReductionModeEXT reductionMode, void* descriptor, size_t descriptorSize)
 {
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
 	VkSamplerCreateInfo createInfo = getSamplerInfo(filter, mipmapMode, addressMode);
 
 	VkSamplerReductionModeCreateInfoEXT reductionInfo = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };

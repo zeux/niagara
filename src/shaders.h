@@ -81,6 +81,7 @@ struct DescriptorInfo
 	};
 
 	const void* resource = NULL;
+	int resourceMip = -1;
 
 	DescriptorInfo()
 	{
@@ -114,4 +115,5 @@ struct DescriptorInfo
 
 	DescriptorInfo(const struct Buffer& buffer);
 	DescriptorInfo(const struct Image& image);
+	DescriptorInfo(const struct Image& image, VkImageView mipView, int mipIndex);
 };

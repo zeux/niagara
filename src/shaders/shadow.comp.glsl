@@ -61,7 +61,7 @@ layout(binding = 7) readonly buffer Indices
 	uint indices[];
 };
 
-layout(binding = 8) uniform sampler textureSampler;
+layout(binding = 8) uniform sampler textureSampler; // samplerhack&0
 
 layout(binding = 0, set = 1) uniform texture2D textures[];
 

@@ -546,6 +546,7 @@ int main(int argc, const char** argv)
 
 #if VK_EXT_descriptor_heap
 	size_t resourceDescriptorSize = std::max(descheapProperties.imageDescriptorSize, descheapProperties.bufferDescriptorSize);
+	resourceDescriptorSize = std::max(resourceDescriptorSize, descheapProperties.samplerDescriptorSize); // samplerhack
 #else
 	size_t resourceDescriptorSize = 0;
 #endif
@@ -748,10 +749,11 @@ int main(int argc, const char** argv)
 		createBuffer(samplerHeap, device, memoryProperties, DESCRIPTOR_LIMIT_SAMPLERS * descheapProperties.samplerDescriptorSize + descheapProperties.minSamplerHeapReservedRange, VK_BUFFER_USAGE_DESCRIPTOR_HEAP_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		// fill sampler[0] with texture sampler and sampler[1] with depth sampler
+		size_t samplerDescriptorSize = resourceDescriptorSize; // samplerhack
 		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
-		    static_cast<char*>(samplerHeap.data) + 0 * descheapProperties.samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
+		    static_cast<char*>(samplerHeap.data) + 0 * samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
 		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN,
-		    static_cast<char*>(samplerHeap.data) + 1 * descheapProperties.samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
+		    static_cast<char*>(samplerHeap.data) + 1 * samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
 	}
 #endif
 
@@ -1415,7 +1417,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-				DescriptorInfo descriptors[] = { db, mb, dcb, dccb, dvb, depthPyramid, depthSampler };
+				DescriptorInfo descriptors[] = { db, mb, dcb, dccb, dvb, depthPyramid, DescriptorInfo(), depthSampler };
 
 				dispatch(commandBuffer, framedesc, drawcullProgram, uint32_t(draws.size()), 1, passData, descriptors);
 			}
@@ -1518,7 +1520,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? clusterpostPipeline : clusterPipeline);
 
-				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, cib, DescriptorInfo(), textureSampler, mtb };
+				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, cib, DescriptorInfo(), mtb, textureSampler };
 				pushDescriptors(commandBuffer, framedesc, clusterProgram, descriptors);
 
 				if (!clusterProgram.descriptorSize)
@@ -1532,7 +1534,7 @@ int main(int argc, const char** argv)
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshtaskpostPipeline : late ? meshtasklatePipeline
 				                                                                                                              : meshtaskPipeline);
 
-				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, mvb, depthPyramid, textureSampler, mtb, depthSampler };
+				DescriptorInfo descriptors[] = { dcb, db, mlb, mdb, vb, mvb, depthPyramid, mtb, textureSampler, depthSampler };
 				pushDescriptors(commandBuffer, framedesc, meshtaskProgram, descriptors);
 
 				if (!meshtaskProgram.descriptorSize)
@@ -1545,7 +1547,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postPass >= 1 ? meshpostPipeline : meshPipeline);
 
-				DescriptorInfo descriptors[] = { dcb, db, vb, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), textureSampler, mtb };
+				DescriptorInfo descriptors[] = { dcb, db, vb, DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), DescriptorInfo(), mtb, textureSampler };
 				pushDescriptors(commandBuffer, framedesc, meshProgram, descriptors);
 
 				if (!meshProgram.descriptorSize)
@@ -1577,7 +1579,7 @@ int main(int argc, const char** argv)
 			for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 			{
 				DescriptorInfo mipTarget(depthPyramid, depthPyramidMips[i], int(i));
-				DescriptorInfo descriptors[] = { mipTarget, mipSource, depthSampler };
+				DescriptorInfo descriptors[] = { mipTarget, mipSource, DescriptorInfo(), depthSampler };
 
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);

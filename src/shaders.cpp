@@ -424,6 +424,7 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 			if (resourceTypes[i] == VK_DESCRIPTOR_TYPE_SAMPLER)
 			{
 				mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+				mapping.sourceData.constantOffset.heapOffset = (i & 1) * descriptorSize; // samplerhack
 			}
 			else
 			{

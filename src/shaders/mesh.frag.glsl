@@ -30,12 +30,12 @@ layout(location = 2) in vec3 normal;
 layout(location = 3) in vec4 tangent;
 layout(location = 4) in vec3 wpos;
 
-layout(binding = 7) uniform sampler textureSampler;
-
-layout(binding = 8) readonly buffer Materials
+layout(binding = 7) readonly buffer Materials
 {
 	Material materials[];
 };
+
+layout(binding = 8) uniform sampler textureSampler; // samplerhack&0
 
 layout(binding = 0, set = 1) uniform texture2D textures[];
 

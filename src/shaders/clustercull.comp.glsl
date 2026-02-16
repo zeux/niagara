@@ -51,7 +51,7 @@ layout(binding = 6) buffer ClusterCount
 	uint clusterCount;
 };
 
-layout(binding = 7) uniform sampler depthSampler;
+layout(binding = 7) uniform sampler depthSampler; // samplerhack&1
 
 void main()
 {

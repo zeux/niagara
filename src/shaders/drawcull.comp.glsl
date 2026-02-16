@@ -49,7 +49,7 @@ layout(binding = 4) buffer DrawVisibility
 };
 
 layout(binding = 5) uniform texture2D depthPyramid;
-layout(binding = 6) uniform sampler depthSampler;
+layout(binding = 7) uniform sampler depthSampler; // samplerhack&1
 
 void main()
 {

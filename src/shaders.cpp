@@ -418,7 +418,7 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 }
 
 #if VK_EXT_descriptor_heap
-static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], const char* const (&resourceNames)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[34])
+static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], const std::string (&resourceNames)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[34])
 {
 	uint32_t mappingOffset = 0;
 	uint32_t descriptorOffset = 0;
@@ -447,9 +447,8 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 
 				// samplerhack: for now we map samplers by name to avoid having to bind them via push path
 				// in the future we will change the shader code to carry the name->binding correspondence statically
-				assert(resourceNames[i]);
 				for (size_t j = 0; j < sizeof(samplerNames) / sizeof(samplerNames[0]); ++j)
-					if (strcmp(resourceNames[i], samplerNames[j]) == 0)
+					if (resourceNames[i] == samplerNames[j])
 						mapping.sourceData.constantOffset.heapOffset = uint32_t(j) * descriptorSize;
 			}
 			else

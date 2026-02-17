@@ -105,6 +105,67 @@ struct FrameDescriptors
 	uint32_t descriptorOffsetEnd;
 };
 
+#if VK_EXT_descriptor_heap
+static uint32_t pushDescriptorHeap(FrameDescriptors& framedesc, const Program& program, const DescriptorInfo* descriptors)
+{
+	assert(framedesc.descriptorOffset + program.pushDescriptorCount <= framedesc.descriptorOffsetEnd);
+
+	uint32_t result = framedesc.descriptorOffset;
+
+	for (int i = 0; i < 32; ++i)
+		if (program.resourceMask & (1 << i))
+		{
+			const DescriptorInfo& info = descriptors[i];
+
+			char descriptor[128];
+
+			switch (program.resourceTypes[i])
+			{
+			case VK_DESCRIPTOR_TYPE_SAMPLER:
+			{
+				// mapped via constant offsets (statically)
+				continue;
+			}
+			case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+			case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+			{
+				const Image* image = static_cast<const Image*>(info.resource);
+				assert(image);
+				uint32_t mipLevel = (info.resourceMip < 0) ? 0 : uint32_t(info.resourceMip);
+				uint32_t levelCount = (info.resourceMip < 0) ? VK_REMAINING_MIP_LEVELS : 1;
+				getDescriptor(framedesc.device, image->image, image->format, mipLevel, levelCount, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+				break;
+			}
+
+			case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+			case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+			{
+				const Buffer* buffer = static_cast<const Buffer*>(info.resource);
+				assert(buffer);
+				getDescriptor(framedesc.device, buffer->address, buffer->size, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+				break;
+			}
+
+			case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+			{
+				VkAccelerationStructureDeviceAddressInfoKHR addressInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+				addressInfo.accelerationStructure = info.accelerationStructure;
+				VkDeviceAddress address = vkGetAccelerationStructureDeviceAddressKHR(framedesc.device, &addressInfo);
+				getDescriptor(framedesc.device, address, 0, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
+				break;
+			}
+			default:
+				assert(!"Unsupported descriptor type");
+			}
+
+			memcpy(static_cast<char*>(framedesc.descriptorHeap) + framedesc.descriptorOffset * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
+			framedesc.descriptorOffset++;
+		}
+
+	return result;
+}
+#endif
+
 template <typename PushConstants>
 void pushConstants(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc, const Program& program, const PushConstants& constants)
 {
@@ -132,65 +193,14 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 	if (program.descriptorSize)
 	{
 #if VK_EXT_descriptor_heap
-		assert(framedesc.descriptorOffset + program.pushDescriptorCount <= framedesc.descriptorOffsetEnd);
+		uint32_t descriptorOffset = pushDescriptorHeap(framedesc, program, descriptors);
 
-		uint32_t descriptorOffset = framedesc.descriptorOffset;
 		VkPushDataInfoEXT pushDataInfo = { VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT };
 		pushDataInfo.offset = program.pushConstantSize;
 		pushDataInfo.data.address = &descriptorOffset;
 		pushDataInfo.data.size = sizeof(descriptorOffset);
 
 		vkCmdPushDataEXT(commandBuffer, &pushDataInfo);
-
-		for (int i = 0; i < 32; ++i)
-			if (program.resourceMask & (1 << i))
-			{
-				const DescriptorInfo& info = descriptors[i];
-
-				char descriptor[128];
-
-				switch (program.resourceTypes[i])
-				{
-				case VK_DESCRIPTOR_TYPE_SAMPLER:
-				{
-					// mapped via constant offsets (statically)
-					continue;
-				}
-				case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-				case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-				{
-					const Image* image = static_cast<const Image*>(info.resource);
-					assert(image);
-					uint32_t mipLevel = (info.resourceMip < 0) ? 0 : uint32_t(info.resourceMip);
-					uint32_t levelCount = (info.resourceMip < 0) ? VK_REMAINING_MIP_LEVELS : 1;
-					getDescriptor(framedesc.device, image->image, image->format, mipLevel, levelCount, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
-					break;
-				}
-
-				case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-				case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-				{
-					const Buffer* buffer = static_cast<const Buffer*>(info.resource);
-					assert(buffer);
-					getDescriptor(framedesc.device, buffer->address, buffer->size, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
-					break;
-				}
-
-				case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-				{
-					VkAccelerationStructureDeviceAddressInfoKHR addressInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
-					addressInfo.accelerationStructure = info.accelerationStructure;
-					VkDeviceAddress address = vkGetAccelerationStructureDeviceAddressKHR(framedesc.device, &addressInfo);
-					getDescriptor(framedesc.device, address, 0, program.resourceTypes[i], descriptor, framedesc.descriptorSize);
-					break;
-				}
-				default:
-					assert(!"Unsupported descriptor type");
-				}
-
-				memcpy(static_cast<char*>(framedesc.descriptorHeap) + framedesc.descriptorOffset * framedesc.descriptorSize, descriptor, framedesc.descriptorSize);
-				framedesc.descriptorOffset++;
-			}
 #endif
 	}
 	else

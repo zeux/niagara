@@ -290,6 +290,7 @@ struct alignas(16) BloomData
 {
 	vec2 imageSize;
 	int pass;
+	float radius;
 };
 
 struct alignas(16) TextData
@@ -1255,7 +1256,7 @@ int main(int argc, const char** argv)
 
 			bloomWidth = (swapchain.width + 1) / 2;
 			bloomHeight = (swapchain.height + 1) / 2;
-			bloomLevels = std::min(5u, getImageMipLevels(bloomWidth, bloomHeight));
+			bloomLevels = std::min(8u, getImageMipLevels(bloomWidth, bloomHeight));
 
 			createImage(bloomTarget, device, memoryProperties, bloomWidth, bloomHeight, bloomLevels, VK_FORMAT_B10G11R11_UFLOAT_PACK32, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			for (uint32_t i = 0; i < bloomLevels; ++i)
@@ -1781,14 +1782,13 @@ int main(int argc, const char** argv)
 			// pass 0 initializes mip 0 from gbuffer, pass 1 downsamples each successive mip
 			for (uint32_t i = 0; i < bloomLevels; ++i)
 			{
-
 				uint32_t levelWidth = std::max(1u, bloomWidth >> i);
 				uint32_t levelHeight = std::max(1u, bloomHeight >> i);
 				DescriptorInfo sourceImage = (i == 0) ? gbufferTargets[0] : DescriptorInfo(bloomTarget, bloomMips[i - 1], int(i - 1));
 				DescriptorInfo mipTarget(bloomTarget, bloomMips[i], int(i));
 				DescriptorInfo descriptors[] = { mipTarget, sourceImage, filterSampler };
 
-				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), int(i == 0 ? 0 : 1) };
+				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), int(i == 0 ? 0 : 1), 0.f };
 				dispatch(commandBuffer, framedesc, bloomProgram, levelWidth, levelHeight, bloomData, descriptors);
 
 				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
@@ -1804,7 +1804,7 @@ int main(int argc, const char** argv)
 				DescriptorInfo mipTarget(bloomTarget, bloomMips[i], i);
 				DescriptorInfo descriptors[] = { mipTarget, mipSource, filterSampler };
 
-				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), 2 };
+				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), 2, 2.0f };
 				dispatch(commandBuffer, framedesc, bloomProgram, levelWidth, levelHeight, bloomData, descriptors);
 
 				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);

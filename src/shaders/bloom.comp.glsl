@@ -5,12 +5,15 @@
 
 #include "math.h"
 
+#define QUALITY 1
+
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(push_constant) uniform block
 {
 	vec2 imageSize;
 	int pass; // 0 = downsample from gbuffer, 1 = mip downsample, 2 = mip upsample
+	float radius;
 };
 
 layout(r11f_g11f_b10f, binding = 0) uniform image2D outImage;
@@ -44,21 +47,52 @@ void main()
 	else if (pass == 1u)
 	{
 		// downsample blur - read from source mip, write to next smaller mip
-		// Marius Bjørge, Bandwidth-Efficient Rendering. SIGGRAPH 2015
 		vec3 result = vec3(0);
+
+#if QUALITY
+		// Jorge Jimenez. Next Generation Post Processing in Call of Duty: Advanced Warfare.
+		result += texture(sampler2D(sourceImage, filterSampler), uv).rgb * 0.125;
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+0.5, +0.5)).rgb * (0.5 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+0.5, -0.5)).rgb * (0.5 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-0.5, +0.5)).rgb * (0.5 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-0.5, -0.5)).rgb * (0.5 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, +1)).rgb * (0.125 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, -1)).rgb * (0.125 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, +1)).rgb * (0.125 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, -1)).rgb * (0.125 / 4);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, 0)).rgb * (0.125 / 2);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, 0)).rgb * (0.125 / 2);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(0, +1)).rgb * (0.125 / 2);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(0, -1)).rgb * (0.125 / 2);
+#else
+		// Marius Bjørge, Bandwidth-Efficient Rendering. SIGGRAPH 2015
 		result += texture(sampler2D(sourceImage, filterSampler), uv).rgb / 2;
-		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, +1)).rgb / 8;
-		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, -1)).rgb / 8;
-		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, +1)).rgb / 8;
-		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, -1)).rgb / 8;
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+0.5, +0.5)).rgb / 8;
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+0.5, -0.5)).rgb / 8;
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-0.5, +0.5)).rgb / 8;
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-0.5, -0.5)).rgb / 8;
+#endif
 
 		imageStore(outImage, ivec2(pos), vec4(result, 0));
 	}
 	else
 	{
 		// upsample blur - read from source mip, write to next larger mip, accumulating with existing data
-		// Marius Bjørge, Bandwidth-Efficient Rendering. SIGGRAPH 2015
 		vec3 result = imageLoad(outImage, ivec2(pos)).rgb;
+
+#if QUALITY
+		// Jorge Jimenez. Next Generation Post Processing in Call of Duty: Advanced Warfare.
+		result += texture(sampler2D(sourceImage, filterSampler), uv).rgb * (4.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(+1, 0)).rgb * (2.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(-1, 0)).rgb * (2.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(0, +1)).rgb * (2.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(0, -1)).rgb * (2.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(+1, +1)).rgb * (1.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(+1, -1)).rgb * (1.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(-1, +1)).rgb * (1.0 / 16);
+		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * radius * vec2(-1, -1)).rgb * (1.0 / 16);
+#else
+		// Marius Bjørge, Bandwidth-Efficient Rendering. SIGGRAPH 2015
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, +1)).rgb / 6;
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+1, -1)).rgb / 6;
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(-1, +1)).rgb / 6;
@@ -67,6 +101,7 @@ void main()
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(+2, 0)).rgb / 12;
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(0, -2)).rgb / 12;
 		result += texture(sampler2D(sourceImage, filterSampler), uv + texelSize * vec2(0, +2)).rgb / 12;
+#endif
 
 		imageStore(outImage, ivec2(pos), vec4(result, 0));
 	}

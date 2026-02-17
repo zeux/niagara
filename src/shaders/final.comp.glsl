@@ -31,6 +31,9 @@ layout(binding = 3) uniform texture2D depthImage;
 
 layout(binding = 4) uniform texture2D shadowImage;
 
+layout(binding = 5) uniform texture2D bloomImage;
+layout(binding = 6) uniform sampler filterSampler;
+
 void main()
 {
 	uvec2 pos = gl_GlobalInvocationID.xy;
@@ -65,8 +68,12 @@ void main()
 	float ambient = 0.07;
 	float shadowAmbient = 0.05;
 	float sunIntensity = 2.5;
+	float bloomStrength = 0.1;
 
-	vec3 outputColor = albedo.rgb * (ndotl * min(shadow + shadowAmbient, 1.0) * sunIntensity + ambient) + vec3(specular * shadow) * sunIntensity + emissive;
+	vec3 outputColor = albedo.rgb * (ndotl * min(shadow + shadowAmbient, 1.0) * sunIntensity + ambient);
+	outputColor += (specular * shadow) * sunIntensity;
+	outputColor += emissive;
+	outputColor += texture(sampler2D(bloomImage, filterSampler), uv).rgb * bloomStrength;
 
 	float deband = gradientNoise(vec2(pos)) * 2 - 1;
 	imageStore(outImage, ivec2(pos), vec4(tonemap(outputColor) + deband * (0.5 / 255), 1.0));

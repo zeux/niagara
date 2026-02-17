@@ -286,6 +286,12 @@ struct alignas(16) ShadeData
 	vec2 imageSize;
 };
 
+struct alignas(16) BloomData
+{
+	vec2 imageSize;
+	int pass;
+};
+
 struct alignas(16) TextData
 {
 	int offsetX, offsetY;
@@ -626,6 +632,7 @@ int main(int argc, const char** argv)
 		clusterProgram = createProgram(device, VK_PIPELINE_BIND_POINT_GRAPHICS, { &shaders["meshlet.mesh"], &shaders["mesh.frag"] }, sizeof(Globals), resourceDescriptorSize, textureSetLayout);
 	}
 
+	Program bloomProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["bloom.comp"] }, sizeof(BloomData), resourceDescriptorSize);
 	Program finalProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["final.comp"] }, sizeof(ShadeData), resourceDescriptorSize);
 
 	Program shadowProgram = {};
@@ -656,6 +663,7 @@ int main(int argc, const char** argv)
 	VkPipeline clusterPipeline = 0;
 	VkPipeline clusterpostPipeline = 0;
 	VkPipeline blitPipeline = 0;
+	VkPipeline bloomPipeline = 0;
 	VkPipeline finalPipeline = 0;
 	VkPipeline shadowlqPipeline = 0;
 	VkPipeline shadowhqPipeline = 0;
@@ -705,6 +713,7 @@ int main(int argc, const char** argv)
 			replace(clusterpostPipeline, createGraphicsPipeline(device, pipelineCache, gbufferInfo, clusterProgram, { /* LATE= */ false, /* TASK= */ false, /* POST= */ 1 }));
 		}
 
+		replace(bloomPipeline, createComputePipeline(device, pipelineCache, bloomProgram));
 		replace(finalPipeline, createComputePipeline(device, pipelineCache, finalProgram));
 
 		if (raytracingSupported)
@@ -1086,6 +1095,12 @@ int main(int argc, const char** argv)
 	Image shadowTarget = {};
 	Image shadowblurTarget = {};
 
+	Image bloomTarget = {};
+	VkImageView bloomMips[16] = {};
+	uint32_t bloomWidth = 0;
+	uint32_t bloomHeight = 0;
+	uint32_t bloomLevels = 0;
+
 	Image depthPyramid = {};
 	VkImageView depthPyramidMips[16] = {};
 	uint32_t depthPyramidWidth = 0;
@@ -1128,7 +1143,7 @@ int main(int argc, const char** argv)
 
 	double animationTime = 0;
 
-	uint64_t timestampResults[23] = {};
+	uint64_t timestampResults[25] = {};
 	uint64_t pipelineResults[3] = {};
 
 	while (!glfwWindowShouldClose(window))
@@ -1224,12 +1239,27 @@ int main(int argc, const char** argv)
 			if (shadowblurTarget.image)
 				destroyImage(shadowblurTarget, device);
 
+			if (bloomTarget.image)
+			{
+				for (uint32_t j = 0; j < bloomLevels; ++j)
+					vkDestroyImageView(device, bloomMips[j], 0);
+				destroyImage(bloomTarget, device);
+			}
+
 			for (uint32_t i = 0; i < gbufferCount; ++i)
 				createImage(gbufferTargets[i], device, memoryProperties, swapchain.width, swapchain.height, 1, gbufferFormats[i], VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			createImage(depthTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 			createImage(shadowTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 			createImage(shadowblurTarget, device, memoryProperties, swapchain.width, swapchain.height, 1, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+			bloomWidth = (swapchain.width + 1) / 2;
+			bloomHeight = (swapchain.height + 1) / 2;
+			bloomLevels = std::min(5u, getImageMipLevels(bloomWidth, bloomHeight));
+
+			createImage(bloomTarget, device, memoryProperties, bloomWidth, bloomHeight, bloomLevels, VK_FORMAT_B10G11R11_UFLOAT_PACK32, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+			for (uint32_t i = 0; i < bloomLevels; ++i)
+				bloomMips[i] = createImageView(device, bloomTarget.image, VK_FORMAT_B10G11R11_UFLOAT_PACK32, i, 1);
 
 			// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
 			depthPyramidWidth = previousPow2(swapchain.width);
@@ -1633,7 +1663,7 @@ int main(int argc, const char** argv)
 
 		// transition everything we write to during the frame from undefined to general
 		invalidateBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-		    { swapchain.images[imageIndex], depthPyramid.image, shadowTarget.image, shadowblurTarget.image, gbufferTargets[0].image, gbufferTargets[1].image },
+		    { swapchain.images[imageIndex], depthPyramid.image, shadowTarget.image, shadowblurTarget.image, bloomTarget.image, gbufferTargets[0].image, gbufferTargets[1].image },
 		    { depthTarget.image });
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
@@ -1742,6 +1772,48 @@ int main(int argc, const char** argv)
 
 		Image fakeSwapchainImage = { swapchain.images[imageIndex], swapchainFormat, swapchainImageViews[imageIndex], VK_NULL_HANDLE };
 
+		// bloom
+		{
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, 23);
+
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, bloomPipeline);
+
+			// pass 0 initializes mip 0 from gbuffer, pass 1 downsamples each successive mip
+			for (uint32_t i = 0; i < bloomLevels; ++i)
+			{
+
+				uint32_t levelWidth = std::max(1u, bloomWidth >> i);
+				uint32_t levelHeight = std::max(1u, bloomHeight >> i);
+				DescriptorInfo sourceImage = (i == 0) ? gbufferTargets[0] : DescriptorInfo(bloomTarget, bloomMips[i - 1], int(i - 1));
+				DescriptorInfo mipTarget(bloomTarget, bloomMips[i], int(i));
+				DescriptorInfo descriptors[] = { mipTarget, sourceImage, filterSampler };
+
+				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), int(i == 0 ? 0 : 1) };
+				dispatch(commandBuffer, framedesc, bloomProgram, levelWidth, levelHeight, bloomData, descriptors);
+
+				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+			}
+
+			// pass 2 upsamples and accumulates from each mip into the larger one
+			for (int i = bloomLevels - 2; i >= 0; --i)
+			{
+				uint32_t levelWidth = std::max(1u, bloomWidth >> i);
+				uint32_t levelHeight = std::max(1u, bloomHeight >> i);
+
+				DescriptorInfo mipSource(bloomTarget, bloomMips[i + 1], i + 1);
+				DescriptorInfo mipTarget(bloomTarget, bloomMips[i], i);
+				DescriptorInfo descriptors[] = { mipTarget, mipSource, filterSampler };
+
+				BloomData bloomData = { vec2(float(levelWidth), float(levelHeight)), 2 };
+				dispatch(commandBuffer, framedesc, bloomProgram, levelWidth, levelHeight, bloomData, descriptors);
+
+				stageBarrier(commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+			}
+
+			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, 24);
+		}
+
+		// final compositing pass
 		{
 			uint32_t timestamp = 19;
 
@@ -1750,7 +1822,7 @@ int main(int argc, const char** argv)
 			{
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, finalPipeline);
 
-				DescriptorInfo descriptors[] = { fakeSwapchainImage, gbufferTargets[0], gbufferTargets[1], depthTarget, shadowTarget };
+				DescriptorInfo descriptors[] = { fakeSwapchainImage, gbufferTargets[0], gbufferTargets[1], depthTarget, shadowTarget, bloomTarget, filterSampler };
 
 				ShadeData shadeData = {};
 				shadeData.cameraPosition = camera.position;
@@ -1811,6 +1883,7 @@ int main(int argc, const char** argv)
 			double shadowblurGpuTime = double(timestampResults[18] - timestampResults[17]) * props.limits.timestampPeriod * 1e-6;
 			double shadeGpuTime = double(timestampResults[20] - timestampResults[19]) * props.limits.timestampPeriod * 1e-6;
 			double tlasGpuTime = double(timestampResults[22] - timestampResults[21]) * props.limits.timestampPeriod * 1e-6;
+			double bloomGpuTime = double(timestampResults[24] - timestampResults[23]) * props.limits.timestampPeriod * 1e-6;
 
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
@@ -1822,11 +1895,11 @@ int main(int argc, const char** argv)
 
 			if (debugGuiMode % 3 == 2)
 			{
-				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, final: %.2f ms",
+				debugtext(2, ~0u, "cull: %.2f ms, pyramid: %.2f ms, render: %.2f ms, bloom: %.2f ms, final: %.2f ms",
 				    cullGpuTime + culllateGpuTime + cullpostGpuTime,
 				    pyramidGpuTime,
 				    renderGpuTime + renderlateGpuTime + renderpostGpuTime,
-				    shadeGpuTime);
+				    bloomGpuTime, shadeGpuTime);
 				debugtext(3, ~0u, "render breakdown: early %.2f ms, late %.2f ms, post %.2f ms",
 				    renderGpuTime, renderlateGpuTime, renderpostGpuTime);
 				debugtext(4, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
@@ -1939,6 +2012,13 @@ int main(int argc, const char** argv)
 	if (shadowblurTarget.image)
 		destroyImage(shadowblurTarget, device);
 
+	if (bloomTarget.image)
+	{
+		for (uint32_t i = 0; i < bloomLevels; ++i)
+			vkDestroyImageView(device, bloomMips[i], 0);
+		destroyImage(bloomTarget, device);
+	}
+
 	for (uint32_t i = 0; i < swapchain.imageCount; ++i)
 		if (swapchainImageViews[i])
 			vkDestroyImageView(device, swapchainImageViews[i], 0);
@@ -2012,6 +2092,7 @@ int main(int argc, const char** argv)
 		destroyProgram(device, clusterProgram);
 	}
 
+	destroyProgram(device, bloomProgram);
 	destroyProgram(device, finalProgram);
 
 	if (raytracingSupported)

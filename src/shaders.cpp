@@ -34,6 +34,7 @@ struct Id
 	uint32_t set;
 	uint32_t imageSampled;
 	uint32_t constant;
+	const char* name;
 };
 
 static VkShaderStageFlagBits getShaderStage(SpvExecutionModel executionModel)
@@ -223,6 +224,16 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 			ids[id].storageClass = insn[3];
 		}
 		break;
+		case SpvOpName:
+		{
+			assert(wordCount >= 3);
+
+			uint32_t id = insn[1];
+			assert(id < idBound);
+
+			ids[id].name = reinterpret_cast<const char*>(insn + 2);
+		}
+		break;
 		}
 
 		assert(insn + wordCount <= code + codeSize);
@@ -242,6 +253,7 @@ static void parseShader(Shader& shader, const uint32_t* code, uint32_t codeSize)
 
 			assert((shader.resourceMask & (1 << id.binding)) == 0 || shader.resourceTypes[id.binding] == resourceType);
 
+			shader.resourceNames[id.binding] = id.name;
 			shader.resourceTypes[id.binding] = resourceType;
 			shader.resourceMask |= 1 << id.binding;
 		}
@@ -406,10 +418,17 @@ static VkDescriptorUpdateTemplate createUpdateTemplate(VkDevice device, VkPipeli
 }
 
 #if VK_EXT_descriptor_heap
-static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[33])
+static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_t resourceMask, const VkDescriptorType (&resourceTypes)[32], const char* const (&resourceNames)[32], size_t pushConstantSize, size_t descriptorSize, VkDescriptorSetAndBindingMappingEXT (&mappings)[34])
 {
 	uint32_t mappingOffset = 0;
 	uint32_t descriptorOffset = 0;
+
+	// samplerhack: we define name->id correspondence here for now; this will move to shader code when descriptor heaps conquer the world
+	static const char* samplerNames[] = {
+		"textureSampler",
+		"filterSampler",
+		"depthSampler"
+	};
 
 	// push descriptors
 	for (uint32_t i = 0; i < 32; ++i)
@@ -425,7 +444,13 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 			if (resourceTypes[i] == VK_DESCRIPTOR_TYPE_SAMPLER)
 			{
 				mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
-				mapping.sourceData.constantOffset.heapOffset = (i & 1) * descriptorSize; // samplerhack
+
+				// samplerhack: for now we map samplers by name to avoid having to bind them via push path
+				// in the future we will change the shader code to carry the name->binding correspondence statically
+				assert(resourceNames[i]);
+				for (size_t j = 0; j < sizeof(samplerNames) / sizeof(samplerNames[0]); ++j)
+					if (strcmp(resourceNames[i], samplerNames[j]) == 0)
+						mapping.sourceData.constantOffset.heapOffset = uint32_t(j) * descriptorSize;
 			}
 			else
 			{
@@ -445,6 +470,18 @@ static VkShaderDescriptorSetAndBindingMappingInfoEXT generateHeapMapping(uint32_
 		mapping.descriptorSet = 1;
 		mapping.firstBinding = 0;
 		mapping.bindingCount = 1;
+		mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
+		mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
+		mapping.sourceData.constantOffset.heapArrayStride = descriptorSize;
+	}
+
+	// sampler descriptors
+	{
+		VkDescriptorSetAndBindingMappingEXT& mapping = mappings[mappingOffset++];
+		mapping.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_AND_BINDING_MAPPING_EXT;
+		mapping.descriptorSet = 2;
+		mapping.firstBinding = 0;
+		mapping.bindingCount = DESCRIPTOR_LIMIT_SAMPLERS;
 		mapping.resourceMask = VK_SPIRV_RESOURCE_TYPE_ALL_EXT;
 		mapping.source = VK_DESCRIPTOR_MAPPING_SOURCE_HEAP_WITH_CONSTANT_OFFSET_EXT;
 		mapping.sourceData.constantOffset.heapArrayStride = descriptorSize;
@@ -478,7 +515,7 @@ bool loadShader(Shader& shader, const char* path)
 	assert(length % 4 == 0);
 	parseShader(shader, reinterpret_cast<const uint32_t*>(spirv.data()), length / 4);
 
-	shader.spirv = spirv;
+	shader.spirv = std::move(spirv);
 
 	return true;
 }
@@ -551,7 +588,7 @@ bool loadShaders(ShaderSet& shaders, const char* base, const char* path)
 		}
 
 		shader.name = std::string(de->d_name, ext - de->d_name);
-		shaders.shaders.push_back(shader);
+		shaders.shaders.push_back(std::move(shader));
 	}
 
 	closedir(dir);
@@ -598,12 +635,12 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkPipelineCache pipelineCache
 
 #if VK_EXT_descriptor_heap
 	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
-	VkDescriptorSetAndBindingMappingEXT heapMappingTable[33] = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[34] = {};
 
 	if (program.descriptorSize)
 	{
 		extraFlags.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
-		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.pushConstantSize, program.descriptorSize, heapMappingTable);
+		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.resourceNames, program.pushConstantSize, program.descriptorSize, heapMappingTable);
 	}
 #endif
 
@@ -734,11 +771,11 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineCache pipelineCache,
 
 #if VK_EXT_descriptor_heap
 	VkShaderDescriptorSetAndBindingMappingInfoEXT heapMapping = {};
-	VkDescriptorSetAndBindingMappingEXT heapMappingTable[33] = {};
+	VkDescriptorSetAndBindingMappingEXT heapMappingTable[34] = {};
 
 	if (program.descriptorSize)
 	{
-		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.pushConstantSize, program.descriptorSize, heapMappingTable);
+		heapMapping = generateHeapMapping(program.resourceMask, program.resourceTypes, program.resourceNames, program.pushConstantSize, program.descriptorSize, heapMappingTable);
 		module.pNext = &heapMapping;
 	}
 #endif
@@ -789,9 +826,15 @@ Program createProgram(VkDevice device, VkPipelineBindPoint bindPoint, Shaders sh
 		program.resourceMask = gatherResources(shaders, program.resourceTypes);
 
 		// track descriptor count including gaps
-		for (uint32_t i = 0; i < 32; ++i)
+		for (int i = 0; i < 32; ++i)
 			if (program.resourceMask & (1 << i))
-				program.pushDescriptorCount = i + 1;
+				program.pushDescriptorCount = uint32_t(i + 1);
+
+		// needed for samplerhack
+		for (const Shader* shader : shaders)
+			for (int i = 0; i < 32; ++i)
+				if (shader->resourceNames[i])
+					program.resourceNames[i] = shader->resourceNames[i];
 	}
 	else
 	{

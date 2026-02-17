@@ -153,7 +153,7 @@ void pushDescriptors(VkCommandBuffer commandBuffer, FrameDescriptors& framedesc,
 				{
 				case VK_DESCRIPTOR_TYPE_SAMPLER:
 				{
-					// mapped via constant offsets... sloppily
+					// mapped via constant offsets (statically)
 					continue;
 				}
 				case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
@@ -575,6 +575,7 @@ int main(int argc, const char** argv)
 	vkGetDeviceQueue(device, familyIndex, 0, &queue);
 
 	VkSampler textureSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+	VkSampler filterSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 	VkSampler depthSampler = createSampler(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN);
 
 	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
@@ -751,8 +752,10 @@ int main(int argc, const char** argv)
 		size_t samplerDescriptorSize = resourceDescriptorSize; // samplerhack
 		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
 		    static_cast<char*>(samplerHeap.data) + 0 * samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
-		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN,
+		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
 		    static_cast<char*>(samplerHeap.data) + 1 * samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
+		getDescriptor(device, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_SAMPLER_REDUCTION_MODE_MIN,
+		    static_cast<char*>(samplerHeap.data) + 2 * samplerDescriptorSize, descheapProperties.samplerDescriptorSize);
 	}
 #endif
 
@@ -1417,7 +1420,7 @@ int main(int argc, const char** argv)
 
 				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
-				DescriptorInfo descriptors[] = { db, mb, dcb, dccb, dvb, depthPyramid, DescriptorInfo(), depthSampler };
+				DescriptorInfo descriptors[] = { db, mb, dcb, dccb, dvb, depthPyramid, depthSampler };
 
 				dispatch(commandBuffer, framedesc, drawcullProgram, uint32_t(draws.size()), 1, passData, descriptors);
 			}
@@ -1579,7 +1582,7 @@ int main(int argc, const char** argv)
 			for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 			{
 				DescriptorInfo mipTarget(depthPyramid, depthPyramidMips[i], int(i));
-				DescriptorInfo descriptors[] = { mipTarget, mipSource, DescriptorInfo(), depthSampler };
+				DescriptorInfo descriptors[] = { mipTarget, mipSource, depthSampler };
 
 				uint32_t levelWidth = std::max(1u, depthPyramidWidth >> i);
 				uint32_t levelHeight = std::max(1u, depthPyramidHeight >> i);
@@ -2011,6 +2014,7 @@ int main(int argc, const char** argv)
 	vkDestroyDescriptorSetLayout(device, textureSetLayout, 0);
 
 	vkDestroySampler(device, textureSampler, 0);
+	vkDestroySampler(device, filterSampler, 0);
 	vkDestroySampler(device, depthSampler, 0);
 
 	for (VkFence fence : frameFences)

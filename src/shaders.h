@@ -9,6 +9,7 @@ struct Shader
 	std::vector<char> spirv;
 	VkShaderStageFlagBits stage;
 
+	const char* resourceNames[32];
 	VkDescriptorType resourceTypes[32];
 	uint32_t resourceMask;
 
@@ -39,6 +40,7 @@ struct Program
 	uint32_t pushDescriptorCount;
 
 	size_t descriptorSize; // only used for descriptor heaps
+	const char* resourceNames[32] = {};
 	VkDescriptorType resourceTypes[32] = {};
 	uint32_t resourceMask = 0;
 

@@ -42,7 +42,7 @@ layout(binding = 5) buffer MeshletVisibility
 
 layout(binding = 6) uniform texture2D depthPyramid;
 
-layout(binding = 9) uniform sampler depthSampler; // samplerhack&1
+layout(binding = 9) uniform sampler depthSampler;
 
 taskPayloadSharedEXT MeshTaskPayload payload;
 

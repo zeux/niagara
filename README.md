@@ -155,3 +155,6 @@ https://github.com/KhronosGroup/Vulkan-Docs/issues/2606
 
 * ✔️ vkCmdBuildClusterAccelerationStructureIndirectNV(): pCommandInfos->srcInfosArray.stride may be zero \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/10975
+
+* ✔️ Missing validation for descriptor heap binding clobber \
+https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/11688

@@ -32,6 +32,8 @@ struct alignas(16) Material
 	vec4 diffuseFactor;
 	vec4 specularFactor;
 	vec3 emissiveFactor;
+
+	uint32_t padding; // TODO: this is fragile
 };
 
 struct alignas(16) MeshDraw
@@ -73,6 +75,8 @@ struct alignas(16) Mesh
 
 	uint32_t lodCount;
 	MeshLod lods[8];
+
+	uint32_t padding; // TODO: this is fragile
 };
 
 struct Geometry

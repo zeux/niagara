@@ -158,3 +158,6 @@ https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/10975
 
 * ✔️ Missing validation for descriptor heap binding clobber \
 https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/11688
+
+* VUID-RuntimeSpirv-MeshEXT-10883 makes specialization constant based task shader usage invalid retroactively \
+https://github.com/KhronosGroup/Vulkan-Docs/issues/2677

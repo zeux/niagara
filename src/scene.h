@@ -119,3 +119,6 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose);
 bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode);
+
+bool saveSceneCamera(const char* path, const Camera& camera);
+bool loadSceneCamera(const char* path, Camera& camera);

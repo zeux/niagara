@@ -45,6 +45,8 @@ bool debugSleep = false;
 bool reloadShaders = false;
 uint32_t reloadShadersColor = 0xffffffff;
 double reloadShadersTimer = 0;
+Camera* persistedCamera = NULL;
+std::string persistedCameraPath;
 
 VkSemaphore createSemaphore(VkDevice device)
 {
@@ -382,6 +384,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		if (key == GLFW_KEY_G)
 		{
 			debugGuiMode++;
+		}
+		if (key == GLFW_KEY_P && persistedCamera && !persistedCameraPath.empty())
+		{
+			if (saveSceneCamera(persistedCameraPath.c_str(), *persistedCamera))
+				printf("Saved camera to %s\n", persistedCameraPath.c_str());
+			else
+				printf("Error: camera %s failed to save\n", persistedCameraPath.c_str());
 		}
 		if (key == GLFW_KEY_SPACE)
 		{
@@ -797,6 +806,8 @@ int main(int argc, const char** argv)
 	camera.orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
 	camera.fovY = glm::radians(70.f);
 	camera.znear = 0.1f;
+	persistedCamera = NULL;
+	persistedCameraPath.clear();
 
 	vec3 sunDirection = normalize(vec3(1.0f, 1.0f, 1.0f));
 
@@ -812,6 +823,7 @@ int main(int argc, const char** argv)
 		if (ext && (strcmp(ext, ".gltf") == 0 || strcmp(ext, ".glb") == 0))
 		{
 			std::string cachePath = std::string(argv[1]) + ".cache";
+			std::string cameraPath = std::string(argv[1]) + ".camera";
 
 			double sceneTimer = glfwGetTime();
 
@@ -835,6 +847,11 @@ int main(int argc, const char** argv)
 				printf("Loaded scene from cache %s in %.2f sec\n", cachePath.c_str(), glfwGetTime() - sceneTimer);
 			}
 
+			if (loadSceneCamera(cameraPath.c_str(), camera))
+				printf("Loaded camera from %s\n", cameraPath.c_str());
+
+			persistedCamera = &camera;
+			persistedCameraPath = cameraPath;
 			sceneMode = true;
 		}
 	}

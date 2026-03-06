@@ -11,6 +11,7 @@
 
 const uint32_t kSceneCacheMagic = 0x434E4353; // 'SCNC'
 const uint32_t kSceneCacheVersion = 3;
+const uint32_t kSceneCameraVersion = 1;
 
 struct SceneHeader
 {
@@ -41,6 +42,13 @@ struct SceneHeader
 
 	Camera camera;
 	vec3 sunDirection;
+};
+
+struct SceneCameraFile
+{
+	uint32_t version;
+	vec3 position;
+	quat orientation;
 };
 
 static size_t writeVertexCompressed(const void* vertices, size_t stride, size_t count, FILE* file, int level = 2)
@@ -301,6 +309,49 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 
 	camera = header.camera;
 	sunDirection = header.sunDirection;
+
+	return true;
+}
+
+bool saveSceneCamera(const char* path, const Camera& camera)
+{
+	FILE* file = fopen(path, "wb");
+	if (!file)
+		return false;
+
+	SceneCameraFile data = {};
+	data.version = kSceneCameraVersion;
+	data.position = camera.position;
+	data.orientation = camera.orientation;
+
+	bool ok = fwrite(&data, sizeof(data), 1, file) == 1;
+	fclose(file);
+
+	return ok;
+}
+
+bool loadSceneCamera(const char* path, Camera& camera)
+{
+	size_t fileSize = 0;
+	void* file = mmapFile(path, &fileSize);
+	if (!file)
+		return false;
+
+	if (fileSize != sizeof(SceneCameraFile))
+	{
+		unmapFile(file, fileSize);
+		return false;
+	}
+
+	SceneCameraFile data = {};
+	memcpy(&data, file, sizeof(data));
+	unmapFile(file, fileSize);
+
+	if (data.version != kSceneCameraVersion)
+		return false;
+
+	camera.position = data.position;
+	camera.orientation = data.orientation;
 
 	return true;
 }

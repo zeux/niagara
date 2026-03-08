@@ -16,7 +16,7 @@ add_executable(niagara
 set_target_properties(niagara PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 
 target_compile_definitions(niagara PRIVATE GLFW_INCLUDE_NONE GLM_FORCE_XYZW_ONLY GLM_FORCE_QUAT_DATA_XYZW GLM_FORCE_QUAT_CTOR_XYZW)
-target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm)
+target_include_directories(niagara PRIVATE extern/fast_obj extern/cgltf extern/glm extern)
 
 if(WIN32)
   target_compile_definitions(niagara PRIVATE GLFW_EXPOSE_NATIVE_WIN32)

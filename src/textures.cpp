@@ -3,9 +3,14 @@
 
 #include "resources.h"
 
+#define BCDEC_IMPLEMENTATION
+#include <bcdec.h>
+
 #include <stdio.h>
+#include <string.h>
 
 #include <memory>
+#include <new>
 
 struct DDS_PIXELFORMAT
 {
@@ -136,6 +141,21 @@ static size_t getImageSizeBC(unsigned int width, unsigned int height, unsigned i
 	return result;
 }
 
+static size_t getImageSizeRGBA(unsigned int width, unsigned int height, unsigned int levels)
+{
+	size_t result = 0;
+
+	for (unsigned int i = 0; i < levels; ++i)
+	{
+		result += size_t(width) * size_t(height) * 4;
+
+		width = width > 1 ? width / 2 : 1;
+		height = height > 1 ? height / 2 : 1;
+	}
+
+	return result;
+}
+
 bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const VkPhysicalDeviceMemoryProperties& memoryProperties, const Buffer& scratch, const char* path)
 {
 	FILE* file = fopen(path, "rb");
@@ -237,4 +257,122 @@ bool loadImage(Image& image, VkDevice device, VkCommandPool commandPool, VkComma
 	VK_CHECK(vkDeviceWaitIdle(device));
 
 	return true;
+}
+
+unsigned char* decodeImageRGBA(const char* path, int mip, unsigned int& width, unsigned int& height, unsigned int& levels)
+{
+	FILE* file = fopen(path, "rb");
+	if (!file)
+		return nullptr;
+
+	std::unique_ptr<FILE, int (*)(FILE*)> filePtr(file, fclose);
+
+	unsigned int magic = 0;
+	if (fread(&magic, sizeof(magic), 1, file) != 1 || magic != fourCC("DDS "))
+		return nullptr;
+
+	DDS_HEADER header = {};
+	if (fread(&header, sizeof(header), 1, file) != 1)
+		return nullptr;
+
+	DDS_HEADER_DXT10 header10 = {};
+	if (header.ddspf.dwFourCC == fourCC("DX10") && fread(&header10, sizeof(header10), 1, file) != 1)
+		return nullptr;
+
+	if (header.dwSize != sizeof(header) || header.ddspf.dwSize != sizeof(header.ddspf))
+		return nullptr;
+
+	if (header.dwCaps2 & (DDSCAPS2_CUBEMAP | DDSCAPS2_VOLUME))
+		return nullptr;
+
+	if (header.ddspf.dwFourCC == fourCC("DX10") && header10.resourceDimension != DDS_DIMENSION_TEXTURE2D)
+		return nullptr;
+
+	VkFormat format = getFormat(header, header10);
+	if (format == VK_FORMAT_UNDEFINED)
+		return nullptr;
+
+	if (format != VK_FORMAT_BC1_RGBA_UNORM_BLOCK && format != VK_FORMAT_BC2_UNORM_BLOCK && format != VK_FORMAT_BC3_UNORM_BLOCK && format != VK_FORMAT_BC7_UNORM_BLOCK)
+		return nullptr;
+
+	if (mip >= 0 && unsigned(mip) >= header.dwMipMapCount)
+		return nullptr;
+
+	width = header.dwWidth >> (mip < 0 ? 0 : mip);
+	width = width > 0 ? width : 1;
+	height = header.dwHeight >> (mip < 0 ? 0 : mip);
+	height = height > 0 ? height : 1;
+	levels = mip < 0 ? header.dwMipMapCount : 1;
+
+	size_t imageSize = getImageSizeRGBA(width, height, levels);
+
+	size_t resultOffset = 0;
+	std::unique_ptr<unsigned char[]> result(new unsigned char[imageSize]);
+	if (!result)
+		return nullptr;
+
+	unsigned int blockSize = format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK ? 8 : 16;
+	unsigned int mipWidth = header.dwWidth, mipHeight = header.dwHeight;
+
+	for (unsigned int i = 0; i < header.dwMipMapCount; ++i)
+	{
+		unsigned int blocksX = (mipWidth + 3) / 4;
+		unsigned int blocksY = (mipHeight + 3) / 4;
+		size_t mipSize = size_t(blockSize) * blocksY * blocksX;
+
+		if (mip >= 0 && unsigned(mip) != i)
+		{
+			fseek(file, long(mipSize), SEEK_CUR);
+			continue;
+		}
+
+		std::unique_ptr<unsigned char[]> blocks(new unsigned char[mipSize]);
+		if (!blocks)
+			return nullptr;
+
+		if (fread(blocks.get(), 1, mipSize, file) != mipSize)
+			return nullptr;
+
+		unsigned char* output = result.get() + resultOffset;
+
+		for (unsigned int by = 0; by < blocksY; ++by)
+			for (unsigned int bx = 0; bx < blocksX; ++bx)
+			{
+				const unsigned char* block = blocks.get() + (size_t(by) * blocksX + bx) * blockSize;
+
+				unsigned char rgba[4 * 4 * 4];
+				switch (format)
+				{
+				case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+					bcdec_bc1(block, rgba, 4 * 4);
+					break;
+				case VK_FORMAT_BC2_UNORM_BLOCK:
+					bcdec_bc2(block, rgba, 4 * 4);
+					break;
+				case VK_FORMAT_BC3_UNORM_BLOCK:
+					bcdec_bc3(block, rgba, 4 * 4);
+					break;
+				case VK_FORMAT_BC7_UNORM_BLOCK:
+					bcdec_bc7(block, rgba, 4 * 4);
+					break;
+				default:
+					assert(false);
+					break;
+				}
+
+				for (unsigned int y = 0; y < 4 && by * 4 + y < mipHeight; ++y)
+					for (unsigned int x = 0; x < 4 && bx * 4 + x < mipWidth; ++x)
+						memcpy(output + ((by * 4 + y) * size_t(mipWidth) + (bx * 4 + x)) * 4, rgba + (y * 4 + x) * 4, 4);
+			}
+
+		resultOffset += size_t(mipWidth) * size_t(mipHeight) * 4;
+
+		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+	}
+
+	if (fgetc(file) != -1)
+		return nullptr;
+
+	return result.release();
 }

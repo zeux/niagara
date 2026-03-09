@@ -312,10 +312,13 @@ unsigned char* decodeImageRGBA(const char* path, int mip, unsigned int& width, u
 		return nullptr;
 
 	unsigned int blockSize = format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK ? 8 : 16;
-	unsigned int mipWidth = header.dwWidth, mipHeight = header.dwHeight;
 
 	for (unsigned int i = 0; i < header.dwMipMapCount; ++i)
 	{
+		unsigned int mipWidth = header.dwWidth >> i, mipHeight = header.dwHeight >> i;
+		mipWidth = mipWidth > 0 ? mipWidth : 1;
+		mipHeight = mipHeight > 0 ? mipHeight : 1;
+
 		unsigned int blocksX = (mipWidth + 3) / 4;
 		unsigned int blocksY = (mipHeight + 3) / 4;
 		size_t mipSize = size_t(blockSize) * blocksY * blocksX;

@@ -571,7 +571,7 @@ int main(int argc, const char** argv)
 
 #if VK_EXT_descriptor_heap
 	size_t resourceDescriptorSize = std::max(descheapProperties.imageDescriptorSize, descheapProperties.bufferDescriptorSize);
-	resourceDescriptorSize = std::max(resourceDescriptorSize, descheapProperties.samplerDescriptorSize); // samplerhack
+	resourceDescriptorSize = std::max(resourceDescriptorSize, size_t(descheapProperties.samplerDescriptorSize)); // samplerhack
 #else
 	size_t resourceDescriptorSize = 0;
 #endif

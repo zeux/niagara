@@ -816,6 +816,7 @@ int main(int argc, const char** argv)
 	bool clrtMode = getenv("CLRT") && atoi(getenv("CLRT"));
 	bool compressed = !getenv("COMPRESSED") || atoi(getenv("COMPRESSED")); // enabled by default
 	bool verbose = getenv("VERBOSE") && atoi(getenv("VERBOSE"));
+	int ommStates = getenv("OMM") ? atoi(getenv("OMM")) : 0;
 
 	if (argc == 2)
 	{
@@ -827,13 +828,19 @@ int main(int argc, const char** argv)
 
 			double sceneTimer = glfwGetTime();
 
-			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode))
+			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, ommStates))
 			{
 				printf("Loading scene from %s\n", argv[1]);
 				if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], /* buildMeshlets= */ true, /* fastMode= */ false, clrtMode))
 				{
 					printf("Error: scene %s failed to load\n", argv[1]);
 					return 1;
+				}
+
+				if (ommStates > 0)
+				{
+					int ommMip = getenv("OMMMIP") ? atoi(getenv("OMMMIP")) : 1;
+					buildSceneOmm(geometry, materials, draws, texturePaths, ommStates, ommMip);
 				}
 
 				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, compressed, verbose))

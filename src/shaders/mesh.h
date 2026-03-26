@@ -67,7 +67,12 @@ struct Mesh
 	uint vertexOffset;
 	uint vertexCount;
 
+	uint ommIndexData;
+	uint ommIndexBase;
+
 	uint lodCount;
+	uint padding[3];
+
 	MeshLod lods[8];
 };
 

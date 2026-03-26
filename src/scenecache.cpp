@@ -10,7 +10,7 @@
 #include <string.h>
 
 const uint32_t kSceneCacheMagic = 0x434E4353; // 'SCNC'
-const uint32_t kSceneCacheVersion = 3;
+const uint32_t kSceneCacheVersion = 4;
 const uint32_t kSceneCameraVersion = 1;
 
 struct SceneHeader
@@ -39,6 +39,11 @@ struct SceneHeader
 	uint32_t materialCount;
 	uint32_t drawCount;
 	uint32_t texturePathCount;
+
+	uint32_t ommArrayDataSize;
+	uint32_t ommIndexDataSize;
+	uint32_t ommDescCount;
+	uint32_t ommStates;
 
 	Camera camera;
 	vec3 sunDirection;
@@ -132,6 +137,10 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 	header.materialCount = materials.size();
 	header.drawCount = draws.size();
 	header.texturePathCount = texturePaths.size();
+	header.ommArrayDataSize = geometry.ommData.size();
+	header.ommIndexDataSize = geometry.ommIndices.size();
+	header.ommDescCount = geometry.ommDescs.size();
+	header.ommStates = geometry.ommStates;
 
 	header.camera = camera;
 	header.sunDirection = sunDirection;
@@ -162,6 +171,10 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 	fwrite(geometry.meshes.data(), sizeof(Mesh), geometry.meshes.size(), file);
 	fwrite(materials.data(), sizeof(Material), materials.size(), file);
 	fwrite(draws.data(), sizeof(MeshDraw), draws.size(), file);
+
+	fwrite(geometry.ommData.data(), 1, geometry.ommData.size(), file);
+	fwrite(geometry.ommIndices.data(), 1, geometry.ommIndices.size(), file);
+	fwrite(geometry.ommDescs.data(), sizeof(uint32_t), geometry.ommDescs.size(), file);
 
 	for (const std::string& path : texturePaths)
 	{
@@ -201,6 +214,9 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 			printf("Meshlet RT data: %.2f MB (%.2f MB compressed)\n", double(geometry.meshletvtx0.size() * sizeof(uint16_t)) / 1e6, double(header.compressedMeshletVtx0Bytes) / 1e6);
 		else
 			printf("Meshlet RT data: %.2f MB\n", double(geometry.meshletvtx0.size() * sizeof(uint16_t)) / 1e6);
+
+		printf("OMM array data: %.2f MB\n", double(geometry.ommData.size()) / 1e6);
+		printf("OMM index data: %.2f MB\n", double(geometry.ommIndices.size()) / 1e6);
 	}
 
 	return true;
@@ -241,7 +257,7 @@ static void readMeshletDataCompressed(const std::vector<Meshlet>& meshlets, std:
 	}
 }
 
-bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode)
+bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates)
 {
 	size_t fileSize;
 	void* file = mmapFile(path, &fileSize);
@@ -253,7 +269,7 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 
 	if (header.magic != kSceneCacheMagic || header.version != kSceneCacheVersion ||
 	    header.meshletMaxVertices != MESH_MAXVTX || header.meshletMaxTriangles != MESH_MAXTRI ||
-	    header.clrtMode != clrtMode)
+	    header.clrtMode != clrtMode || header.ommStates != uint32_t(ommStates))
 	{
 		unmapFile(file, fileSize);
 		return false;
@@ -267,6 +283,11 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	geometry.meshletdata.resize(header.meshletdataCount);
 	geometry.meshletvtx0.resize(header.meshletvtx0Count);
 	geometry.meshes.resize(header.meshCount);
+	geometry.ommStates = header.ommStates;
+	geometry.ommData.resize(header.ommArrayDataSize);
+	geometry.ommIndices.resize(header.ommIndexDataSize);
+	geometry.ommDescs.resize(header.ommDescCount);
+
 	materials.resize(header.materialCount);
 	draws.resize(header.drawCount);
 	texturePaths.resize(header.texturePathCount);
@@ -295,6 +316,10 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	read(geometry.meshes.data(), sizeof(Mesh), geometry.meshes.size(), file, fileOffset);
 	read(materials.data(), sizeof(Material), materials.size(), file, fileOffset);
 	read(draws.data(), sizeof(MeshDraw), draws.size(), file, fileOffset);
+
+	read(geometry.ommData.data(), 1, geometry.ommData.size(), file, fileOffset);
+	read(geometry.ommIndices.data(), 1, geometry.ommIndices.size(), file, fileOffset);
+	read(geometry.ommDescs.data(), sizeof(uint32_t), geometry.ommDescs.size(), file, fileOffset);
 
 	for (std::string& path : texturePaths)
 	{

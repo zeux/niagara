@@ -3,6 +3,8 @@
 
 #include "config.h"
 
+#include "textures.h"
+
 #include <fast_obj.h>
 #include <cgltf.h>
 #include <meshoptimizer.h>
@@ -12,6 +14,9 @@
 #include <algorithm>
 #include <memory>
 #include <cstring>
+
+const float kOmmSubdivisionScale = 3.f;
+const uint32_t kOmmSubdivisionLevel = 6;
 
 static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, const std::vector<vec3>& vertices, const std::vector<unsigned int>& meshlet_vertices, const std::vector<unsigned char>& meshlet_triangles, uint32_t baseVertex, bool lod0)
 {
@@ -730,4 +735,186 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 	}
 
 	return true;
+}
+
+void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, int ommStates, int ommMip)
+{
+	assert(ommStates == 2 || ommStates == 4);
+
+	// resolve per-mesh texture index from draws; -1 = skip, -2 = conflicting draws
+	std::vector<int> meshTexture(geometry.meshes.size(), -1);
+
+	for (const MeshDraw& draw : draws)
+	{
+		if (draw.postPass != 1)
+			continue;
+
+		int textureIndex = materials[draw.materialIndex].albedoTexture - 1;
+		if (textureIndex < 0)
+			continue;
+
+		uint32_t meshIndex = draw.meshIndex;
+		if (meshTexture[meshIndex] == -1)
+			meshTexture[meshIndex] = textureIndex;
+		else if (meshTexture[meshIndex] != textureIndex)
+			meshTexture[meshIndex] = -2;
+	}
+
+	struct TextureData
+	{
+		uint32_t width;
+		uint32_t height;
+		uint32_t levels;
+		std::unique_ptr<unsigned char[]> rgba;
+	};
+
+	std::vector<uint8_t> requiredTextures(texturePaths.size());
+	for (size_t i = 0; i < geometry.meshes.size(); ++i)
+		if (meshTexture[i] >= 0)
+			requiredTextures[meshTexture[i]] = 1;
+
+	std::vector<TextureData> textures(texturePaths.size());
+
+	for (size_t textureIndex = 0; textureIndex < texturePaths.size(); ++textureIndex)
+	{
+		if (requiredTextures[textureIndex] == 0)
+			continue;
+
+		unsigned int width = 0;
+		unsigned int height = 0;
+		unsigned int levels = 0;
+		unsigned char* rgba = decodeImageRGBA(texturePaths[textureIndex].c_str(), ommMip, width, height, levels);
+
+		if (rgba)
+			textures[textureIndex] = { width, height, levels, std::unique_ptr<unsigned char[]>(rgba) };
+		else
+			printf("Warning: image %s failed to load\n", texturePaths[textureIndex].c_str());
+	}
+
+	std::vector<unsigned char> ommData;
+	std::vector<unsigned char> ommLevels;
+	std::vector<unsigned int> ommOffsets;
+	std::vector<int> ommIndices;
+
+	for (size_t i = 0; i < geometry.meshes.size(); ++i)
+	{
+		Mesh& mesh = geometry.meshes[i];
+
+		if (meshTexture[i] < 0)
+			continue;
+
+		TextureData& texture = textures[meshTexture[i]];
+		if (!texture.rgba)
+			continue;
+
+		std::vector<vec2> texcoords(mesh.vertexCount);
+		for (size_t v = 0; v < mesh.vertexCount; ++v)
+		{
+			const Vertex& vertex = geometry.vertices[mesh.vertexOffset + v];
+			texcoords[v].x = meshopt_dequantizeHalf(vertex.tu);
+			texcoords[v].y = meshopt_dequantizeHalf(vertex.tv);
+		}
+
+		const uint32_t* indexBuffer = geometry.indices.data() + mesh.lods[0].indexOffset;
+		uint32_t triangleCount = mesh.lods[0].indexCount / 3;
+
+		std::vector<unsigned char> measuredLevels(triangleCount, 0);
+		std::vector<unsigned int> measuredSources(triangleCount, 0);
+		std::vector<int> measuredIndices(triangleCount, 0);
+
+		size_t ommCount = meshopt_opacityMapMeasure(
+		    measuredLevels.data(), measuredSources.data(), measuredIndices.data(),
+		    indexBuffer, triangleCount * 3,
+		    reinterpret_cast<const float*>(texcoords.data()), mesh.vertexCount, sizeof(vec2),
+		    texture.width, texture.height,
+		    int(kOmmSubdivisionLevel), kOmmSubdivisionScale / (1 << ommMip));
+
+		uint32_t ommOffset = uint32_t(ommLevels.size());
+
+		ommLevels.resize(ommOffset + ommCount);
+		ommOffsets.resize(ommOffset + ommCount);
+
+		size_t dataOffset = ommData.size();
+		for (size_t j = 0; j < ommCount; ++j)
+		{
+			ommLevels[ommOffset + j] = measuredLevels[j];
+			ommOffsets[ommOffset + j] = unsigned(dataOffset);
+			dataOffset += meshopt_opacityMapEntrySize(measuredLevels[j], ommStates);
+		}
+		ommData.resize(dataOffset);
+
+		for (size_t j = 0; j < ommCount; ++j)
+		{
+			uint32_t triangle = measuredSources[j];
+			const vec2& uv0 = texcoords[indexBuffer[triangle * 3 + 0]];
+			const vec2& uv1 = texcoords[indexBuffer[triangle * 3 + 1]];
+			const vec2& uv2 = texcoords[indexBuffer[triangle * 3 + 2]];
+
+			uint8_t* outputData = ommData.data() + ommOffsets[ommOffset + j];
+
+			meshopt_opacityMapRasterize(outputData, ommLevels[ommOffset + j], ommStates, &uv0.x, &uv1.x, &uv2.x,
+			    texture.rgba.get() + 3, 4, texture.width * 4, texture.width, texture.height);
+		}
+
+		mesh.ommIndexData = ((ommIndices.size() * sizeof(uint32_t)) << 2) | 3; // uint32
+
+		for (size_t j = 0; j < triangleCount; ++j)
+			ommIndices.push_back(int(ommOffset + measuredIndices[j]));
+	}
+
+	size_t compactCount = meshopt_opacityMapCompact(ommData.data(), ommData.size(), ommLevels.data(), ommOffsets.data(), ommLevels.size(), ommIndices.data(), ommIndices.size(), ommStates);
+
+	size_t compactDataSize = 0;
+	if (compactCount > 0)
+		compactDataSize = size_t(ommOffsets[compactCount - 1]) + meshopt_opacityMapEntrySize(ommLevels[compactCount - 1], ommStates);
+
+	geometry.ommData.assign(ommData.begin(), ommData.begin() + compactDataSize);
+	geometry.ommStates = ommStates;
+	geometry.ommDescs.resize(compactCount);
+	for (size_t i = 0; i < compactCount; ++i)
+		geometry.ommDescs[i] = (ommOffsets[i] << 4) | uint32_t(ommLevels[i]);
+
+	geometry.ommIndices.clear();
+
+	for (Mesh& mesh : geometry.meshes)
+	{
+		if (mesh.ommIndexData == 0)
+			continue;
+
+		size_t firstTriangle = size_t(mesh.ommIndexData >> 2) / sizeof(uint32_t);
+		size_t triangleCount = mesh.lods[0].indexCount / 3;
+
+		int indexBase = -1;
+		for (size_t i = firstTriangle; i < firstTriangle + triangleCount; ++i)
+			if (ommIndices[i] >= 0 && (indexBase < 0 || indexBase > ommIndices[i]))
+				indexBase = ommIndices[i];
+
+		int indexRange = 0;
+		for (size_t i = firstTriangle; i < firstTriangle + triangleCount; ++i)
+			if (ommIndices[i] >= 0 && ommIndices[i] - indexBase >= indexRange)
+				indexRange = ommIndices[i] - indexBase + 1;
+
+		// special indices -1..-4 are reserved; usable unsigned range is 0..251 for uint8, 0..65531 for uint16
+		uint32_t format = indexRange <= 251 ? 1 : (indexRange <= 65531 ? 2 : 3);
+		size_t stride = 1 << (format - 1);
+
+		geometry.ommIndices.resize((geometry.ommIndices.size() + stride - 1) & ~(stride - 1)); // align to stride
+
+		mesh.ommIndexData = (uint32_t(geometry.ommIndices.size()) << 2) | format;
+		mesh.ommIndexBase = uint32_t(indexBase < 0 ? 0 : indexBase);
+
+		for (size_t i = firstTriangle; i < firstTriangle + triangleCount; ++i)
+		{
+			uint32_t index = ommIndices[i] >= 0 ? ommIndices[i] - indexBase : ommIndices[i];
+
+			for (size_t k = 0; k < stride; ++k)
+			{
+				geometry.ommIndices.push_back(uint8_t(index));
+				index >>= 8;
+			}
+		}
+	}
+
+	printf("OMM: %d-state; %d rasterized, %d compacted, %.2f MB array, %.2f MB index\n", ommStates,
+	    int(ommOffsets.size()), int(compactCount), double(geometry.ommData.size()) / 1e6, double(geometry.ommIndices.size()) / 1e6);
 }

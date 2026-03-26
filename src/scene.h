@@ -73,10 +73,13 @@ struct alignas(16) Mesh
 	uint32_t vertexOffset;
 	uint32_t vertexCount;
 
-	uint32_t lodCount;
-	MeshLod lods[8];
+	uint32_t ommIndexData; // 30-bit offset, 2-bit format (1=uint8, 2=uint16, 3=uint32)
+	uint32_t ommIndexBase; // base value added to non-negative indices
 
-	uint32_t padding; // TODO: this is fragile
+	uint32_t lodCount;
+	uint32_t padding[3]; // TODO: this is fragile
+
+	MeshLod lods[8];
 };
 
 struct Geometry
@@ -88,6 +91,11 @@ struct Geometry
 	std::vector<uint32_t> meshletdata;
 	std::vector<uint16_t> meshletvtx0; // 4 position components per vertex referenced by meshlets in lod 0, packed tightly
 	std::vector<Mesh> meshes;
+
+	uint32_t ommStates = 0;
+	std::vector<uint8_t> ommData;
+	std::vector<uint8_t> ommIndices;
+	std::vector<uint32_t> ommDescs; // 4-bit level + 28-bit offset
 };
 
 struct Camera
@@ -117,8 +125,10 @@ struct Animation
 bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
 bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
 
+void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, int ommStates, int ommMip);
+
 bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose);
-bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode);
+bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates);
 
 bool saveSceneCamera(const char* path, const Camera& camera);
 bool loadSceneCamera(const char* path, Camera& camera);

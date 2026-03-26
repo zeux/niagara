@@ -125,6 +125,8 @@ struct Animation
 bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
 bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
 
+void normalizeIndicesForOMM(uint32_t* indices, uint32_t count);
+
 void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, int ommStates, int ommMip);
 
 bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose);

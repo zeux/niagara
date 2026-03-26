@@ -5,6 +5,7 @@
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_opacity_micromap: require
 
 #extension GL_GOOGLE_include_directive: require
 
@@ -71,7 +72,12 @@ bool shadowTrace(vec3 wpos, vec3 dir, uint rayflags)
 {
 	rayQueryEXT rq;
 	rayQueryInitializeEXT(rq, tlas, rayflags, 0xff, wpos, 1e-2, dir, 1e3);
-	rayQueryProceedEXT(rq);
+
+	// We must traverse until completion; a single proceed can leave us at a candidate hit.
+	while (rayQueryProceedEXT(rq))
+	{
+	}
+
 	return rayQueryGetIntersectionTypeEXT(rq, true) != gl_RayQueryCommittedIntersectionNoneEXT;
 }
 
@@ -142,9 +148,10 @@ void main()
 	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
 	dir = normalize(dir);
 
-	// On AMDVLK + RDNA3, two shadow traces are faster in practice than one; however, on NV and radv one trace is noticeably faster
+	// QUALITY=0: LQ, no shader alpha test, rely on OMM in forced 2-state mode
+	// QUALITY=1: HQ, shader-driven alpha testing with 4-state OMM data (no force flag)
 	bool shadowhit = QUALITY == 0
-		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsCullNoOpaqueEXT)
+		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsForceOpacityMicromap2StateEXT)
 		: shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT);
 
 	float shadow = shadowhit ? 0.0 : 1.0;

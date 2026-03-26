@@ -534,6 +534,7 @@ int main(int argc, const char** argv)
 	bool raytracingSupported = false;
 	bool clusterrtSupported = false;
 	bool descheapSupported = false;
+	bool opacityMicromapSupported = false;
 	bool unifiedlayoutsSupported = false;
 
 	for (auto& ext : extensions)
@@ -549,6 +550,8 @@ int main(int argc, const char** argv)
 #ifdef VK_EXT_descriptor_heap
 		descheapSupported = descheapSupported || strcmp(ext.extensionName, VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME) == 0;
 #endif
+
+		opacityMicromapSupported = opacityMicromapSupported || strcmp(ext.extensionName, VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME) == 0;
 	}
 
 	if (!unifiedlayoutsSupported)
@@ -582,7 +585,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported, descheapSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported, descheapSupported, opacityMicromapSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -1066,6 +1069,11 @@ int main(int argc, const char** argv)
 	Buffer tlasBuffer = {};
 	Buffer tlasScratchBuffer = {};
 	Buffer tlasInstanceBuffer = {};
+	Buffer ommDataBuffer = {};
+	Buffer ommDescBuffer = {};
+	Buffer ommIndexBuffer = {};
+	VkMicromapEXT omm = VK_NULL_HANDLE;
+
 	if (raytracingSupported)
 	{
 		if (clusterrtSupported && clrtMode)
@@ -1080,8 +1088,11 @@ int main(int argc, const char** argv)
 		}
 		else
 		{
+			if (opacityMicromapSupported && !geometry.ommDescs.empty())
+				omm = buildOMM(ommDataBuffer, ommDescBuffer, ommIndexBuffer, device, geometry, initCommandPool, initCommandBuffer, queue, memoryProperties, scratch);
+
 			std::vector<VkDeviceSize> compactedSizes;
-			buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties);
+			buildBLAS(device, geometry.meshes, vb, ib, blas, compactedSizes, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties, omm ? &geometry : nullptr, omm, omm ? &ommIndexBuffer : nullptr);
 			compactBLAS(device, blas, compactedSizes, blasBuffer, initCommandPool, initCommandBuffer, queue, memoryProperties);
 		}
 
@@ -2069,6 +2080,12 @@ int main(int argc, const char** argv)
 		vkDestroyAccelerationStructureKHR(device, tlas, 0);
 		for (VkAccelerationStructureKHR as : blas)
 			vkDestroyAccelerationStructureKHR(device, as, 0);
+
+		if (omm)
+			vkDestroyMicromapEXT(device, omm, nullptr);
+		destroyBuffer(ommDataBuffer, device);
+		destroyBuffer(ommDescBuffer, device);
+		destroyBuffer(ommIndexBuffer, device);
 
 		destroyBuffer(tlasBuffer, device);
 		destroyBuffer(blasBuffer, device);

@@ -113,6 +113,32 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 	return meshlets.size();
 }
 
+void normalizeIndicesForOMM(uint32_t* indices, uint32_t count)
+{
+	assert(count % 3 == 0);
+
+	for (uint32_t i = 0; i < count; i += 3)
+	{
+		const uint32_t a = indices[i + 0];
+		const uint32_t b = indices[i + 1];
+		const uint32_t c = indices[i + 2];
+
+		// Preserve winding by only applying cyclic rotations and place one minimum index first.
+		if (b < a && b <= c)
+		{
+			indices[i + 0] = b;
+			indices[i + 1] = c;
+			indices[i + 2] = a;
+		}
+		else if (c < a && c < b)
+		{
+			indices[i + 0] = c;
+			indices[i + 1] = a;
+			indices[i + 2] = b;
+		}
+	}
+}
+
 static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 {
 	fastObjMesh* obj = fast_obj_read(path);
@@ -815,8 +841,10 @@ void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, c
 			texcoords[v].y = meshopt_dequantizeHalf(vertex.tv);
 		}
 
-		const uint32_t* indexBuffer = geometry.indices.data() + mesh.lods[0].indexOffset;
+		uint32_t* indexBuffer = geometry.indices.data() + mesh.lods[0].indexOffset;
 		uint32_t triangleCount = mesh.lods[0].indexCount / 3;
+
+		normalizeIndicesForOMM(indexBuffer, triangleCount * 3);
 
 		std::vector<unsigned char> measuredLevels(triangleCount, 0);
 		std::vector<unsigned int> measuredSources(triangleCount, 0);

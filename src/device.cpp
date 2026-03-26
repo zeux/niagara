@@ -247,7 +247,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported, bool descheapSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported, bool descheapSupported, bool opacityMicromapSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -268,6 +268,9 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 		extensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
 		extensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
 		extensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+
+		if (opacityMicromapSupported)
+			extensions.push_back(VK_EXT_OPACITY_MICROMAP_EXTENSION_NAME);
 	}
 
 #ifdef VK_NV_cluster_acceleration_structure
@@ -335,6 +338,10 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR featuresAccelerationStructure = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	featuresAccelerationStructure.accelerationStructure = true;
 
+	// This will only be used if opacityMicromapSupported=true (see below)
+	VkPhysicalDeviceOpacityMicromapFeaturesEXT featuresOpacityMicromap = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_OPACITY_MICROMAP_FEATURES_EXT };
+	featuresOpacityMicromap.micromap = true;
+
 	// This will only be used if clusterrtSupported=true (see below)
 	VkPhysicalDeviceClusterAccelerationStructureFeaturesNV featuresClusterAcceleration = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CLUSTER_ACCELERATION_STRUCTURE_FEATURES_NV };
 	featuresClusterAcceleration.clusterAccelerationStructure = true;
@@ -373,6 +380,12 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 
 		*ppNext = &featuresAccelerationStructure;
 		ppNext = &featuresAccelerationStructure.pNext;
+
+		if (opacityMicromapSupported)
+		{
+			*ppNext = &featuresOpacityMicromap;
+			ppNext = &featuresOpacityMicromap.pNext;
+		}
 	}
 
 	if (clusterrtSupported)

@@ -105,7 +105,7 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 
 	for (auto& meshlet : meshlets)
 	{
-		meshopt_optimizeMeshlet(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, meshlet.vertex_count);
+		meshopt_optimizeMeshletLevel(&meshlet_vertices[meshlet.vertex_offset], meshlet.vertex_count, &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, 1);
 
 		appendMeshlet(result, meshlet, vertices, meshlet_vertices, meshlet_triangles, baseVertex, lod0);
 	}

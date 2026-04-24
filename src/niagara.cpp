@@ -551,6 +551,9 @@ int main(int argc, const char** argv)
 #endif
 	}
 
+	if (getenv("DESCHEAP"))
+		descheapSupported &= atoi(getenv("DESCHEAP")) != 0;
+
 	if (!unifiedlayoutsSupported)
 		printf("WARNING: KHR_unified_image_layouts is not supported; barrier setup may be inefficient\n");
 
@@ -1912,7 +1915,7 @@ int main(int argc, const char** argv)
 			double trianglesPerSec = double(triangleCount) / double(frameGpuAvg * 1e-3);
 			double drawsPerSec = double(draws.size()) / double(frameGpuAvg * 1e-3);
 
-			debugtext(0, ~0u, "%scpu: %.2f ms (%+.2f); gpu: %.2f ms", reloadShaders ? "   " : "", frameCpuAvg, frameDelta * 1000 - frameCpuAvg, frameGpuAvg);
+			debugtext(0, ~0u, "%scpu: %.2f ms (%+.2f); gpu: %.3f ms", reloadShaders ? "   " : "", frameCpuAvg, frameDelta * 1000 - frameCpuAvg, frameGpuAvg);
 
 			if (reloadShaders)
 				debugtext(0, reloadShadersColor, "R*");

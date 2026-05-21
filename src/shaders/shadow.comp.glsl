@@ -98,7 +98,7 @@ bool shadowTraceTransparent(vec3 wpos, vec3 dir, uint rayflags)
 		Mesh mesh = meshes[draw.meshIndex];
 
 		uint vertexOffset = mesh.vertexOffset;
-		uint indexOffset = mesh.lods[0].indexOffset;
+		uint indexOffset = mesh.lods[mesh.lodRT].indexOffset;
 
 		// TODO: It might be worth repacking some of this data for RT to reduce indirections
 		// However, attempting to do this gained us zero performance back, so maybe not?

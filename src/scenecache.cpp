@@ -10,7 +10,7 @@
 #include <string.h>
 
 const uint32_t kSceneCacheMagic = 0x434E4353; // 'SCNC'
-const uint32_t kSceneCacheVersion = 4;
+const uint32_t kSceneCacheVersion = 5;
 const uint32_t kSceneCameraVersion = 1;
 
 struct SceneHeader
@@ -178,7 +178,7 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 
 	for (const std::string& path : texturePaths)
 	{
-		char buf[128] = {};
+		char buf[256] = {};
 		strncpy(buf, path.c_str(), sizeof(buf) - 1);
 		fwrite(buf, sizeof(buf), 1, file);
 	}
@@ -324,15 +324,17 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	for (Mesh& mesh : geometry.meshes)
 		if (mesh.ommIndexData)
 		{
-			uint32_t* indexBuffer = geometry.indices.data() + mesh.lods[0].indexOffset;
-			uint32_t triangleCount = mesh.lods[0].indexCount / 3;
+			const MeshLod& lod = mesh.lods[mesh.lodRT];
+
+			uint32_t* indexBuffer = geometry.indices.data() + lod.indexOffset;
+			uint32_t triangleCount = lod.indexCount / 3;
 
 			normalizeIndicesForOMM(indexBuffer, triangleCount * 3);
 		}
 
 	for (std::string& path : texturePaths)
 	{
-		char buf[128] = {};
+		char buf[256] = {};
 		read(buf, sizeof(buf), 1, file, fileOffset);
 		buf[sizeof(buf) - 1] = 0;
 

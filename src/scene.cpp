@@ -9,16 +9,19 @@
 #include <cgltf.h>
 #include <meshoptimizer.h>
 
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include <algorithm>
 #include <memory>
-#include <cstring>
 
 const float kOmmSubdivisionScale = 3.f;
 const uint32_t kOmmSubdivisionLevel = 6;
+const float kShadowLodError = 3e-3f;
 
-static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, const std::vector<vec3>& vertices, const std::vector<unsigned int>& meshlet_vertices, const std::vector<unsigned char>& meshlet_triangles, uint32_t baseVertex, bool lod0)
+static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, const std::vector<vec3>& vertices, const std::vector<unsigned int>& meshlet_vertices, const std::vector<unsigned char>& meshlet_triangles, uint32_t baseVertex, bool lodRT)
 {
 	size_t dataOffset = result.meshletdata.size();
 
@@ -46,7 +49,7 @@ static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, cons
 	for (unsigned int i = 0; i < indexGroupCount; ++i)
 		result.meshletdata.push_back(indexGroups[i]);
 
-	if (lod0)
+	if (lodRT)
 	{
 		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
 		{
@@ -84,7 +87,7 @@ static void appendMeshlet(Geometry& result, const meshopt_Meshlet& meshlet, cons
 	result.meshlets.push_back(m);
 }
 
-static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, std::vector<uint32_t>& indices, uint32_t baseVertex, bool lod0, bool fast, bool clrt)
+static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices, const uint32_t* indices, size_t indexCount, uint32_t baseVertex, bool lodRT)
 {
 	const size_t max_vertices = MESH_MAXVTX;
 	const size_t min_triangles = MESH_MAXTRI / 4;
@@ -92,22 +95,20 @@ static size_t appendMeshlets(Geometry& result, const std::vector<vec3>& vertices
 	const float cone_weight = MESHLET_CONE_WEIGHT;
 	const float fill_weight = MESHLET_FILL_WEIGHT;
 
-	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indices.size(), max_vertices, min_triangles));
-	std::vector<unsigned int> meshlet_vertices(indices.size());
-	std::vector<unsigned char> meshlet_triangles(indices.size());
+	std::vector<meshopt_Meshlet> meshlets(meshopt_buildMeshletsBound(indexCount, max_vertices, min_triangles));
+	std::vector<unsigned int> meshlet_vertices(indexCount);
+	std::vector<unsigned char> meshlet_triangles(indexCount);
 
-	if (fast)
-		meshlets.resize(meshopt_buildMeshletsScan(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), vertices.size(), max_vertices, max_triangles));
-	else if (clrt && lod0) // only use spatial algo for lod0 as this is the only lod that is used for raytracing
-		meshlets.resize(meshopt_buildMeshletsSpatial(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, min_triangles, max_triangles, fill_weight));
+	if (lodRT)
+		meshlets.resize(meshopt_buildMeshletsSpatial(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices, indexCount, &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, min_triangles, max_triangles, fill_weight));
 	else
-		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices.data(), indices.size(), &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, max_triangles, cone_weight));
+		meshlets.resize(meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), indices, indexCount, &vertices[0].x, vertices.size(), sizeof(vec3), max_vertices, max_triangles, cone_weight));
 
 	for (auto& meshlet : meshlets)
 	{
 		meshopt_optimizeMeshletLevel(&meshlet_vertices[meshlet.vertex_offset], meshlet.vertex_count, &meshlet_triangles[meshlet.triangle_offset], meshlet.triangle_count, 1);
 
-		appendMeshlet(result, meshlet, vertices, meshlet_vertices, meshlet_triangles, baseVertex, lod0);
+		appendMeshlet(result, meshlet, vertices, meshlet_vertices, meshlet_triangles, baseVertex, lodRT);
 	}
 
 	return meshlets.size();
@@ -166,7 +167,7 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 	return true;
 }
 
-static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets, bool fast, bool clrt)
+static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, float maxScale, bool clrt)
 {
 	indices.resize(meshopt_filterIndexBuffer(indices.data(), indices.data(), indices.size(), &vertices[0].vx, vertices.size(), sizeof(uint16_t) * 3, sizeof(Vertex)));
 
@@ -178,10 +179,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 
 	vertices.resize(uniqueVertices);
 
-	if (fast)
-		meshopt_optimizeVertexCacheFifo(indices.data(), indices.data(), indices.size(), vertices.size(), 16);
-	else
-		meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertices.size());
+	meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertices.size());
 
 	meshopt_optimizeVertexFetch(vertices.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
 
@@ -237,9 +235,6 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 
 		result.indices.insert(result.indices.end(), lodIndices.begin(), lodIndices.end());
 
-		lod.meshletOffset = uint32_t(result.meshlets.size());
-		lod.meshletCount = buildMeshlets ? uint32_t(appendMeshlets(result, positions, lodIndices, mesh.vertexOffset, &lod == mesh.lods, fast, clrt)) : 0;
-
 		lod.error = lodError * lodScale;
 
 		if (mesh.lodCount < COUNTOF(mesh.lods))
@@ -264,17 +259,26 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 			lodIndices.resize(nextIndices);
 			lodError = std::max(lodError * 1.5f, nextError); // important! since we start from last LOD, we need to accumulate the error
 
-			if (fast)
-				meshopt_optimizeVertexCacheFifo(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size(), 16);
-			else
-				meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size());
+			meshopt_optimizeVertexCache(lodIndices.data(), lodIndices.data(), lodIndices.size(), vertices.size());
 		}
+	}
+
+	for (uint32_t i = 0; i < mesh.lodCount; ++i)
+		if (mesh.lods[i].error * maxScale < kShadowLodError)
+			mesh.lodRT = i;
+
+	for (uint32_t i = 0; i < mesh.lodCount; ++i)
+	{
+		MeshLod& lod = mesh.lods[i];
+
+		lod.meshletOffset = uint32_t(result.meshlets.size());
+		lod.meshletCount = uint32_t(appendMeshlets(result, positions, result.indices.data() + lod.indexOffset, lod.indexCount, mesh.vertexOffset, clrt && i == mesh.lodRT));
 	}
 
 	result.meshes.push_back(mesh);
 }
 
-bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast, bool clrt)
+bool loadMesh(Geometry& geometry, const char* path, bool clrt)
 {
 	std::vector<Vertex> vertices;
 	if (!loadObj(vertices, path))
@@ -284,7 +288,7 @@ bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fas
 	for (size_t i = 0; i < indices.size(); ++i)
 		indices[i] = uint32_t(i);
 
-	appendMesh(geometry, vertices, indices, buildMeshlets, fast, clrt);
+	appendMesh(geometry, vertices, indices, 1.f, clrt);
 	return true;
 }
 
@@ -466,7 +470,7 @@ static cgltf_result decompressMeshopt(cgltf_data* data)
 	return cgltf_result_success;
 }
 
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast, bool clrt)
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool clrt)
 {
 	clock_t timer = clock();
 
@@ -495,6 +499,25 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 	size_t firstMeshOffset = geometry.meshes.size();
 
+	std::vector<float> meshScale(data->meshes_count, 1.f);
+
+	for (size_t i = 0; i < data->nodes_count; ++i)
+	{
+		const cgltf_node* node = &data->nodes[i];
+
+		if (!node->mesh)
+			continue;
+
+		float xf[16];
+		cgltf_node_transform_world(node, xf);
+
+		float det = xf[0] * (xf[5] * xf[10] - xf[9] * xf[6]) - xf[1] * (xf[4] * xf[10] - xf[6] * xf[8]) + xf[2] * (xf[4] * xf[9] - xf[5] * xf[8]);
+		float scale = cbrtf(det);
+
+		size_t meshIndex = cgltf_mesh_index(data, node->mesh);
+		meshScale[meshIndex] = std::max(meshScale[meshIndex], fabsf(scale));
+	}
+
 	for (size_t i = 0; i < data->meshes_count; ++i)
 	{
 		const cgltf_mesh& mesh = data->meshes[i];
@@ -513,7 +536,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 			std::vector<uint32_t> indices(prim.indices->count);
 			cgltf_accessor_unpack_indices(prim.indices, indices.data(), 4, indices.size());
 
-			appendMesh(geometry, vertices, indices, buildMeshlets, fast, clrt);
+			appendMesh(geometry, vertices, indices, meshScale[i], clrt);
 			primitiveMaterials.push_back(prim.material);
 		}
 
@@ -549,7 +572,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 			{
 				MeshDraw draw = {};
 				draw.position = vec3(translation[0], translation[1], translation[2]);
-				draw.scale = std::max(scale[0], std::max(scale[1], scale[2]));
+				draw.scale = cbrtf(scale[0] * scale[1] * scale[2]);
 				draw.orientation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
 				draw.meshIndex = range.first + j;
 
@@ -795,7 +818,6 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 	    path, int(geometry.meshes.size()), int(draws.size()), int(animations.size()), int(geometry.vertices.size()),
 	    double(clock() - timer) / CLOCKS_PER_SEC);
 
-	if (buildMeshlets)
 	{
 		unsigned int meshletVtxs = 0, meshletTris = 0;
 
@@ -916,8 +938,10 @@ void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, c
 			texcoords[v].y = meshopt_dequantizeHalf(vertex.tv);
 		}
 
-		uint32_t* indexBuffer = geometry.indices.data() + mesh.lods[0].indexOffset;
-		uint32_t triangleCount = mesh.lods[0].indexCount / 3;
+		const MeshLod& lod = mesh.lods[mesh.lodRT];
+
+		uint32_t* indexBuffer = geometry.indices.data() + lod.indexOffset;
+		uint32_t triangleCount = lod.indexCount / 3;
 
 		normalizeIndicesForOMM(indexBuffer, triangleCount * 3);
 
@@ -984,8 +1008,10 @@ void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, c
 		if (mesh.ommIndexData == 0)
 			continue;
 
+		const MeshLod& lod = mesh.lods[mesh.lodRT];
+
 		size_t firstTriangle = size_t(mesh.ommIndexData >> 2) / sizeof(uint32_t);
-		size_t triangleCount = mesh.lods[0].indexCount / 3;
+		size_t triangleCount = lod.indexCount / 3;
 
 		int indexBase = -1;
 		for (size_t i = firstTriangle; i < firstTriangle + triangleCount; ++i)

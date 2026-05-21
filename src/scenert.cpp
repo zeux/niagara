@@ -44,7 +44,7 @@ void buildBLAS(VkDevice device, const std::vector<Mesh>& meshes, const Buffer& v
 		VkAccelerationStructureGeometryKHR& geo = geometries[i];
 		VkAccelerationStructureBuildGeometryInfoKHR& buildInfo = buildInfos[i];
 
-		unsigned int lodIndex = 0;
+		uint32_t lodIndex = mesh.lodRT;
 
 		primitiveCounts[i] = mesh.lods[lodIndex].indexCount / 3;
 
@@ -278,13 +278,15 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 
 	for (const Mesh& mesh : meshes)
 	{
-		clusterSizes.maxTotalTriangleCount += mesh.lods[0].indexCount / 3;
-		clusterInfo.maxAccelerationStructureCount += mesh.lods[0].meshletCount;
-		maxClustersPerMesh = std::max(maxClustersPerMesh, size_t(mesh.lods[0].meshletCount));
+		const MeshLod& lod = mesh.lods[mesh.lodRT];
 
-		for (size_t mi = 0; mi < mesh.lods[0].meshletCount; ++mi)
+		clusterSizes.maxTotalTriangleCount += lod.indexCount / 3;
+		clusterInfo.maxAccelerationStructureCount += lod.meshletCount;
+		maxClustersPerMesh = std::max(maxClustersPerMesh, size_t(lod.meshletCount));
+
+		for (size_t mi = 0; mi < lod.meshletCount; ++mi)
 		{
-			const Meshlet& ml = meshlets[mesh.lods[0].meshletOffset + mi];
+			const Meshlet& ml = meshlets[lod.meshletOffset + mi];
 			clusterSizes.maxTotalVertexCount += ml.vertexCount;
 		}
 	}
@@ -341,9 +343,11 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 
 	for (const Mesh& mesh : meshes)
 	{
-		for (size_t mi = 0; mi < mesh.lods[0].meshletCount; ++mi)
+		const MeshLod& lod = mesh.lods[mesh.lodRT];
+
+		for (size_t mi = 0; mi < lod.meshletCount; ++mi)
 		{
-			const Meshlet& ml = meshlets[mesh.lods[0].meshletOffset + mi];
+			const Meshlet& ml = meshlets[lod.meshletOffset + mi];
 
 			VkClusterAccelerationStructureBuildTriangleClusterInfoNV cluster = {};
 			cluster.clusterID = uint32_t(mi);
@@ -426,21 +430,23 @@ void buildCBLAS(VkDevice device, const std::vector<Mesh>& meshes, const std::vec
 	clusterMove.srcInfosArray.size = moveInfo.maxAccelerationStructureCount * 8;
 	clusterMove.srcInfosArray.stride = 8; // TODO: redundant, probably a driver bug
 
-	printf("max cluster count %d, total cluster count %d, total blas count %d\n", int(maxClustersPerMesh), int(clusterInfo.maxAccelerationStructureCount), int(accelInfo.maxAccelerationStructureCount));
+	printf("max cluster count %d, total cluster count %d, total blas count %d, %.3fM triangles\n", int(maxClustersPerMesh), int(clusterInfo.maxAccelerationStructureCount), int(accelInfo.maxAccelerationStructureCount), double(clusterSizes.maxTotalTriangleCount) / 1e6);
 
 	VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV* accelData = static_cast<VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV*>(infosBuffer.data);
 	size_t accelOffset = 0;
 
 	for (const Mesh& mesh : meshes)
 	{
+		const MeshLod& lod = mesh.lods[mesh.lodRT];
+
 		VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV accel = {};
-		accel.clusterReferencesCount = uint32_t(mesh.lods[0].meshletCount);
+		accel.clusterReferencesCount = uint32_t(lod.meshletCount);
 		accel.clusterReferencesStride = 8;
 		accel.clusterReferences = getBufferAddress(rangeBuffer, device) + clusterInfo.maxAccelerationStructureCount * 8 + accelOffset * 8;
 
 		memcpy(accelData, &accel, sizeof(VkClusterAccelerationStructureBuildClustersBottomLevelInfoNV));
 		accelData++;
-		accelOffset += mesh.lods[0].meshletCount;
+		accelOffset += lod.meshletCount;
 	}
 
 	VkClusterAccelerationStructureCommandsInfoNV accelBuild = { VK_STRUCTURE_TYPE_CLUSTER_ACCELERATION_STRUCTURE_COMMANDS_INFO_NV };

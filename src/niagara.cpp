@@ -838,7 +838,6 @@ int main(int argc, const char** argv)
 	vec3 sunDirection = normalize(vec3(1.0f, 1.0f, 1.0f));
 
 	bool sceneMode = false;
-	bool fastMode = getenv("FAST") && atoi(getenv("FAST"));
 	bool clrtMode = getenv("CLRT") && atoi(getenv("CLRT"));
 	bool compressed = !getenv("COMPRESSED") || atoi(getenv("COMPRESSED")); // enabled by default
 	bool verbose = getenv("VERBOSE") && atoi(getenv("VERBOSE"));
@@ -857,7 +856,7 @@ int main(int argc, const char** argv)
 			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, ommStates))
 			{
 				printf("Loading scene from %s\n", argv[1]);
-				if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], /* buildMeshlets= */ true, /* fastMode= */ false, clrtMode))
+				if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], clrtMode))
 				{
 					printf("Error: scene %s failed to load\n", argv[1]);
 					return 1;
@@ -943,7 +942,7 @@ int main(int argc, const char** argv)
 	{
 		for (int i = 1; i < argc; ++i)
 		{
-			if (!loadMesh(geometry, argv[i], meshShadingSupported, fastMode, clrtMode))
+			if (!loadMesh(geometry, argv[i], clrtMode))
 			{
 				printf("Error: mesh %s failed to load\n", argv[i]);
 				return 1;

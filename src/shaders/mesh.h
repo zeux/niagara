@@ -71,7 +71,8 @@ struct Mesh
 	uint ommIndexBase;
 
 	uint lodCount;
-	uint padding[3];
+	uint lodRT;
+	uint padding[2];
 
 	MeshLod lods[8];
 };

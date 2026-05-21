@@ -77,7 +77,8 @@ struct alignas(16) Mesh
 	uint32_t ommIndexBase; // base value added to non-negative indices
 
 	uint32_t lodCount;
-	uint32_t padding[3]; // TODO: this is fragile
+	uint32_t lodRT;
+	uint32_t padding[2]; // TODO: this is fragile
 
 	MeshLod lods[8];
 };
@@ -89,7 +90,7 @@ struct Geometry
 	std::vector<uint32_t> indices;
 	std::vector<Meshlet> meshlets;
 	std::vector<uint32_t> meshletdata;
-	std::vector<uint16_t> meshletvtx0; // 4 position components per vertex referenced by meshlets in lod 0, packed tightly
+	std::vector<uint16_t> meshletvtx0; // 4 position components per vertex referenced by meshlets in RT LOD, packed tightly
 	std::vector<Mesh> meshes;
 
 	uint32_t ommStates = 0;
@@ -122,8 +123,8 @@ struct Animation
 	std::vector<Keyframe> keyframes;
 };
 
-bool loadMesh(Geometry& geometry, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast = false, bool clrt = false);
+bool loadMesh(Geometry& geometry, const char* path, bool clrt = false);
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool clrt = false);
 
 void normalizeIndicesForOMM(uint32_t* indices, size_t index_count);
 

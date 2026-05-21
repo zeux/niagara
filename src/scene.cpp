@@ -398,6 +398,74 @@ static void loadVertices(std::vector<Vertex>& vertices, const cgltf_primitive& p
 	}
 }
 
+static cgltf_result decompressMeshopt(cgltf_data* data)
+{
+	for (size_t i = 0; i < data->buffer_views_count; ++i)
+	{
+		if (!data->buffer_views[i].has_meshopt_compression)
+			continue;
+		cgltf_meshopt_compression* mc = &data->buffer_views[i].meshopt_compression;
+
+		const unsigned char* source = static_cast<const unsigned char*>(mc->buffer->data);
+		if (!source)
+			return cgltf_result_invalid_gltf;
+		source += mc->offset;
+
+		void* result = malloc(mc->count * mc->stride);
+		if (!result)
+			return cgltf_result_out_of_memory;
+
+		data->buffer_views[i].data = result;
+
+		int rc = -1;
+
+		switch (mc->mode)
+		{
+		case cgltf_meshopt_compression_mode_attributes:
+			rc = meshopt_decodeVertexBuffer(result, mc->count, mc->stride, source, mc->size);
+			break;
+
+		case cgltf_meshopt_compression_mode_triangles:
+			rc = meshopt_decodeIndexBuffer(result, mc->count, mc->stride, source, mc->size);
+			break;
+
+		case cgltf_meshopt_compression_mode_indices:
+			rc = meshopt_decodeIndexSequence(result, mc->count, mc->stride, source, mc->size);
+			break;
+
+		default:
+			return cgltf_result_invalid_gltf;
+		}
+
+		if (rc != 0)
+			return cgltf_result_io_error;
+
+		switch (mc->filter)
+		{
+		case cgltf_meshopt_compression_filter_octahedral:
+			meshopt_decodeFilterOct(result, mc->count, mc->stride);
+			break;
+
+		case cgltf_meshopt_compression_filter_quaternion:
+			meshopt_decodeFilterQuat(result, mc->count, mc->stride);
+			break;
+
+		case cgltf_meshopt_compression_filter_exponential:
+			meshopt_decodeFilterExp(result, mc->count, mc->stride);
+			break;
+
+		case cgltf_meshopt_compression_filter_color:
+			meshopt_decodeFilterColor(result, mc->count, mc->stride);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	return cgltf_result_success;
+}
+
 bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool buildMeshlets, bool fast, bool clrt)
 {
 	clock_t timer = clock();
@@ -415,6 +483,10 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		return false;
 
 	res = cgltf_validate(data);
+	if (res != cgltf_result_success)
+		return false;
+
+	res = decompressMeshopt(data);
 	if (res != cgltf_result_success)
 		return false;
 

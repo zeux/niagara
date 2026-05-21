@@ -168,6 +168,8 @@ static bool loadObj(std::vector<Vertex>& vertices, const char* path)
 
 static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, bool buildMeshlets, bool fast, bool clrt)
 {
+	indices.resize(meshopt_filterIndexBuffer(indices.data(), indices.data(), indices.size(), &vertices[0].vx, vertices.size(), sizeof(uint16_t) * 3, sizeof(Vertex)));
+
 	std::vector<uint32_t> remap(vertices.size());
 	size_t uniqueVertices = meshopt_generateVertexRemap(remap.data(), indices.data(), indices.size(), vertices.data(), vertices.size(), sizeof(Vertex));
 

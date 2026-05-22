@@ -21,6 +21,23 @@ bool projectSphere(vec3 c, float r, float znear, float P00, float P11, out vec4 
 	return true;
 }
 
+float getOcclusionMip(vec4 aabb, float pyramidWidth, float pyramidHeight)
+{
+	vec2 size = aabb.zw - aabb.xy;
+
+	// Because we only consider 2x2 pixels, we need to make sure we are sampling from a mip that reduces the rectangle to 1x1 texel or smaller.
+	// Due to the rectangle being arbitrarily offset, a 1x1 rectangle may cover 2x2 texel area. Using floor() here would require sampling 4 corners
+	// of AABB (using bilinear fetch), which is a little slower.
+	float level = ceil(log2(max(size.x * pyramidWidth, size.y * pyramidHeight)));
+
+	// ... however, if the result still covers at most 2x2 texels at the finer mip, we can sample from it for free.
+	// fract(min) + size <= 2 means the finer footprint touches at most 2 texels on each axis.
+	vec2 fmipSize = vec2(pyramidWidth, pyramidHeight) * exp2(1 - level);
+	level -= float(all(lessThanEqual(fract(aabb.xy * fmipSize) + size * fmipSize, vec2(2.0))));
+
+	return max(level, 0);
+}
+
 bool coneCull(vec3 center, float radius, vec3 cone_axis, float cone_cutoff, vec3 camera_position)
 {
 	return dot(center - camera_position, cone_axis) >= cone_cutoff * length(center - camera_position) + radius;

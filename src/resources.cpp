@@ -152,30 +152,41 @@ void createBuffer(Buffer& result, VkDevice device, const VkPhysicalDeviceMemoryP
 void uploadBuffer(VkDevice device, VkCommandPool commandPool, VkCommandBuffer commandBuffer, VkQueue queue, const Buffer& buffer, const Buffer& scratch, const void* data, size_t size)
 {
 	// TODO: this function is submitting a command buffer and waiting for device idle for each buffer upload; this is obviously suboptimal and we'd need to batch this later
-	assert(size > 0);
 	assert(scratch.data);
-	assert(scratch.size >= size);
-	memcpy(scratch.data, data, size);
+	assert(buffer.size >= size);
 
-	VK_CHECK(vkResetCommandPool(device, commandPool, 0));
+	const char* source = static_cast<const char*>(data);
 
-	VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	for (size_t offset = 0; offset < size;)
+	{
+		size_t chunkSize = size - offset;
+		if (chunkSize > scratch.size)
+			chunkSize = scratch.size;
 
-	VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+		memcpy(scratch.data, source + offset, chunkSize);
 
-	VkBufferCopy region = { 0, 0, VkDeviceSize(size) };
-	vkCmdCopyBuffer(commandBuffer, scratch.buffer, buffer.buffer, 1, &region);
+		VK_CHECK(vkResetCommandPool(device, commandPool, 0));
 
-	VK_CHECK(vkEndCommandBuffer(commandBuffer));
+		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-	VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+		VkBufferCopy region = { 0, VkDeviceSize(offset), VkDeviceSize(chunkSize) };
+		vkCmdCopyBuffer(commandBuffer, scratch.buffer, buffer.buffer, 1, &region);
 
-	VK_CHECK(vkDeviceWaitIdle(device));
+		VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+
+		VK_CHECK(vkDeviceWaitIdle(device));
+
+		offset += chunkSize;
+	}
 }
 
 void destroyBuffer(const Buffer& buffer, VkDevice device)

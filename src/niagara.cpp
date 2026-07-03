@@ -5,6 +5,7 @@
 #include "textures.h"
 #include "shaders.h"
 #include "swapchain.h"
+#include "fileutils.h"
 
 #include "config.h"
 #include "math.h"
@@ -853,9 +854,11 @@ int main(int argc, const char** argv)
 			std::string cachePath = std::string(argv[1]) + ".cache";
 			std::string cameraPath = std::string(argv[1]) + ".camera";
 
+			uint64_t hashMeta = hashFileMeta(argv[1]);
+
 			double sceneTimer = glfwGetTime();
 
-			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, animations, keyframes, camera, sunDirection, clrtMode, ommStates))
+			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, animations, keyframes, camera, sunDirection, hashMeta, clrtMode, ommStates))
 			{
 				printf("Loading scene from %s\n", argv[1]);
 				if (!loadScene(geometry, materials, draws, lights, texturePaths, animations, keyframes, camera, sunDirection, argv[1], clrtMode))
@@ -870,7 +873,7 @@ int main(int argc, const char** argv)
 					buildSceneOmm(geometry, materials, draws, texturePaths, ommStates, ommMip);
 				}
 
-				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, animations, keyframes, camera, sunDirection, clrtMode, compressed, verbose))
+				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, animations, keyframes, camera, sunDirection, hashMeta, clrtMode, compressed, verbose))
 				{
 					printf("Error: scene cache %s failed to save\n", cachePath.c_str());
 					return 1;

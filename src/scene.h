@@ -142,8 +142,8 @@ void normalizeIndicesForOMM(uint32_t* indices, size_t index_count);
 
 void buildSceneOmm(Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, const std::vector<std::string>& texturePaths, int ommStates, int ommMip);
 
-bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const std::vector<Animation>& animations, const std::vector<Keyframe>& keyframes, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose);
-bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates);
+bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const std::vector<Animation>& animations, const std::vector<Keyframe>& keyframes, const Camera& camera, const vec3& sunDirection, uint64_t hashMeta, bool clrtMode, bool compressed, bool verbose);
+bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, uint64_t hashMeta, bool clrtMode, int ommStates);
 
 bool saveSceneCamera(const char* path, const Camera& camera);
 bool loadSceneCamera(const char* path, Camera& camera);

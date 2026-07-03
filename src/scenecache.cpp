@@ -18,6 +18,8 @@ struct SceneHeader
 	uint32_t magic;
 	uint32_t version;
 
+	uint64_t hashMeta;
+
 	uint32_t meshletMaxVertices;
 	uint32_t meshletMaxTriangles;
 
@@ -114,7 +116,7 @@ static size_t writeMeshletDataCompressed(const std::vector<Meshlet>& meshlets, c
 	return total;
 }
 
-bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const std::vector<Animation>& animations, const std::vector<Keyframe>& keyframes, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose)
+bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const std::vector<Animation>& animations, const std::vector<Keyframe>& keyframes, const Camera& camera, const vec3& sunDirection, uint64_t hashMeta, bool clrtMode, bool compressed, bool verbose)
 {
 	FILE* file = fopen(path, "wb");
 	if (!file)
@@ -125,6 +127,8 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 
 	header.magic = kSceneCacheMagic;
 	header.version = kSceneCacheVersion;
+
+	header.hashMeta = hashMeta;
 
 	header.meshletMaxVertices = MESH_MAXVTX;
 	header.meshletMaxTriangles = MESH_MAXTRI;
@@ -266,7 +270,7 @@ static void readMeshletDataCompressed(const std::vector<Meshlet>& meshlets, std:
 	}
 }
 
-bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates)
+bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, uint64_t hashMeta, bool clrtMode, int ommStates)
 {
 	size_t fileSize;
 	void* file = mmapFile(path, &fileSize);
@@ -277,6 +281,7 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	memcpy(&header, file, sizeof(header));
 
 	if (header.magic != kSceneCacheMagic || header.version != kSceneCacheVersion ||
+	    header.hashMeta != hashMeta ||
 	    header.meshletMaxVertices != MESH_MAXVTX || header.meshletMaxTriangles != MESH_MAXTRI ||
 	    header.clrtMode != clrtMode || header.ommStates != uint32_t(ommStates))
 	{

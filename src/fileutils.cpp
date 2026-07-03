@@ -1,7 +1,6 @@
 #include "fileutils.h"
 
 #include <assert.h>
-#include <stdint.h>
 
 #ifdef _WIN32
 #define NOMINMAX
@@ -60,6 +59,15 @@ void unmapFile(void* data, size_t size)
 	assert(ok);
 	(void)ok;
 }
+
+uint64_t hashFileMeta(const char* path)
+{
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data))
+		return 0;
+
+	return (uint64_t(data.ftLastWriteTime.dwLowDateTime) | (uint64_t(data.ftLastWriteTime.dwHighDateTime) << 32)) ^ (uint64_t(data.nFileSizeLow) << 32);
+}
 #else
 void* mmapFile(const char* path, size_t* outSize)
 {
@@ -94,5 +102,14 @@ void unmapFile(void* data, size_t size)
 	int rc = munmap(data, size);
 	assert(rc == 0);
 	(void)rc;
+}
+
+uint64_t hashFileMeta(const char* path)
+{
+	struct stat st;
+	if (stat(path, &st) != 0)
+		return 0;
+
+	return uint64_t(st.st_mtime) ^ (uint64_t(st.st_size) << 32);
 }
 #endif

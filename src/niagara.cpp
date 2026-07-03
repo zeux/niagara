@@ -820,6 +820,7 @@ int main(int argc, const char** argv)
 	Geometry geometry;
 	std::vector<Material> materials;
 	std::vector<MeshDraw> draws;
+	std::vector<Light> lights;
 	std::vector<Animation> animations;
 	std::vector<std::string> texturePaths;
 
@@ -853,10 +854,10 @@ int main(int argc, const char** argv)
 
 			double sceneTimer = glfwGetTime();
 
-			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, ommStates))
+			if (!loadSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, camera, sunDirection, clrtMode, ommStates))
 			{
 				printf("Loading scene from %s\n", argv[1]);
-				if (!loadScene(geometry, materials, draws, texturePaths, animations, camera, sunDirection, argv[1], clrtMode))
+				if (!loadScene(geometry, materials, draws, lights, texturePaths, animations, camera, sunDirection, argv[1], clrtMode))
 				{
 					printf("Error: scene %s failed to load\n", argv[1]);
 					return 1;
@@ -868,7 +869,7 @@ int main(int argc, const char** argv)
 					buildSceneOmm(geometry, materials, draws, texturePaths, ommStates, ommMip);
 				}
 
-				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, texturePaths, camera, sunDirection, clrtMode, compressed, verbose))
+				if (!saveSceneCache(cachePath.c_str(), geometry, materials, draws, lights, texturePaths, camera, sunDirection, clrtMode, compressed, verbose))
 				{
 					printf("Error: scene cache %s failed to save\n", cachePath.c_str());
 					return 1;

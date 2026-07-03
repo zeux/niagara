@@ -470,7 +470,7 @@ static cgltf_result decompressMeshopt(cgltf_data* data)
 	return cgltf_result_success;
 }
 
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool clrt)
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool clrt)
 {
 	clock_t timer = clock();
 
@@ -545,7 +545,8 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 	assert(primitiveMaterials.size() + firstMeshOffset == geometry.meshes.size());
 
-	std::vector<int> nodeDraws(data->nodes_count, -1); // for animations
+	std::vector<int> nodeDraws(data->nodes_count, -1);  // for animations
+	std::vector<int> nodeLights(data->nodes_count, -1); // for animations
 
 	size_t materialOffset = materials.size();
 	assert(materialOffset > 0); // index 0 = dummy materials
@@ -615,6 +616,21 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 			cgltf_node_transform_world(node, matrix);
 
 			sunDirection = vec3(matrix[8], matrix[9], matrix[10]);
+		}
+
+		if (node->light && node->light->type == cgltf_light_type_point)
+		{
+			float matrix[16];
+			cgltf_node_transform_world(node, matrix);
+
+			Light light = {};
+			light.position = vec3(matrix[12], matrix[13], matrix[14]);
+			light.range = node->light->range > 0 ? node->light->range : 1e2f;
+			light.color = vec3(node->light->color[0], node->light->color[1], node->light->color[2]);
+			light.intensity = node->light->intensity;
+
+			nodeLights[i] = int(lights.size());
+			lights.push_back(light);
 		}
 	}
 
@@ -718,9 +734,9 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		if (!samplersR[i] && !samplersT[i] && !samplersS[i])
 			continue;
 
-		if (nodeDraws[i] == -1)
+		if (nodeDraws[i] == -1 && nodeLights[i] == -1)
 		{
-			fprintf(stderr, "Warning: skipping animation for node %d without draw\n", int(i));
+			fprintf(stderr, "Warning: skipping animation for node %d without draw or light\n", int(i));
 			continue;
 		}
 
@@ -759,6 +775,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 
 		Animation animation = {};
 		animation.drawIndex = nodeDraws[i];
+		animation.lightIndex = nodeLights[i];
 		animation.startTime = times[0];
 		animation.period = times[1] - times[0];
 

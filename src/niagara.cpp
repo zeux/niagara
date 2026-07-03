@@ -1066,6 +1066,9 @@ int main(int argc, const char** argv)
 	Buffer dccb = {};
 	createBuffer(dccb, device, memoryProperties, 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
+	Buffer lb = {};
+	createBuffer(lb, device, memoryProperties, lights.size() * sizeof(Light), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
 	// TODO: there's a way to implement cluster visibility persistence *without* using bitwise storage at all, which may be beneficial on the balance, so we should try that.
 	// *if* we do that, we can drop meshletVisibilityOffset et al from everywhere
 	Buffer mvb = {};
@@ -1084,6 +1087,7 @@ int main(int argc, const char** argv)
 	}
 
 	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, db, scratch, draws.data(), draws.size() * sizeof(MeshDraw));
+	uploadBuffer(device, initCommandPool, initCommandBuffer, queue, lb, scratch, lights.data(), lights.size() * sizeof(Light));
 
 	VkAccelerationStructureKHR omm = nullptr;
 	Buffer ommBuffer = {};
@@ -1373,20 +1377,32 @@ int main(int argc, const char** argv)
 				const Keyframe& keyframe0 = keyframes[animation.keyframeOffset + index0];
 				const Keyframe& keyframe1 = keyframes[animation.keyframeOffset + index1];
 
-				MeshDraw& draw = draws[animation.drawIndex];
-				draw.position = glm::mix(keyframe0.translation, keyframe1.translation, float(t));
-				draw.scale = glm::mix(keyframe0.scale, keyframe1.scale, float(t));
-				draw.orientation = glm::slerp(keyframe0.rotation, keyframe1.rotation, float(t));
-
-				MeshDraw& gpuDraw = static_cast<MeshDraw*>(db.data)[animation.drawIndex];
-				memcpy(&gpuDraw, &draw, sizeof(draw));
-
-				if (raytracingSupported)
+				if (animation.drawIndex >= 0)
 				{
-					VkAccelerationStructureInstanceKHR instance = {};
-					fillInstanceRT(instance, draw, uint32_t(animation.drawIndex), blasAddresses[draw.meshIndex]);
+					MeshDraw& draw = draws[animation.drawIndex];
+					draw.position = glm::mix(keyframe0.translation, keyframe1.translation, float(t));
+					draw.scale = glm::mix(keyframe0.scale, keyframe1.scale, float(t));
+					draw.orientation = glm::slerp(keyframe0.rotation, keyframe1.rotation, float(t));
 
-					memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(tlasInstanceBuffer.data) + animation.drawIndex, &instance, sizeof(VkAccelerationStructureInstanceKHR));
+					MeshDraw& gpuDraw = static_cast<MeshDraw*>(db.data)[animation.drawIndex];
+					memcpy(&gpuDraw, &draw, sizeof(draw));
+
+					if (raytracingSupported)
+					{
+						VkAccelerationStructureInstanceKHR instance = {};
+						fillInstanceRT(instance, draw, uint32_t(animation.drawIndex), blasAddresses[draw.meshIndex]);
+
+						memcpy(static_cast<VkAccelerationStructureInstanceKHR*>(tlasInstanceBuffer.data) + animation.drawIndex, &instance, sizeof(VkAccelerationStructureInstanceKHR));
+					}
+				}
+
+				if (animation.lightIndex >= 0)
+				{
+					Light& light = lights[animation.lightIndex];
+					light.position = glm::mix(keyframe0.translation, keyframe1.translation, float(t));
+
+					Light& gpuLight = static_cast<Light*>(lb.data)[animation.lightIndex];
+					memcpy(&gpuLight, &light, sizeof(light));
 				}
 			}
 		}
@@ -2097,6 +2113,8 @@ int main(int argc, const char** argv)
 
 	destroyBuffer(mb, device);
 	destroyBuffer(mtb, device);
+
+	destroyBuffer(lb, device);
 
 	destroyBuffer(db, device);
 	destroyBuffer(dvb, device);

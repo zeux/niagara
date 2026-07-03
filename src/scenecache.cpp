@@ -10,7 +10,7 @@
 #include <string.h>
 
 const uint32_t kSceneCacheMagic = 0x434E4353; // 'SCNC'
-const uint32_t kSceneCacheVersion = 6;
+const uint32_t kSceneCacheVersion = 7;
 const uint32_t kSceneCameraVersion = 1;
 
 struct SceneHeader
@@ -40,6 +40,8 @@ struct SceneHeader
 	uint32_t drawCount;
 	uint32_t texturePathCount;
 	uint32_t lightCount;
+	uint32_t animationCount;
+	uint32_t keyframeCount;
 
 	uint32_t ommArrayDataSize;
 	uint32_t ommIndexDataSize;
@@ -112,7 +114,7 @@ static size_t writeMeshletDataCompressed(const std::vector<Meshlet>& meshlets, c
 	return total;
 }
 
-bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose)
+bool saveSceneCache(const char* path, const Geometry& geometry, const std::vector<Material>& materials, const std::vector<MeshDraw>& draws, std::vector<Light>& lights, const std::vector<std::string>& texturePaths, const std::vector<Animation>& animations, const std::vector<Keyframe>& keyframes, const Camera& camera, const vec3& sunDirection, bool clrtMode, bool compressed, bool verbose)
 {
 	FILE* file = fopen(path, "wb");
 	if (!file)
@@ -139,6 +141,8 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 	header.drawCount = draws.size();
 	header.texturePathCount = texturePaths.size();
 	header.lightCount = lights.size();
+	header.animationCount = animations.size();
+	header.keyframeCount = keyframes.size();
 	header.ommArrayDataSize = geometry.ommData.size();
 	header.ommIndexDataSize = geometry.ommIndices.size();
 	header.ommDescCount = geometry.ommDescs.size();
@@ -174,6 +178,8 @@ bool saveSceneCache(const char* path, const Geometry& geometry, const std::vecto
 	fwrite(materials.data(), sizeof(Material), materials.size(), file);
 	fwrite(draws.data(), sizeof(MeshDraw), draws.size(), file);
 	fwrite(lights.data(), sizeof(Light), lights.size(), file);
+	fwrite(animations.data(), sizeof(Animation), animations.size(), file);
+	fwrite(keyframes.data(), sizeof(Keyframe), keyframes.size(), file);
 
 	fwrite(geometry.ommData.data(), 1, geometry.ommData.size(), file);
 	fwrite(geometry.ommIndices.data(), 1, geometry.ommIndices.size(), file);
@@ -260,7 +266,7 @@ static void readMeshletDataCompressed(const std::vector<Meshlet>& meshlets, std:
 	}
 }
 
-bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates)
+bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, bool clrtMode, int ommStates)
 {
 	size_t fileSize;
 	void* file = mmapFile(path, &fileSize);
@@ -295,6 +301,8 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	draws.resize(header.drawCount);
 	texturePaths.resize(header.texturePathCount);
 	lights.resize(header.lightCount);
+	animations.resize(header.animationCount);
+	keyframes.resize(header.keyframeCount);
 
 	if (header.compressed)
 		readVertexCompressed(geometry.vertices.data(), sizeof(Vertex), geometry.vertices.size(), header.compressedVertexBytes, file, fileOffset);
@@ -321,6 +329,8 @@ bool loadSceneCache(const char* path, Geometry& geometry, std::vector<Material>&
 	read(materials.data(), sizeof(Material), materials.size(), file, fileOffset);
 	read(draws.data(), sizeof(MeshDraw), draws.size(), file, fileOffset);
 	read(lights.data(), sizeof(Light), lights.size(), file, fileOffset);
+	read(animations.data(), sizeof(Animation), animations.size(), file, fileOffset);
+	read(keyframes.data(), sizeof(Keyframe), keyframes.size(), file, fileOffset);
 
 	read(geometry.ommData.data(), 1, geometry.ommData.size(), file, fileOffset);
 	read(geometry.ommIndices.data(), 1, geometry.ommIndices.size(), file, fileOffset);

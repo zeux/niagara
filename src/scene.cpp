@@ -470,7 +470,7 @@ static cgltf_result decompressMeshopt(cgltf_data* data)
 	return cgltf_result_success;
 }
 
-bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, Camera& camera, vec3& sunDirection, const char* path, bool clrt)
+bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector<MeshDraw>& draws, std::vector<Light>& lights, std::vector<std::string>& texturePaths, std::vector<Animation>& animations, std::vector<Keyframe>& keyframes, Camera& camera, vec3& sunDirection, const char* path, bool clrt)
 {
 	clock_t timer = clock();
 
@@ -778,6 +778,8 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 		animation.lightIndex = nodeLights[i];
 		animation.startTime = times[0];
 		animation.period = times[1] - times[0];
+		animation.keyframeOffset = uint32_t(keyframes.size());
+		animation.keyframeCount = uint32_t(input->count);
 
 		std::vector<float> valuesR, valuesT, valuesS;
 
@@ -825,7 +827,7 @@ bool loadScene(Geometry& geometry, std::vector<Material>& materials, std::vector
 			kf.rotation = quat(rotation[0], rotation[1], rotation[2], rotation[3]);
 			kf.scale = std::max(scale[0], std::max(scale[1], scale[2]));
 
-			animation.keyframes.push_back(kf);
+			keyframes.push_back(kf);
 		}
 
 		animations.push_back(std::move(animation));

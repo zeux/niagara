@@ -552,7 +552,7 @@ int main(int argc, const char** argv)
 		descheapSupported = descheapSupported || strcmp(ext.extensionName, VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME) == 0;
 #endif
 
-#if defined(VK_KHR_opacity_micromap) && (defined(NDEBUG) && !CONFIG_RELVAL)
+#ifdef VK_KHR_opacity_micromap
 		ommSupported = ommSupported || strcmp(ext.extensionName, VK_KHR_OPACITY_MICROMAP_EXTENSION_NAME) == 0;
 #endif
 	}
@@ -752,8 +752,8 @@ int main(int argc, const char** argv)
 
 		if (raytracingSupported)
 		{
-			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 0 }));
-			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 1 }));
+			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ ommSupported ? 1 : 0 }));
+			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 2 }));
 			replace(shadowfillPipeline, createComputePipeline(device, pipelineCache, shadowfillProgram));
 			replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
 		}
@@ -2004,10 +2004,10 @@ int main(int argc, const char** argv)
 				    meshSubmit ? "ON" : "OFF", meshSubmit && taskShadingEnabled ? "ON" : "OFF",
 				    clusterOcclusionEnabled ? "ON" : "OFF");
 
-				debugtext(10, ~0u, "RT shadows: %s, blur %s, quality %d, checkerboard %s",
+				debugtext(10, ~0u, "RT shadows: %s, blur %s, quality %s, checkerboard %s",
 				    raytracingSupported && shadowsEnabled ? "ON" : "OFF",
 				    raytracingSupported && shadowblurEnabled ? "ON" : "OFF",
-				    shadowQuality, shadowCheckerboard ? "ON" : "OFF");
+				    shadowQuality == 0 ? (ommSupported ? "OMM" : "LQ") : "HQ", shadowCheckerboard ? "ON" : "OFF");
 			}
 		}
 

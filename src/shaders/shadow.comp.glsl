@@ -5,7 +5,11 @@
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
+
+/* TODO: we should require this and fix gl_RayFlagsForceOpacityMicromap2StateEXT hack below...
+... however this fails validation when opacity micromaps are not supported, ugh!
 #extension GL_EXT_opacity_micromap: require
+*/
 
 /* TODO: for opacity micromaps to work, you probably need to do this:
 #extension GL_EXT_opacity_micromap_ray_query_mode: require
@@ -20,6 +24,8 @@ and NVidia driver fortunately just works without this enabled anyhow.
 #include "mesh.h"
 
 layout (constant_id = 0) const int QUALITY = 0;
+
+const uint RAY_FLAG_FORCE_OPACITY_MICROMAP_2_STATE = 0x400u; // hack to avoid GL_EXT_opacity_micromap dependency for now
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -150,9 +156,11 @@ void main()
 	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
 	dir = normalize(dir);
 
-	// On AMDVLK + RDNA3, two shadow traces are faster in practice than one; however, on NV and radv one trace is noticeably faster
-	bool shadowhit = QUALITY == 0
-		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsForceOpacityMicromap2StateEXT)
+	// QUALITY=0: only traces opaque geometry (OMM not supported)
+	// QUALITY=1: trace transparent geometry using OMM 2-state fallback
+	// QUALITY=2: trace transparent geometry using alpha test; may use OMM 4-state acceleration
+	bool shadowhit = QUALITY <= 1
+		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | (QUALITY == 0 ? gl_RayFlagsCullNoOpaqueEXT : RAY_FLAG_FORCE_OPACITY_MICROMAP_2_STATE))
 		: shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT);
 
 	float shadow = shadowhit ? 0.0 : 1.0;

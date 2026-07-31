@@ -42,6 +42,9 @@
 // Should we enable synchronization validation? Worth running with 1 occasionally to check correctness.
 #define CONFIG_SYNCVAL 0
 
+// Should we enable GPU-assisted validation? This significantly slows down shader execution.
+#define CONFIG_GPUVAL 0
+
 // Maximum number of resource descriptors allocated statically
 #define DESCRIPTOR_LIMIT 65536
 

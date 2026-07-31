@@ -15,9 +15,6 @@
 #define KHR_VALIDATION CONFIG_RELVAL
 #endif
 
-// Synchronization validation is disabled by default in Debug since it's rather slow
-#define SYNC_VALIDATION CONFIG_SYNCVAL
-
 // We have a strict requirement for latest Vulkan version to be available
 #define API_VERSION VK_API_VERSION_1_4
 
@@ -69,7 +66,7 @@ VkInstance createInstance()
 	VkInstanceCreateInfo createInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 	createInfo.pApplicationInfo = &appInfo;
 
-#if KHR_VALIDATION || SYNC_VALIDATION
+#if KHR_VALIDATION || CONFIG_SYNCVAL || CONFIG_GPUVAL
 	const char* debugLayers[] = {
 		"VK_LAYER_KHRONOS_validation",
 	};
@@ -78,16 +75,23 @@ VkInstance createInstance()
 	{
 		createInfo.ppEnabledLayerNames = debugLayers;
 		createInfo.enabledLayerCount = sizeof(debugLayers) / sizeof(debugLayers[0]);
-		printf("Enabled Vulkan validation layers (sync validation %s)\n", SYNC_VALIDATION ? "enabled" : "disabled");
+		printf("Enabled Vulkan validation layers (sync validation %s, GPU validation %s)\n",
+		    CONFIG_SYNCVAL ? "enabled" : "disabled", CONFIG_GPUVAL ? "enabled" : "disabled");
 	}
 	else
 	{
 		printf("Warning: Vulkan debug layers are not available\n");
 	}
 
-#if SYNC_VALIDATION
+#if CONFIG_SYNCVAL || CONFIG_GPUVAL
 	VkValidationFeatureEnableEXT enabledValidationFeatures[] = {
+#if CONFIG_GPUVAL
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT,
+		VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT,
+#endif
+#if CONFIG_SYNCVAL
 		VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+#endif
 	};
 
 	VkValidationFeaturesEXT validationFeatures = { VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT };

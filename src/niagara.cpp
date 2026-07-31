@@ -560,6 +560,12 @@ int main(int argc, const char** argv)
 	if (getenv("DESCHEAP"))
 		descheapSupported &= atoi(getenv("DESCHEAP")) != 0;
 
+	if (descheapSupported && CONFIG_GPUVAL)
+	{
+		descheapSupported = false;
+		printf("WARNING: EXT_descriptor_heap support code is disabled since it makes GPU AV less effective\n");
+	}
+
 	if (!unifiedlayoutsSupported)
 		printf("WARNING: KHR_unified_image_layouts is not supported; barrier setup may be inefficient\n");
 

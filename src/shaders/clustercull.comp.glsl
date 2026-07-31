@@ -68,6 +68,9 @@ void main()
 	uint mi = mgi + command.taskOffset;
 	uint mvi = mgi + command.meshletVisibilityOffset;
 
+	if (mgi >= taskCount)
+		return;
+
 #if CULL
 	vec3 center = vec3(meshlets[mi].center[0], meshlets[mi].center[1], meshlets[mi].center[2]);
 	center = rotateQuat(center, meshDraw.orientation) * meshDraw.scale + meshDraw.position;
@@ -79,8 +82,7 @@ void main()
 	cone_axis = mat3(cullData.view) * cone_axis;
 	float cone_cutoff = int(meshlets[mi].cone_cutoff) / 127.0;
 
-	bool valid = mgi < taskCount;
-	bool visible = valid;
+	bool visible = true;
 	bool skip = false;
 
 	if (cullData.clusterOcclusionEnabled == 1 && cullData.postPass == 0)
@@ -122,7 +124,7 @@ void main()
 		}
 	}
 
-	if (LATE && cullData.clusterOcclusionEnabled == 1 && valid)
+	if (LATE && cullData.clusterOcclusionEnabled == 1)
 	{
 		if (visible)
 			atomicOr(meshletVisibility[mvi >> 5], 1u << (mvi & 31));
@@ -138,12 +140,9 @@ void main()
 			clusterIndices[index] = commandId | (mgi << 24);
 	}
 #else
-	if (mgi < taskCount)
-	{
-		uint index = atomicAdd(clusterCount, 1); // TODO: potentially slow global atomic
+	uint index = atomicAdd(clusterCount, 1); // TODO: potentially slow global atomic
 
-		if (index < CLUSTER_LIMIT)
-			clusterIndices[index] = commandId | (mgi << 24);
-	}
+	if (index < CLUSTER_LIMIT)
+		clusterIndices[index] = commandId | (mgi << 24);
 #endif
 }

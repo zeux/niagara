@@ -142,7 +142,7 @@ void main()
 	vec2 uv = (vec2(pos) + 0.5) / shadowData.imageSize;
 	float depth = texelFetch(depthImage, ivec2(pos), 0).r;
 
-	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, depth, 1);
+	vec4 clip = vec4(uv.x * 2 - 1, 1 - uv.y * 2, max(depth, 1e-3), 1);
 	vec4 wposh = shadowData.inverseViewProjection * clip;
 	vec3 wpos = wposh.xyz / wposh.w;
 

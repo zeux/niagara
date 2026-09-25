@@ -241,7 +241,7 @@ static void appendMesh(Geometry& result, std::vector<Vertex>& vertices, std::vec
 		{
 			// note: we're using the same value for all LODs; if this changes, we need to remove/change 85% exit criteria below
 			const float maxError = 1e-1f;
-			const unsigned int options = meshopt_SimplifySparse;
+			const unsigned int options = meshopt_SimplifySparse | meshopt_SimplifyErrorClamped;
 
 			size_t nextIndicesTarget = (size_t(double(lodIndices.size()) * 0.6) / 3) * 3;
 			float nextError = 0.f;

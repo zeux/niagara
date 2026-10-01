@@ -98,7 +98,16 @@ VkInstance createInstance()
 	validationFeatures.enabledValidationFeatureCount = sizeof(enabledValidationFeatures) / sizeof(enabledValidationFeatures[0]);
 	validationFeatures.pEnabledValidationFeatures = enabledValidationFeatures;
 
+	// Suppress "GPU Assisted Validation and Normal Core Check Validation are enabled, this is not recommended as it will be very slow" - it's fine actually.
+	const char* filter = "VALIDATION-SETTINGS";
+	VkLayerSettingEXT silenceGPUAVWarning = {"VK_LAYER_KHRONOS_validation", "message_id_filter", VK_LAYER_SETTING_TYPE_STRING_EXT, 1, &filter};
+
+	VkLayerSettingsCreateInfoEXT layerSettings = {VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT};
+	layerSettings.settingCount = 1;
+	layerSettings.pSettings = &silenceGPUAVWarning;
+
 	createInfo.pNext = &validationFeatures;
+	validationFeatures.pNext = &layerSettings;
 #endif
 #endif
 
@@ -132,6 +141,10 @@ static VkBool32 VKAPI_CALL debugUtilsCallback(VkDebugUtilsMessageSeverityFlagBit
 
 	// Works around https://github.com/KhronosGroup/Vulkan-Docs/issues/2677 - unclear if we'll need a deeper fix
 	if (strstr(callbackData->pMessage, "VUID-RuntimeSpirv-MeshEXT-10883"))
+		return VK_FALSE;
+
+	// Supresses noisy message for GPUAV
+	if (strstr(callbackData->pMessage, "validation is adjusting settings"))
 		return VK_FALSE;
 
 	const char* type = (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) ? "ERROR" : "WARNING";

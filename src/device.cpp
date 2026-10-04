@@ -251,10 +251,12 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 
 	if (result)
 	{
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(result, &props);
+		VkPhysicalDeviceDriverProperties props_drv = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES, NULL };
+		VkPhysicalDeviceProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props_drv, { 0 } };
+		vkGetPhysicalDeviceProperties2(result, &props);
 
-		printf("Selected GPU %s\n", props.deviceName);
+		printf("Selected GPU %s\n", props.properties.deviceName);
+		printf("Driver: %s / %s\n", props_drv.driverName, props_drv.driverInfo);
 	}
 	else
 	{

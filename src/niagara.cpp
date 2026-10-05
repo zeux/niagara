@@ -589,15 +589,19 @@ int main(int argc, const char** argv)
 
 	meshShadingEnabled = meshShadingSupported;
 
-	VkPhysicalDeviceProperties2 props2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+	VkPhysicalDeviceDriverProperties props2_drv = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES };
+	VkPhysicalDeviceProperties2 props2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props2_drv };
 
 #if VK_EXT_descriptor_heap
 	VkPhysicalDeviceDescriptorHeapPropertiesEXT descheapProperties = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT };
 	if (descheapSupported)
-		props2.pNext = &descheapProperties;
+		props2_drv.pNext = &descheapProperties;
 #endif
 
 	vkGetPhysicalDeviceProperties2(physicalDevice, &props2);
+
+	printf("Selected GPU %s\n", props2.properties.deviceName);
+	printf("Driver: %s / %s\n", props2_drv.driverName, props2_drv.driverInfo);
 
 #if VK_EXT_descriptor_heap
 	size_t resourceDescriptorSize = std::max(descheapProperties.imageDescriptorSize, descheapProperties.bufferDescriptorSize);
@@ -2014,6 +2018,11 @@ int main(int argc, const char** argv)
 				    raytracingSupported && shadowsEnabled ? "ON" : "OFF",
 				    raytracingSupported && shadowblurEnabled ? "ON" : "OFF",
 				    shadowQuality == 0 ? (ommSupported ? "OMM" : "LQ") : "HQ", shadowCheckerboard ? "ON" : "OFF");
+
+				debugtext(12, 0x00ffff00, "GPU: %s",
+					props2.properties.deviceName);
+				debugtext(13, 0x00ffff00, "Driver: %s / %s",
+					props2_drv.driverName, props2_drv.driverInfo);
 			}
 		}
 

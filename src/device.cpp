@@ -266,7 +266,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 	return result;
 }
 
-VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool raytracingSupported, bool clusterrtSupported, bool descheapSupported, bool ommSupported)
+VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t familyIndex, bool meshShadingSupported, bool meshShaderQueriesSupported, bool raytracingSupported, bool clusterrtSupported, bool descheapSupported, bool ommSupported)
 {
 	float queuePriorities[] = { 1.0f };
 
@@ -350,7 +350,7 @@ VkDevice createDevice(VkInstance instance, VkPhysicalDevice physicalDevice, uint
 	VkPhysicalDeviceMeshShaderFeaturesEXT featuresMesh = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT };
 	featuresMesh.taskShader = true;
 	featuresMesh.meshShader = true;
-	featuresMesh.meshShaderQueries = true;
+	featuresMesh.meshShaderQueries = meshShaderQueriesSupported;
 
 	// This will only be used if raytracingSupported=true (see below)
 	VkPhysicalDeviceRayQueryFeaturesKHR featuresRayQueries = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };

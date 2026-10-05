@@ -29,6 +29,7 @@
 #endif
 
 bool meshShadingEnabled = true;
+bool meshShaderQueriesSupported = true;
 bool cullingEnabled = true;
 bool lodEnabled = true;
 bool occlusionEnabled = true;
@@ -580,10 +581,11 @@ int main(int argc, const char** argv)
 
 		vkGetPhysicalDeviceFeatures2(physicalDevice, &features);
 
-		if (!featuresMesh.meshShaderQueries)
+		meshShaderQueriesSupported = featuresMesh.meshShaderQueries;
+
+		if (!meshShaderQueriesSupported)
 		{
-			printf("WARNING: EXT_mesh_shader support is incomplete; disabling mesh shading\n");
-			meshShadingSupported = false;
+			printf("WARNING: EXT_mesh_shader support is incomplete; disabling mesh shader queries\n");
 		}
 	}
 
@@ -612,7 +614,7 @@ int main(int argc, const char** argv)
 	uint32_t familyIndex = getGraphicsFamilyIndex(physicalDevice);
 	assert(familyIndex != VK_QUEUE_FAMILY_IGNORED);
 
-	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, raytracingSupported, clusterrtSupported, descheapSupported, ommSupported);
+	VkDevice device = createDevice(instance, physicalDevice, familyIndex, meshShadingSupported, meshShaderQueriesSupported, raytracingSupported, clusterrtSupported, descheapSupported, ommSupported);
 	assert(device);
 
 	volkLoadDevice(device);
@@ -775,9 +777,9 @@ int main(int argc, const char** argv)
 	{
 		queryPoolsTimestamp[i] = createQueryPool(device, 128, VK_QUERY_TYPE_TIMESTAMP);
 		queryPoolsPipeline[i] = createQueryPool(device, 4, VK_QUERY_TYPE_PIPELINE_STATISTICS);
-		if (meshShadingSupported)
+		if (meshShaderQueriesSupported)
 			queryPoolsMesh[i] = createQueryPool(device, 4, VK_QUERY_TYPE_MESH_PRIMITIVES_GENERATED_EXT);
-		assert(queryPoolsTimestamp[i] && queryPoolsPipeline[i] && (!meshShadingSupported || queryPoolsMesh[i]));
+		assert(queryPoolsTimestamp[i] && queryPoolsPipeline[i] && (!meshShaderQueriesSupported || queryPoolsMesh[i]));
 	}
 
 	VkCommandPool commandPools[MAX_FRAMES] = {};
@@ -1451,6 +1453,7 @@ int main(int argc, const char** argv)
 		VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 		vkCmdResetQueryPool(commandBuffer, queryPoolTimestamp, 0, 128);
+		vkCmdResetQueryPool(commandBuffer, queryPoolPipeline, 0, 4);
 		vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, 0);
 
 		if (!dvbCleared)
@@ -1529,9 +1532,10 @@ int main(int argc, const char** argv)
 
 		bool meshSubmit = meshShadingSupported && meshShadingEnabled;
 		bool clusterSubmit = meshSubmit && !taskShadingEnabled;
+		bool queryPrimitives = (meshSubmit && meshShaderQueriesSupported) || !meshSubmit;
 
 		VkQueryPool queryPoolPrimitives = meshSubmit ? queryPoolMesh : queryPoolPipeline;
-		pipelineResultsMesh[frameIndex % MAX_FRAMES] = meshSubmit;
+		pipelineResultsMesh[frameIndex % MAX_FRAMES] = meshSubmit && meshShaderQueriesSupported;
 
 		auto cull = [&](VkPipeline pipeline, uint32_t timestamp, const char* phase, bool late, unsigned int postPass = 0)
 		{
@@ -1583,7 +1587,8 @@ int main(int argc, const char** argv)
 		{
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 0);
 
-			vkCmdBeginQuery(commandBuffer, queryPoolPrimitives, query, 0);
+			if (queryPrimitives)
+				vkCmdBeginQuery(commandBuffer, queryPoolPrimitives, query, 0);
 
 			if (clusterSubmit)
 			{
@@ -1701,7 +1706,8 @@ int main(int argc, const char** argv)
 
 			vkCmdEndRendering(commandBuffer);
 
-			vkCmdEndQuery(commandBuffer, queryPoolPrimitives, query);
+			if (queryPrimitives)
+				vkCmdEndQuery(commandBuffer, queryPoolPrimitives, query);
 
 			vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, queryPoolTimestamp, timestamp + 1);
 		};
@@ -1763,7 +1769,8 @@ int main(int argc, const char** argv)
 		    { swapchain.images[imageIndex], depthPyramid.image, shadowTarget.image, shadowblurTarget.image, bloomTarget.image, gbufferTargets[0].image, gbufferTargets[1].image },
 		    { depthTarget.image });
 
-		vkCmdResetQueryPool(commandBuffer, queryPoolPrimitives, 0, 4);
+		if (queryPrimitives)
+			vkCmdResetQueryPool(commandBuffer, queryPoolPrimitives, 0, 4);
 
 		VkClearColorValue colorClear = { 135.f / 255.f, 206.f / 255.f, 250.f / 255.f, 15.f / 255.f };
 		VkClearDepthStencilValue depthClear = { 0.f, 0 };
@@ -2001,8 +2008,12 @@ int main(int argc, const char** argv)
 				debugtext(4, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
 				    tlasGpuTime,
 				    shadowsGpuTime, shadowblurGpuTime);
-				debugtext(5, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
-				    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
+				if (queryPrimitives) {
+					debugtext(5, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
+					    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
+				} else {
+					debugtext(5, ~0u, "No triangle statistics; Mesh shader queries not supported.");
+				}
 
 				debugtext(7, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
 				    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
@@ -2060,8 +2071,10 @@ int main(int argc, const char** argv)
 			VK_CHECK(vkResetFences(device, 1, &waitFence));
 
 			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsTimestamp[waitIndex], 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-			VkQueryPool queryPoolPrimitivesResults = pipelineResultsMesh[waitIndex] ? queryPoolsMesh[waitIndex] : queryPoolsPipeline[waitIndex];
-			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPrimitivesResults, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+			if (queryPrimitives) {
+				VkQueryPool queryPoolPrimitivesResults = pipelineResultsMesh[waitIndex] ? queryPoolsMesh[waitIndex] : queryPoolsPipeline[waitIndex];
+				VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPrimitivesResults, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
+			}
 
 			double frameGpuBegin = double(timestampResults[0]) * props.limits.timestampPeriod * 1e-6;
 			double frameGpuEnd = double(timestampResults[1]) * props.limits.timestampPeriod * 1e-6;

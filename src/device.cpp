@@ -249,16 +249,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 
 	VkPhysicalDevice result = preferred ? preferred : fallback;
 
-	if (result)
-	{
-		VkPhysicalDeviceDriverProperties props_drv = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES, NULL };
-		VkPhysicalDeviceProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props_drv, { 0 } };
-		vkGetPhysicalDeviceProperties2(result, &props);
-
-		printf("Selected GPU %s\n", props.properties.deviceName);
-		printf("Driver: %s / %s\n", props_drv.driverName, props_drv.driverInfo);
-	}
-	else
+	if (!result)
 	{
 		fprintf(stderr, "ERROR: No compatible GPU found\n");
 	}

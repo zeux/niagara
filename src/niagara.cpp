@@ -584,9 +584,7 @@ int main(int argc, const char** argv)
 		meshShaderQueriesSupported = featuresMesh.meshShaderQueries;
 
 		if (!meshShaderQueriesSupported)
-		{
 			printf("WARNING: EXT_mesh_shader support is incomplete; disabling mesh shader queries\n");
-		}
 	}
 
 	meshShadingEnabled = meshShadingSupported;
@@ -2008,12 +2006,10 @@ int main(int argc, const char** argv)
 				debugtext(4, ~0u, "tlas: %.2f ms, shadows: %.2f ms, shadow blur: %.2f ms",
 				    tlasGpuTime,
 				    shadowsGpuTime, shadowblurGpuTime);
-				if (queryPrimitives) {
+
+				if (queryPrimitives)
 					debugtext(5, ~0u, "triangles %.2fM; %.1fB tri / sec, %.1fM draws / sec",
 					    double(triangleCount) * 1e-6, trianglesPerSec * 1e-9, drawsPerSec * 1e-6);
-				} else {
-					debugtext(5, ~0u, "No triangle statistics; Mesh shader queries not supported.");
-				}
 
 				debugtext(7, ~0u, "frustum culling %s, occlusion culling %s, level-of-detail %s",
 				    cullingEnabled ? "ON" : "OFF", occlusionEnabled ? "ON" : "OFF", lodEnabled ? "ON" : "OFF");
@@ -2071,7 +2067,9 @@ int main(int argc, const char** argv)
 			VK_CHECK(vkResetFences(device, 1, &waitFence));
 
 			VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolsTimestamp[waitIndex], 0, COUNTOF(timestampResults), sizeof(timestampResults), timestampResults, sizeof(timestampResults[0]), VK_QUERY_RESULT_64_BIT));
-			if (queryPrimitives) {
+
+			if (queryPrimitives)
+			{
 				VkQueryPool queryPoolPrimitivesResults = pipelineResultsMesh[waitIndex] ? queryPoolsMesh[waitIndex] : queryPoolsPipeline[waitIndex];
 				VK_CHECK_QUERY(vkGetQueryPoolResults(device, queryPoolPrimitivesResults, 0, COUNTOF(pipelineResults), sizeof(pipelineResults), pipelineResults, sizeof(pipelineResults[0]), VK_QUERY_RESULT_64_BIT));
 			}

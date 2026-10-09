@@ -100,9 +100,9 @@ VkInstance createInstance()
 
 	// Suppress "GPU Assisted Validation and Normal Core Check Validation are enabled, this is not recommended as it will be very slow" - it's fine actually.
 	const char* filter = "VALIDATION-SETTINGS";
-	VkLayerSettingEXT silenceGPUAVWarning = {"VK_LAYER_KHRONOS_validation", "message_id_filter", VK_LAYER_SETTING_TYPE_STRING_EXT, 1, &filter};
+	VkLayerSettingEXT silenceGPUAVWarning = { "VK_LAYER_KHRONOS_validation", "message_id_filter", VK_LAYER_SETTING_TYPE_STRING_EXT, 1, &filter };
 
-	VkLayerSettingsCreateInfoEXT layerSettings = {VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT};
+	VkLayerSettingsCreateInfoEXT layerSettings = { VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT };
 	layerSettings.settingCount = 1;
 	layerSettings.pSettings = &silenceGPUAVWarning;
 
@@ -255,8 +255,7 @@ VkPhysicalDevice pickPhysicalDevice(VkPhysicalDevice* physicalDevices, uint32_t 
 		VkPhysicalDeviceProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props_drv, { 0 } };
 		vkGetPhysicalDeviceProperties2(result, &props);
 
-		printf("Selected GPU %s\n", props.properties.deviceName);
-		printf("Driver: %s / %s\n", props_drv.driverName, props_drv.driverInfo);
+		printf("Selected GPU %s (driver %s / %s)\n", props.properties.deviceName, props_drv.driverName, props_drv.driverInfo);
 	}
 	else
 	{

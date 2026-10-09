@@ -597,11 +597,19 @@ bool loadShaders(ShaderSet& shaders, const char* base, const char* path)
 	return true;
 }
 
-const Shader& ShaderSet::operator[](const char* name) const
+const Shader* ShaderSet::find(const char* name) const
 {
 	for (const Shader& shader : shaders)
 		if (shader.name == name)
-			return shader;
+			return &shader;
+
+	return nullptr;
+}
+
+const Shader& ShaderSet::operator[](const char* name) const
+{
+	if (const Shader* shader = find(name))
+		return *shader;
 
 	fprintf(stderr, "Error: shader %s could not be loaded\n", name);
 	abort();

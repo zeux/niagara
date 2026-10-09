@@ -6,17 +6,10 @@
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
 
-/* TODO: we should require this and fix gl_RayFlagsForceOpacityMicromap2StateEXT hack below...
-... however this fails validation when opacity micromaps are not supported, ugh!
+#if OMM
 #extension GL_EXT_opacity_micromap: require
-*/
-
-/* TODO: for opacity micromaps to work, you probably need to do this:
 #extension GL_EXT_opacity_micromap_ray_query_mode: require
-layout(constant_id = 1) const bool gl_EnableOpacityMicromapEXT = true;
-... however, we can't quite do this yet because glslang version in latest SDK doesn't have this yet,
-and NVidia driver fortunately just works without this enabled anyhow.
-*/
+#endif
 
 #extension GL_GOOGLE_include_directive: require
 
@@ -25,7 +18,9 @@ and NVidia driver fortunately just works without this enabled anyhow.
 
 layout (constant_id = 0) const int QUALITY = 0;
 
-const uint RAY_FLAG_FORCE_OPACITY_MICROMAP_2_STATE = 0x400u; // hack to avoid GL_EXT_opacity_micromap dependency for now
+#if OMM
+const bool gl_EnableOpacityMicromapEXT = true;
+#endif
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -156,11 +151,16 @@ void main()
 	dir.z += (dir1 * 2 - 1) * shadowData.sunJitter;
 	dir = normalize(dir);
 
-	// QUALITY=0: only traces opaque geometry (OMM not supported)
-	// QUALITY=1: trace transparent geometry using OMM 2-state fallback
-	// QUALITY=2: trace transparent geometry using alpha test; may use OMM 4-state acceleration
-	bool shadowhit = QUALITY <= 1
-		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | (QUALITY == 0 ? gl_RayFlagsCullNoOpaqueEXT : RAY_FLAG_FORCE_OPACITY_MICROMAP_2_STATE))
+#if OMM
+	const uint flagslq = gl_RayFlagsForceOpacityMicromap2StateEXT;
+#else
+	const uint flagslq = gl_RayFlagsCullNoOpaqueEXT;
+#endif
+
+	// QUALITY=0: trace transparent geometry using OMM 2-state fallback; without OMM traces only opaque geometry
+	// QUALITY=1: trace transparent geometry using alpha test; may use OMM 4-state acceleration
+	bool shadowhit = QUALITY == 0
+		? shadowTrace(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT | flagslq)
 		: shadowTraceTransparent(wpos, dir, gl_RayFlagsTerminateOnFirstHitEXT);
 
 	float shadow = shadowhit ? 0.0 : 1.0;

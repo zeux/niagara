@@ -651,6 +651,12 @@ int main(int argc, const char** argv)
 	bool rcs = loadShaders(shaders, argv[0], "spirv/");
 	assert(rcs);
 
+	if (ommSupported && !shaders.find("shadowomm.comp"))
+	{
+		printf("WARNING: OMM shaders are missing; disabling OMM support\n");
+		ommSupported = false;
+	}
+
 	VkDescriptorSetLayout textureSetLayout = createDescriptorArrayLayout(device);
 
 	VkPipelineCache pipelineCache = 0;
@@ -680,7 +686,7 @@ int main(int argc, const char** argv)
 	Program shadowblurProgram = {};
 	if (raytracingSupported)
 	{
-		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadow.comp"] }, sizeof(ShadowData), resourceDescriptorSize, textureSetLayout);
+		shadowProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders[ommSupported ? "shadowomm.comp" : "shadow.comp"] }, sizeof(ShadowData), resourceDescriptorSize, textureSetLayout);
 		shadowfillProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowfill.comp"] }, sizeof(vec4), resourceDescriptorSize);
 		shadowblurProgram = createProgram(device, VK_PIPELINE_BIND_POINT_COMPUTE, { &shaders["shadowblur.comp"] }, sizeof(vec4), resourceDescriptorSize);
 	}
@@ -758,8 +764,8 @@ int main(int argc, const char** argv)
 
 		if (raytracingSupported)
 		{
-			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ ommSupported ? 1 : 0 }));
-			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 2 }));
+			replace(shadowlqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 0 }));
+			replace(shadowhqPipeline, createComputePipeline(device, pipelineCache, shadowProgram, { /* QUALITY= */ 1 }));
 			replace(shadowfillPipeline, createComputePipeline(device, pipelineCache, shadowfillProgram));
 			replace(shadowblurPipeline, createComputePipeline(device, pipelineCache, shadowblurProgram));
 		}

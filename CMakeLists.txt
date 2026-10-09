@@ -64,6 +64,9 @@ if (SHADER_DEBUG)
   list(APPEND GLSL_FLAGS -gVS)
 endif()
 
+execute_process(COMMAND ${GLSL_VALIDATOR} -dumpversion OUTPUT_VARIABLE GLSL_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+string(REGEX REPLACE "^.*:" "" GLSL_VERSION "${GLSL_VERSION}") # 11:16.4.0 => 16.4.0
+
 # Thanks to: https://gist.github.com/evilactually/a0d191701cb48f157b05be7f74d79396
 set(SPIRV_OUTPUT_DIR "${PROJECT_BINARY_DIR}/spirv/")
 foreach(GLSL ${GLSL_SOURCE_FILES})
@@ -76,6 +79,21 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
     DEPENDS ${GLSL} ${GLSL_HEADER_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach()
+
+# shadow.comp.glsl has a second variant that requires opacity micromap support (glslang 16.4+)
+set(GLSL "${PROJECT_SOURCE_DIR}/src/shaders/shadow.comp.glsl")
+set(SPIRV "${SPIRV_OUTPUT_DIR}shadowomm.comp.spv")
+if(GLSL_VERSION VERSION_GREATER_EQUAL 16.4 AND GLSL IN_LIST GLSL_SOURCE_FILES)
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPIRV_OUTPUT_DIR}"
+    COMMAND ${GLSL_VALIDATOR} -V ${GLSL_FLAGS} --quiet -DOMM=1 ${GLSL} -o ${SPIRV}
+    DEPENDS ${GLSL} ${GLSL_HEADER_FILES})
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+else()
+  message(STATUS "glslang ${GLSL_VERSION} does not support GL_EXT_opacity_micromap; OMM shaders will not be compiled")
+  file(REMOVE ${SPIRV})
+endif()
 
 add_custom_target(compile_shaders DEPENDS ${SPIRV_BINARY_FILES})
 add_dependencies(niagara compile_shaders)

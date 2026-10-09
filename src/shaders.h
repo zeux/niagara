@@ -25,6 +25,7 @@ struct ShaderSet
 {
 	std::vector<Shader> shaders;
 
+	const Shader* find(const char* name) const;
 	const Shader& operator[](const char* name) const;
 };
 
